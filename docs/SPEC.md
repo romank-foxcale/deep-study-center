@@ -85,7 +85,7 @@ feedback / outcome ──▶ signal log ──▶ playbook replay ──▶ play
 6. **Library**: source KB browser (cards, versions, sources).
 7. **Settings**: workspace, provider routing per role, CLI status.
 
-## 4. Backend sketch (milestone 2+)
+## 4. Backend (built in milestone 2)
 - `providers/`: one adapter per CLI (Claude Code headless, Codex, Cursor), common interface:
   `run(job, prompt, schema?, stream) -> events`, rate-limit detection, fallback.
 - `jobs/`: research, curate, outline, card-write, fact-check, render, tutor, grade, roadmap-review.
@@ -111,4 +111,15 @@ feedback / outcome ──▶ signal log ──▶ playbook replay ──▶ play
 ## 5. Open questions
 - Card promotion to the shared library: automatic after N good uses, or manual?
 - Local Python runner for PyTorch exercises (later).
-- Exact headless flags and policy for each provider CLI (verify before milestone 2).
+- Codex (`codex exec`) and Cursor (`cursor-agent -p`) adapters: flags and output formats to verify (milestone 3).
+
+## 6. Milestone 2 notes (2026-10-14)
+- State lives in the backend; the UI renders snapshots (`GET /api/state`) and posts actions (`POST /api/action`).
+- The playbook is replayed from `signals` (stated, reaction, outcome, explain, correction, remove, adjust).
+  Weak signals (practice outcomes, "explain differently") don't bump the playbook version, so they never
+  trigger re-renders on their own; explicit feedback and settings do.
+- Lesson prose is cached per (concept, card version, section, angle, style); `style` encodes pace/depth/rigor.
+  While a new rendition is written, the closest cached prose is shown, marked as approximate.
+- The card holds the lesson plan (sections, checks with hidden keys, exercises); renditions only write prose.
+  Code-exercise tests run in the browser, so they are visible to the learner by design.
+- Jobs run on a 3-thread pool; jobs interrupted by a restart are marked failed on startup.

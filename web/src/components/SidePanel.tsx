@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useStore } from '../store'
+import { jobActive, useStore } from '../store'
 import type { SourceCard } from '../types'
 import Markdown from './Markdown'
 
@@ -7,7 +7,7 @@ export type Tab = 'tutor' | 'notes' | 'source' | 'feedback'
 
 interface Props {
   conceptId: string
-  card?: SourceCard
+  card?: SourceCard | null
   tab: Tab
   setTab: (t: Tab) => void
   draft: { tab: Tab; text: string; quote?: string } | null
@@ -39,10 +39,11 @@ function Tutor({ conceptId, draft, clearDraft, section }: { conceptId: string; d
   const { s, dispatch } = useStore()
   const [text, setText] = useState('')
   const thread = s.chats[conceptId] ?? []
+  const thinking = jobActive(s, 'tutor', { concept_id: conceptId })
   const log = useRef<HTMLDivElement>(null)
   useEffect(() => { if (draft) { setText(draft); clearDraft() } }, [draft, clearDraft])
   // Scroll the log itself; scrollIntoView would also scroll the page.
-  useEffect(() => { log.current?.scrollTo({ top: log.current.scrollHeight }) }, [thread.length])
+  useEffect(() => { log.current?.scrollTo({ top: log.current.scrollHeight }) }, [thread.length, thinking])
   const send = () => {
     if (!text.trim()) return
     dispatch({ type: 'chat', conceptId, text, sectionHeading: section })
@@ -52,14 +53,15 @@ function Tutor({ conceptId, draft, clearDraft, section }: { conceptId: string; d
     <div className="chat">
       <div className="chat-log" ref={log}>
         <div className="msg tutor">I know this lesson, your notes and how you like to learn. I'll guide you with questions and hints rather than hand you answers. Ask me anything.</div>
-        {thread.map((m, i) => <div key={i} className={`msg ${m.role}`}>{m.text}</div>)}
+        {thread.map((m, i) => <div key={i} className={`msg ${m.role}`}>{m.role === 'tutor' ? <Markdown>{m.text}</Markdown> : m.text}</div>)}
+        {thinking && <div className="msg tutor muted">Thinking…</div>}
       </div>
       <div className="chat-input">
         <textarea className="input" rows={3} value={text} placeholder="Ask the tutor…" onChange={e => setText(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }} />
         <button className="btn btn-primary" onClick={send}>Send</button>
       </div>
-      <p className="muted small">Prototype: replies are scripted. The live tutor runs on your Claude subscription.</p>
+      <p className="muted small">Runs on the provider set for “Tutor chat” in Settings.</p>
     </div>
   )
 }
@@ -98,7 +100,7 @@ function Notes({ conceptId, quote, clearDraft }: { conceptId: string; quote?: st
   )
 }
 
-export function SourceCardView({ card }: { card?: SourceCard }) {
+export function SourceCardView({ card }: { card?: SourceCard | null }) {
   if (!card) return <p className="muted">No source card yet. Research runs about one module ahead of you.</p>
   return (
     <div className="card-view">
@@ -110,6 +112,9 @@ export function SourceCardView({ card }: { card?: SourceCard }) {
         <span className={`pill ${card.factCheck === 'passed' ? 'pill-ok' : 'pill-warn'}`}>fact-check: {card.factCheck}</span>
         <span className="pill">Bloom: {card.bloom}</span>
       </div>
+      {card.factIssues && card.factIssues.length > 0 && (
+        <div className="banner"><span>Fact-check notes: {card.factIssues.join(' · ')}</span></div>
+      )}
       <h4>Core idea</h4><Markdown>{card.core}</Markdown>
       <h4>Formal</h4><Markdown>{card.formal}</Markdown>
       <h4>Why it works</h4><Markdown>{card.why}</Markdown>

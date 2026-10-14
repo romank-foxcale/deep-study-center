@@ -16,40 +16,65 @@ See [docs/SPEC.md](docs/SPEC.md) for the full design and the decisions behind it
 
 ## Status
 
-**Milestone 1: UI prototype** (this commit). A clickable React app on mock data. The feedback loop is real:
-the playbook, renditions, mastery and roadmap changes all run in a browser-side mock engine, and the code
-exercise runs real Python in the browser via Pyodide. No backend yet.
+**Milestone 2: backend** (current). The app is real end to end:
 
-Try this: open *Vectors*, give "The framing didn't work for me" feedback on a section (only that section changes),
-do it again on another section, then reopen the lesson (everything switches), and check the roadmap and
-*Me & playbook*.
+- **Engine** (deterministic, tested): BKT mastery gate, FSRS spaced reviews, playbook replay from an append-only
+  signal log, angle choice with per-section pins. No LLM calls.
+- **Store**: SQLite in your workspace (`~/DeepStudy`, override with `DSC_WORKSPACE`). Cards are versioned; lesson prose
+  is cached per (card version, section, angle, style), so a playbook change re-renders only what changed.
+- **Agent jobs** on your own subscription via the `claude` CLI (headless): module research with web search,
+  roadmap outline for a new goal, lesson rendering, tutor chat, roadmap review after feedback, independent fact-check.
+  Each job is routed per Settings; missing providers fall back to Claude, and every job has an offline fallback.
+- **Frontend** talks to the API; answers are graded on the server (keys never reach the browser before you answer).
+
+The app starts from a demo roadmap (AI researcher & engineer). "Vectors" has pre-written prose; every other lesson is
+written for you on first open. *+ New goal* runs the real interview → outline → research pipeline.
 
 ## Run
 
-Requires Node 20+.
+Requires Python 3.11+, Node 20+, and the [Claude Code](https://code.claude.com) CLI logged in with your subscription
+(`claude` on PATH). Codex and Cursor adapters come in milestone 3.
+
+```bash
+cd backend
+python -m venv .venv
+.venv/Scripts/pip install -e ".[dev]"     # macOS/Linux: .venv/bin/pip
+.venv/Scripts/dsc serve                   # API on http://127.0.0.1:8000
+```
+
+In a second terminal:
 
 ```bash
 cd web
 npm install
-npm run dev
+npm run dev                               # http://localhost:5173 (proxies /api to the backend)
 ```
 
-Then open http://localhost:5173. Data is kept in your browser's localStorage; *Settings → Reset demo data*
-starts over.
+Or build the frontend once (`npm run build` in `web/`) and `dsc serve` serves the whole app on port 8000.
+Tests: `.venv/Scripts/python -m pytest` in `backend/`.
 
 ## Layout
 
 ```
-docs/SPEC.md          product spec and decisions
-web/                  React + TypeScript (Vite) frontend
-  src/data/mock.ts    demo roadmap, source cards, the full "Vectors" lesson
-  src/store.tsx       state + mock engine (feedback → playbook → renditions, BKT, roadmap diffs)
-  src/pages/          Home, Goal setup, Roadmap, Lesson, Me, Library, Settings
-  src/components/     lesson parts: inline checks, Pyodide exercise, side panel, feedback dialog
+docs/SPEC.md            product spec and decisions
+backend/dsc/
+  engine.py             BKT, mastery gate, FSRS, playbook replay, angle choice (pure, no I/O)
+  db.py                 workspace + SQLite schema (append-only logs)
+  state.py              read side: snapshots for the UI
+  actions.py            write side: every UI action
+  lesson.py             renditions: open, refresh, prose cache, render scheduling
+  jobs.py               agent jobs (research, outline, render, tutor, roadmap review, fact-check) + fallbacks
+  providers.py          agent-CLI adapters (claude -p), routing and fallback
+  prompts/              one prompt per job
+  seed/demo.json        demo roadmap
+backend/tests/          engine and end-to-end flow tests (fake provider)
+web/src/
+  store.tsx             API client: snapshot + actions, polling while jobs run
+  pages/                Home, Goal setup, Roadmap, Lesson, Reviews, Me, Library, Settings
+  components/           inline checks, Pyodide exercise, side panel (tutor, notes, source card), feedback dialog
 ```
 
 ## Next
 
-Milestone 2: FastAPI backend with the deterministic engine (BKT, mastery gate, FSRS, playbook replay),
-SQLite workspace in `~/DeepStudy`, and agent-CLI adapters (Claude Code headless first) for research,
-cards, renditions, tutor chat and grading.
+Milestone 3: Codex and Cursor adapters, placement diagnostic for new goals, explain-back answers graded by an
+agent, "research the next module" running automatically one module ahead, weekly reflection over the feedback log.

@@ -1,0 +1,29 @@
+[project]
+name = "deep-study-center"
+version = "0.2.0"
+description = "Backend for Deep Study Center: engine, workspace store, agent-CLI providers, API"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi==0.115.6",
+  "uvicorn==0.32.1",
+  "fsrs==5.1.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==8.3.4", "httpx==0.28.1"]
+
+[project.scripts]
+dsc = "dsc.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["dsc*"]
+
+[tool.setuptools.package-data]
+dsc = ["seed/*.json", "prompts/*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
