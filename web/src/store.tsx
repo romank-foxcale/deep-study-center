@@ -2,7 +2,7 @@
 // /api/action and return the next snapshot. While agent jobs run, the snapshot is polled.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Angle, LessonView, State, Verdict } from './types'
+import type { Angle, LessonView, RunResult, SearchHit, State, Verdict } from './types'
 
 export type Action =
   | { type: 'answer'; conceptId: string; checkId: string; angle?: Angle; choice?: number; correct?: boolean }
@@ -29,6 +29,8 @@ export type Action =
   | { type: 'reflect' }
   | { type: 'decideProposal'; reflectionId: number; index: number; accept: boolean }
   | { type: 'setSetting'; key: 'autoResearch'; value: boolean }
+  | { type: 'promoteCard'; conceptId: string }
+  | { type: 'setupRunner' }
   | { type: 'reset' }
 
 export const FEEDBACK_TAGS = [
@@ -52,6 +54,9 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const getLesson = (id: string) => api<LessonView>(`/api/lesson/${encodeURIComponent(id)}`)
+export const searchAll = (q: string) => api<SearchHit[]>(`/api/search?q=${encodeURIComponent(q)}`)
+export const runLocal = (body: { conceptId: string; itemId: string; code: string; angle?: Angle; approve?: boolean }) =>
+  api<RunResult>('/api/run', { method: 'POST', body: JSON.stringify(body) })
 export const openLesson = (id: string) => api<LessonView>(`/api/lesson/${encodeURIComponent(id)}/open`, { method: 'POST' })
 
 interface Ctx {
@@ -82,11 +87,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { alive.current = true; load(); return () => { alive.current = false } }, [load])
 
-  // Poll while agent jobs run (renders, tutor replies, research), slowly otherwise.
+  // Poll while agent jobs run (renders, tutor replies, research), slowly otherwise; retry quickly
+  // until the first load succeeds (e.g. the backend is still starting).
+  const loaded = s !== null
   useEffect(() => {
-    const t = setInterval(load, busy ? 1500 : 15000)
+    const t = setInterval(load, !loaded ? 2000 : busy ? 1500 : 15000)
     return () => clearInterval(t)
-  }, [busy, load])
+  }, [busy, loaded, load])
 
   const dispatch = useCallback(async (a: Action) => {
     try {

@@ -1,0 +1,41 @@
+/* Milestone 4: interactive visuals, local runner, library tabs, search. Uses the tokens from styles.css. */
+.viz { margin: 14px 0; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.viz figcaption { margin-top: 6px; text-align: center; }
+.viz-svg { width: 100%; max-width: 420px; display: block; margin: 0 auto; touch-action: none; user-select: none; }
+.viz-plot { max-width: 640px; }
+.viz-grid { stroke: var(--border); stroke-width: 1; }
+.viz-axis { stroke: var(--muted); stroke-width: 1.5; }
+.viz-tgrid { stroke: var(--accent); stroke-opacity: 0.35; stroke-width: 1; }
+.viz-square { fill: var(--accent); fill-opacity: 0.18; stroke: var(--accent); stroke-width: 1.5; }
+.viz-span { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 2 4; }
+.viz-curve { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+.viz-svg text { font: 600 13px var(--font); fill: var(--text); }
+.viz-v0 line { stroke: var(--accent); stroke-width: 3; } .viz-v0 polygon { fill: var(--accent); }
+.viz-v1 line { stroke: var(--ok); stroke-width: 3; } .viz-v1 polygon { fill: var(--ok); }
+.viz-v2 line { stroke: var(--warn); stroke-width: 3; } .viz-v2 polygon { fill: var(--warn); }
+.viz-v3 line { stroke: var(--bad); stroke-width: 3; } .viz-v3 polygon { fill: var(--bad); }
+.viz-ghost { opacity: 0.45; }
+.viz-sum line { stroke: var(--text); stroke-width: 2.5; } .viz-sum polygon { fill: var(--text); }
+.viz-c0 { color: var(--accent); } .viz-c1 { color: var(--ok); } .viz-c2 { color: var(--warn); } .viz-c3 { color: var(--bad); }
+/* Large transparent hit area with a thin ring, so the arrowhead underneath stays visible. */
+.viz-handle { fill: transparent; stroke: var(--text); stroke-opacity: 0.35; stroke-width: 1.5; stroke-dasharray: 3 3; cursor: grab; }
+.viz-handle:focus { outline: none; stroke: var(--accent); stroke-width: 3; }
+.viz-target { fill: none; stroke: var(--warn); stroke-width: 2.5; }
+.viz-target.hit { stroke: var(--ok); fill: var(--ok); fill-opacity: 0.3; }
+.viz-readout { display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: center; font-size: 0.85rem; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.viz-controls { display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: center; margin-top: 8px; }
+.viz-slider { display: flex; flex-direction: column; font-size: 0.85rem; min-width: 160px; font-variant-numeric: tabular-nums; }
+.viz-matrix { display: grid; grid-template-columns: repeat(2, 80px); gap: 6px; justify-content: center; }
+.viz-matrix input { width: 80px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.approval { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 8px; background: var(--warn-soft); }
+.approval p { margin: 0; }
+.tabs-inline { border-bottom: none; }
+.tabs-inline .tab { flex: none; padding: 8px 12px; }
+.sidebar-search { padding: 0 4px 8px; }
+.sidebar-search input { width: 100%; }
+.search-input { flex: 1; min-width: 0; }
+.search-hit p { margin: 6px 0 0; }
+mark { background: var(--warn-soft); color: inherit; padding: 0 2px; border-radius: 3px; }
+@media (max-width: 760px) { .sidebar-search { width: 100%; padding: 4px 0; } }

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from . import engine, lesson, progress, state
+from . import engine, lesson, library, progress, state
 from .db import DB, dumps, now
 from .jobs import Jobs
 from .seed import seed_demo
@@ -360,6 +360,18 @@ def set_setting(db: DB, jobs: Jobs, a: dict) -> None:
     progress.research_ahead(db, jobs)
 
 
+def promote_card(db: DB, jobs: Jobs, a: dict) -> None:
+    try:
+        library.promote(db, a["conceptId"])
+    except ValueError as e:
+        raise ActionError(str(e)) from e
+
+
+def setup_runner(db: DB, jobs: Jobs, a: dict) -> None:
+    if not jobs.active("runner_setup"):
+        jobs.enqueue("runner_setup", "Set up local Python (numpy, torch)", {})
+
+
 def reset(db: DB, jobs: Jobs, a: dict) -> None:
     seed_demo(db)
 
@@ -367,7 +379,8 @@ def reset(db: DB, jobs: Jobs, a: dict) -> None:
 ACTIONS = {
     "answer": answer, "explain": explain, "review": review,
     "startPlacement": start_placement, "placementAnswer": placement_answer, "finishPlacement": finish_placement, "resetPlacement": reset_placement,
-    "reflect": reflect, "decideProposal": decide_proposal, "setSetting": set_setting, "feedback": feedback, "explainDifferently": explain_differently,
+    "reflect": reflect, "decideProposal": decide_proposal, "setSetting": set_setting,
+    "promoteCard": promote_card, "setupRunner": setup_runner, "feedback": feedback, "explainDifferently": explain_differently,
     "refresh": refresh, "markStudied": mark_studied, "addNote": add_note, "deleteNote": delete_note,
     "chat": chat, "decideDiff": decide_diff, "researchModule": research_module, "createGoal": create_goal,
     "setGoal": set_goal, "correctEntry": correct_entry, "adjust": adjust, "route": route, "reset": reset,

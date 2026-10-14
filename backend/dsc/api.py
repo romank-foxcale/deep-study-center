@@ -9,7 +9,7 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import actions, lesson, providers, state
+from . import actions, lesson, library, progress, providers, runner, state
 from .db import DB, workspace
 from .jobs import Jobs
 from .seed import ensure_routes, seed_demo
@@ -46,6 +46,35 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
     def open_lesson(cid: str) -> dict:
         _require_concept(db, cid)
         return lesson.open_lesson(db, jobs, cid)
+
+    @app.post("/api/run")
+    def run_code(body: dict = Body(...)) -> dict:
+        """Run an exercise locally. Returns needs_setup | needs_approval (with the tests) | blocked | ran."""
+        cid, item_id, code = body["conceptId"], body["itemId"], body.get("code", "")
+        item = actions._card_item(db, cid, item_id)
+        if not item or item["kind"] != "code" or item.get("runtime") != "local":
+            raise HTTPException(400, "not a local exercise")
+        if not runner.is_set_up():
+            return {"status": "needs_setup"}
+        if body.get("approve"):
+            runner.approve(db, cid, item_id, item["tests"])
+        if not runner.is_approved(db, cid, item_id, item["tests"]):
+            return {"status": "needs_approval", "tests": item["tests"]}
+        problems = runner.static_check(f'{code}\n{item["tests"]}')
+        if problems:
+            return {"status": "blocked", "problems": problems}
+        result = runner.run(code, item["tests"], f"{cid}-{item_id}")
+        progress.record_evidence(db, cid, item_id, 1.0 if result["passed"] else 0.0, angle=body.get("angle"))
+        return {"status": "ran", **result}
+
+    @app.get("/api/search")
+    def search(q: str = "") -> list[dict]:
+        return library.search(db, q)
+
+    @app.get("/api/export/anki")
+    def anki() -> FileResponse:
+        path = library.export_anki(db)
+        return FileResponse(path, filename=path.name, media_type="application/octet-stream")
 
     @app.get("/api/providers")
     def get_providers() -> list[dict]:

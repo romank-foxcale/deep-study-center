@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { HashRouter } from 'react-router-dom'
 import 'katex/dist/katex.min.css'
 import './styles.css'
+import './viz.css'
 import App from './App'
 import { StoreProvider } from './store'
 

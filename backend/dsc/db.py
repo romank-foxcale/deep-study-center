@@ -85,6 +85,16 @@ CREATE TABLE IF NOT EXISTS reflections (
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, summary TEXT NOT NULL, proposals TEXT NOT NULL,
   source TEXT NOT NULL);
 
+-- Local runner: the learner approved this exact test code (by hash) before it first ran.
+CREATE TABLE IF NOT EXISTS runner_approvals (
+  concept_id TEXT NOT NULL, item_id TEXT NOT NULL, tests_hash TEXT NOT NULL, approved_at TEXT NOT NULL,
+  PRIMARY KEY (concept_id, item_id, tests_hash));
+
+-- Shared card library: fact-checked cards promoted for reuse across goals (key = slug of the title).
+CREATE TABLE IF NOT EXISTS library (
+  key TEXT PRIMARY KEY, title TEXT NOT NULL, objective TEXT NOT NULL, body TEXT NOT NULL, version INTEGER NOT NULL,
+  source_concept TEXT NOT NULL, source_goal TEXT NOT NULL, promoted_at TEXT NOT NULL, uses INTEGER NOT NULL DEFAULT 0);
+
 CREATE TABLE IF NOT EXISTS routes (
   role TEXT PRIMARY KEY, ord INTEGER NOT NULL, description TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS jobs (

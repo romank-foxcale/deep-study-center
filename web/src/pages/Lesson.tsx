@@ -6,6 +6,8 @@ import Markdown from '../components/Markdown'
 import InlineCheck from '../components/InlineCheck'
 import CodeExercise from '../components/CodeExercise'
 import ExplainBack from '../components/ExplainBack'
+import LocalExercise from '../components/LocalExercise'
+import Viz from '../components/viz/Viz'
 import FeedbackDialog from '../components/FeedbackDialog'
 import SidePanel, { SourceCardView, type Tab } from '../components/SidePanel'
 import StateBadge, { MasteryBar } from '../components/StateBadge'
@@ -142,12 +144,17 @@ export default function Lesson() {
               {sec.body
                 ? <div className={sec.pending ? 'rendering' : ''}><Markdown>{sec.body}</Markdown></div>
                 : <div className="skeleton" aria-busy={sec.pending}>{sec.pending ? `Writing this section for you (${sec.angle})…` : 'Not rendered yet.'}</div>}
+              {sec.viz && <Viz key={`${sec.id}-viz`} spec={sec.viz} />}
               {sec.approximate && <p className="muted small">{sec.pending ? 'Showing the closest earlier version while your new one is written.' : 'Closest earlier version.'}</p>}
               {sec.check && (
                 <InlineCheck key={sec.check.id} check={sec.check} previous={s.answers[`${id}:${sec.check.id}`]}
                   onAnswer={choice => dispatch({ type: 'answer', conceptId: id, checkId: sec.check!.id, angle: sec.angle, choice })} />
               )}
-              {sec.code && (
+              {sec.code?.runtime === 'local' && (
+                <LocalExercise key={sec.code.id} conceptId={id} exercise={sec.code} angle={sec.angle}
+                  passed={!!s.answers[`${id}:${sec.code.id}`]?.correct} />
+              )}
+              {sec.code && sec.code.runtime !== 'local' && (
                 <CodeExercise exercise={sec.code} passed={!!s.answers[`${id}:${sec.code.id}`]?.correct}
                   onResult={ok => dispatch({ type: 'answer', conceptId: id, checkId: sec.code!.id, angle: sec.angle, correct: ok })} />
               )}
