@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { isStale, useStore } from '../store'
-import { tracks, vectorSections } from '../data/mock'
-import type { Angle, LessonSection } from '../types'
+import { getLesson, openLesson, useStore } from '../store'
+import type { Angle, LessonView } from '../types'
 import Markdown from '../components/Markdown'
 import InlineCheck from '../components/InlineCheck'
 import CodeExercise from '../components/CodeExercise'
@@ -10,26 +9,15 @@ import FeedbackDialog from '../components/FeedbackDialog'
 import SidePanel, { SourceCardView, type Tab } from '../components/SidePanel'
 import StateBadge, { MasteryBar } from '../components/StateBadge'
 
-/** Prototype: only "Vectors" has full lesson sections; the backend renders the rest. */
-const SECTIONS: Record<string, LessonSection[]> = { 'c-vectors': vectorSections }
-
-const angleOf = (sec: LessonSection, chosen?: Angle): Angle => {
-  const avail = Object.keys(sec.variants) as Angle[]
-  return chosen && avail.includes(chosen) ? chosen : avail[0]
-}
-
 export default function Lesson() {
   const { id = '' } = useParams()
-  const { s, dispatch } = useStore()
+  const { s, dispatch, reload } = useStore()
   const concept = s.concepts.find(c => c.id === id)
   const module = s.modules.find(m => m.id === concept?.moduleId)
-  const track = tracks.find(t => t.id === module?.trackId)
-  const card = s.cards.find(c => c.conceptId === id)
-  const rendition = s.renditions.find(r => r.conceptId === id)
-  const sections = SECTIONS[id] ?? []
-  const stale = isStale(rendition, s)
-  const studied = !!rendition?.studied || ['learned', 'mastered', 'rusty'].includes(concept?.state ?? '')
+  const track = s.tracks.find(t => t.id === module?.trackId)
 
+  const [view, setView] = useState<LessonView | null>(null)
+  const [loadError, setLoadError] = useState('')
   const [tab, setTab] = useState<Tab>('tutor')
   const [draft, setDraft] = useState<{ tab: Tab; text: string; quote?: string } | null>(null)
   const clearDraft = useCallback(() => setDraft(null), [])
@@ -39,25 +27,27 @@ export default function Lesson() {
   const [selection, setSelection] = useState<{ text: string; top: number; left: number } | null>(null)
   const article = useRef<HTMLElement>(null)
 
-  const refresh = useCallback(() => {
-    dispatch({
-      type: 'refresh', conceptId: id, sectionIds: sections.map(x => x.id),
-      variants: Object.fromEntries(sections.map(x => [x.id, Object.keys(x.variants) as Angle[]])),
-    })
-  }, [dispatch, id, sections])
-
-  // Not-yet-studied lessons are re-rendered when opened if the playbook or card changed.
-  // Only on open: changes made while reading apply to the targeted section alone, so the
-  // text doesn't shift under the learner.
-  const openedFor = useRef<string | null>(null)
+  // Opening the lesson applies playbook changes (re-renders if it isn't studied yet).
   useEffect(() => {
-    if (openedFor.current === id) return
-    openedFor.current = id
-    if (stale && rendition && !studied && sections.length) {
-      refresh()
-      setToast(`Re-rendered for you with playbook v${s.playbook.version}.`)
-    }
-  }, [id, stale, studied, rendition, sections.length, refresh, s.playbook.version])
+    let live = true
+    setView(null)
+    openLesson(id).then(v => {
+      if (!live) return
+      setView(v)
+      if (v.rendering) reload()
+      if (v.refreshed) setToast(`Re-rendered for you with playbook v${s.playbook.version}.`)
+    }, e => live && setLoadError((e as Error).message))
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on open
+  }, [id])
+
+  // Every new snapshot (after an action or a poll while jobs run) re-reads the lesson.
+  useEffect(() => {
+    let live = true
+    if (view) getLesson(id).then(v => live && setView(v), () => {})
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the snapshot
+  }, [s])
 
   useEffect(() => {
     if (!toast) return
@@ -81,9 +71,11 @@ export default function Lesson() {
     setSelection({ text: text.slice(0, 300), top: Math.max(8, r.top - 44), left: r.left + r.width / 2 })
   }
 
+  const sections = view?.sections ?? []
+  const rendition = view?.rendition
   const correct = Object.entries(s.answers).filter(([k, v]) => k.startsWith(id + ':') && v.correct).length
-  const idx = s.concepts.findIndex(c => c.id === id)
-  const nextConcept = s.concepts.slice(idx + 1).find(c => c.moduleId === concept.moduleId)
+  const siblings = s.concepts.filter(c => c.moduleId === concept.moduleId)
+  const nextConcept = siblings[siblings.findIndex(c => c.id === id) + 1]
 
   return (
     <div className="lesson-layout">
@@ -102,51 +94,61 @@ export default function Lesson() {
           </div>
         </header>
 
-        {stale && studied && rendition && (
+        {loadError && <p className="error">{loadError}</p>}
+        {!view && !loadError && <p className="muted">Opening…</p>}
+
+        {rendition?.stale && rendition.studied && (
           <div className="banner">
             <span>Your playbook changed since you studied this (v{rendition.playbookVersion} → v{s.playbook.version}).</span>
-            <button className="btn btn-primary" onClick={() => { refresh(); setToast('Refreshed for current you.') }}>Refresh for current me</button>
+            <button className="btn btn-primary" onClick={() => { dispatch({ type: 'refresh', conceptId: id }); setToast('Refreshing for current you…') }}>Refresh for current me</button>
+          </div>
+        )}
+        {view?.renderError && (
+          <div className="banner banner-bad">
+            <span>Couldn't render this lesson: {view.renderError}</span>
+            <button className="btn" onClick={() => dispatch({ type: 'refresh', conceptId: id })}>Try again</button>
           </div>
         )}
 
-        {sections.length === 0 && (
+        {view && !view.card && (
           <div className="placeholder">
-            {card ? (
-              <>
-                <p><strong>Your version of this lesson hasn't been rendered yet.</strong> In the full app it's written for you from the source card below when you open the lesson. The prototype only has the full “Vectors” lesson.</p>
-                <SourceCardView card={card} />
-              </>
-            ) : (
-              <p><strong>Not researched yet.</strong> Deep research runs about one module ahead of you, so this lesson will be ready before you need it.</p>
+            <p><strong>Not researched yet.</strong> Deep research runs about one module ahead of you.</p>
+            {module && module.research !== 'researching' && (
+              <button className="btn btn-primary" onClick={() => dispatch({ type: 'researchModule', moduleId: module.id })}>Research this module now</button>
             )}
+            {module?.research === 'researching' && <p className="muted">Researching this module…</p>}
           </div>
         )}
+        {view?.card && sections.length === 0 && <SourceCardView card={view.card} />}
 
         {sections.map(sec => {
-          const angle = angleOf(sec, rendition?.sectionAngles[sec.id])
-          const multi = Object.keys(sec.variants).length > 1
+          const multi = sec.angles.length > 1
           return (
             <section key={sec.id} className="lesson-section" onMouseEnter={() => setCurrent(sec.heading)}>
               <div className="section-head">
                 <h2>{sec.heading}</h2>
                 <div className="section-tools">
-                  {multi && <span className="pill" title="Teaching angle used for this section">{angle}</span>}
+                  {multi && <span className="pill" title="Teaching angle used for this section">{sec.angle}</span>}
                   {multi && (
-                    <button className="btn btn-small" onClick={() => dispatch({ type: 'explainDifferently', conceptId: id, sectionId: sec.id, available: Object.keys(sec.variants) as Angle[] })}>
+                    <button className="btn btn-small" disabled={sec.pending}
+                      onClick={() => dispatch({ type: 'explainDifferently', conceptId: id, sectionId: sec.id })}>
                       Explain differently
                     </button>
                   )}
-                  <button className="btn btn-small" onClick={() => setFeedbackFor({ sectionId: sec.id, label: `“${sec.heading}”`, angle, available: Object.keys(sec.variants) as Angle[] })}>Feedback</button>
+                  <button className="btn btn-small" onClick={() => setFeedbackFor({ sectionId: sec.id, label: `“${sec.heading}”`, angle: sec.angle, available: sec.angles })}>Feedback</button>
                 </div>
               </div>
-              <Markdown>{sec.variants[angle] ?? ''}</Markdown>
+              {sec.body
+                ? <div className={sec.pending ? 'rendering' : ''}><Markdown>{sec.body}</Markdown></div>
+                : <div className="skeleton" aria-busy={sec.pending}>{sec.pending ? `Writing this section for you (${sec.angle})…` : 'Not rendered yet.'}</div>}
+              {sec.approximate && <p className="muted small">{sec.pending ? 'Showing the closest earlier version while your new one is written.' : 'Closest earlier version.'}</p>}
               {sec.check && (
                 <InlineCheck key={sec.check.id} check={sec.check} previous={s.answers[`${id}:${sec.check.id}`]}
-                  onAnswer={(choice, ok) => dispatch({ type: 'answer', conceptId: id, checkId: sec.check!.id, angle, choice, correct: ok })} />
+                  onAnswer={choice => dispatch({ type: 'answer', conceptId: id, checkId: sec.check!.id, angle: sec.angle, choice })} />
               )}
               {sec.code && (
                 <CodeExercise exercise={sec.code} passed={!!s.answers[`${id}:${sec.code.id}`]?.correct}
-                  onResult={ok => dispatch({ type: 'answer', conceptId: id, checkId: sec.code!.id, angle, choice: ok ? 1 : 0, correct: ok })} />
+                  onResult={ok => dispatch({ type: 'answer', conceptId: id, checkId: sec.code!.id, angle: sec.angle, correct: ok })} />
               )}
             </section>
           )
@@ -155,21 +157,21 @@ export default function Lesson() {
         {sections.length > 0 && (
           <footer className="gate">
             <h3>Mastery</h3>
-            <p className="muted">The engine decides, not a “mark complete” button: P(learned) ≥ 0.95 and at least 3 correct answers, then a spaced review confirms it.</p>
+            <p className="muted">The engine decides, not a “mark complete” button: P(learned) ≥ 0.95 and at least 3 different items correct, then a spaced review a day later confirms it.</p>
             <div className="row">
               <MasteryBar value={concept.mastery} /><span>P(learned) = {concept.mastery.toFixed(2)}</span>
-              <span>· correct answers: {correct}/3</span>
+              <span>· correct answers: {correct}</span>
               <StateBadge state={concept.state} />
             </div>
             <div className="row">
-              {!studied && <button className="btn" onClick={() => dispatch({ type: 'markStudied', conceptId: id })}>I've read it</button>}
+              {!rendition?.studied && <button className="btn" onClick={() => dispatch({ type: 'markStudied', conceptId: id })}>I've read it</button>}
               {nextConcept && <Link className="btn btn-primary" to={`/lesson/${nextConcept.id}`}>Next: {nextConcept.title} →</Link>}
             </div>
           </footer>
         )}
       </article>
 
-      <SidePanel conceptId={id} card={card} tab={tab} setTab={setTab} draft={draft} clearDraft={clearDraft} currentSection={current} />
+      <SidePanel conceptId={id} card={view?.card} tab={tab} setTab={setTab} draft={draft} clearDraft={clearDraft} currentSection={current} />
 
       {selection && (
         <div className="sel-toolbar" style={{ top: selection.top, left: selection.left }} onMouseDown={e => e.preventDefault()}>

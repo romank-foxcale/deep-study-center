@@ -1,0 +1,715 @@
+{
+ "goal": {
+  "id": "g-ai",
+  "title": "Become a world-class AI researcher & engineer",
+  "why": "Understand modern AI deeply enough to build frontier-style models from scratch and contribute original research, at the level of people like Andrej Karpathy or DeepMind researchers.",
+  "doneLooksLike": "Implement and train a GPT from scratch, reproduce a recent paper end to end, and publish one original result.",
+  "hoursPerWeek": 10,
+  "createdAt": "2026-10-14"
+ },
+ "tracks": [
+  {
+   "id": "t-math",
+   "title": "Mathematical foundations",
+   "summary": "The language every later idea is written in.",
+   "moduleIds": [
+    "m-la",
+    "m-calc",
+    "m-prob",
+    "m-opt",
+    "m-info"
+   ]
+  },
+  {
+   "id": "t-ml",
+   "title": "Machine learning fundamentals",
+   "summary": "Learning from data, generalization, the classical toolbox.",
+   "moduleIds": [
+    "m-sup",
+    "m-gen",
+    "m-classic"
+   ]
+  },
+  {
+   "id": "t-dl",
+   "title": "Deep learning",
+   "summary": "Neural networks from scratch to transformers.",
+   "moduleIds": [
+    "m-micrograd",
+    "m-train",
+    "m-cnn",
+    "m-attn",
+    "m-transformer"
+   ]
+  },
+  {
+   "id": "t-llm",
+   "title": "Large language models",
+   "summary": "Pretraining, scaling, post-training, inference, evals.",
+   "moduleIds": [
+    "m-pretrain",
+    "m-scaling",
+    "m-post",
+    "m-infer",
+    "m-evals"
+   ]
+  },
+  {
+   "id": "t-research",
+   "title": "Research practice",
+   "summary": "Read, reproduce, experiment, write.",
+   "moduleIds": [
+    "m-papers",
+    "m-repro",
+    "m-exp",
+    "m-writing"
+   ]
+  }
+ ],
+ "modules": [
+  {
+   "id": "m-la",
+   "trackId": "t-math",
+   "title": "Linear algebra",
+   "research": "ready",
+   "conceptIds": [
+    "c-vectors",
+    "c-lincomb",
+    "c-span",
+    "c-dot",
+    "c-matrix-transform",
+    "c-matmul",
+    "c-det",
+    "c-inverse",
+    "c-eigen",
+    "c-svd"
+   ]
+  },
+  {
+   "id": "m-calc",
+   "trackId": "t-math",
+   "title": "Calculus for ML",
+   "research": "researching",
+   "conceptIds": [],
+   "plannedConcepts": 9
+  },
+  {
+   "id": "m-prob",
+   "trackId": "t-math",
+   "title": "Probability & statistics",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 12
+  },
+  {
+   "id": "m-opt",
+   "trackId": "t-math",
+   "title": "Optimization",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 8
+  },
+  {
+   "id": "m-info",
+   "trackId": "t-math",
+   "title": "Information theory",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 5
+  },
+  {
+   "id": "m-sup",
+   "trackId": "t-ml",
+   "title": "Supervised learning",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 10
+  },
+  {
+   "id": "m-gen",
+   "trackId": "t-ml",
+   "title": "Generalization & regularization",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 7
+  },
+  {
+   "id": "m-classic",
+   "trackId": "t-ml",
+   "title": "Classical models",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 8
+  },
+  {
+   "id": "m-micrograd",
+   "trackId": "t-dl",
+   "title": "Neural nets from scratch (autograd)",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 9
+  },
+  {
+   "id": "m-train",
+   "trackId": "t-dl",
+   "title": "Training deep networks",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 10
+  },
+  {
+   "id": "m-cnn",
+   "trackId": "t-dl",
+   "title": "Convolutional networks",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 6
+  },
+  {
+   "id": "m-attn",
+   "trackId": "t-dl",
+   "title": "Sequence models & attention",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 8
+  },
+  {
+   "id": "m-transformer",
+   "trackId": "t-dl",
+   "title": "Transformers",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 10
+  },
+  {
+   "id": "m-pretrain",
+   "trackId": "t-llm",
+   "title": "Tokenization & pretraining",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 8
+  },
+  {
+   "id": "m-scaling",
+   "trackId": "t-llm",
+   "title": "Scaling laws & compute",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 5
+  },
+  {
+   "id": "m-post",
+   "trackId": "t-llm",
+   "title": "Post-training: SFT, RLHF, DPO",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 9
+  },
+  {
+   "id": "m-infer",
+   "trackId": "t-llm",
+   "title": "Inference & efficiency",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 7
+  },
+  {
+   "id": "m-evals",
+   "trackId": "t-llm",
+   "title": "Evals & agents",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 7
+  },
+  {
+   "id": "m-papers",
+   "trackId": "t-research",
+   "title": "Reading papers",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 5
+  },
+  {
+   "id": "m-repro",
+   "trackId": "t-research",
+   "title": "Reproducing results",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 6
+  },
+  {
+   "id": "m-exp",
+   "trackId": "t-research",
+   "title": "Experiment design",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 6
+  },
+  {
+   "id": "m-writing",
+   "trackId": "t-research",
+   "title": "Writing & communicating",
+   "research": "outline",
+   "conceptIds": [],
+   "plannedConcepts": 4
+  }
+ ],
+ "concepts": [
+  {
+   "id": "c-vectors",
+   "moduleId": "m-la",
+   "title": "Vectors",
+   "objective": "Represent data as vectors; add, scale and measure them.",
+   "minutes": 25,
+   "prereqs": [],
+   "state": "learning",
+   "mastery": 0.42
+  },
+  {
+   "id": "c-lincomb",
+   "moduleId": "m-la",
+   "title": "Linear combinations",
+   "objective": "Build new vectors from weighted sums of others.",
+   "minutes": 20,
+   "prereqs": [
+    "c-vectors"
+   ],
+   "state": "ready",
+   "mastery": 0.1
+  },
+  {
+   "id": "c-span",
+   "moduleId": "m-la",
+   "title": "Span, basis & dimension",
+   "objective": "Decide what a set of vectors can reach and how many you need.",
+   "minutes": 30,
+   "prereqs": [
+    "c-lincomb"
+   ],
+   "state": "locked",
+   "mastery": 0.1
+  },
+  {
+   "id": "c-dot",
+   "moduleId": "m-la",
+   "title": "Dot product & similarity",
+   "objective": "Compute dot products and read them as similarity and projection.",
+   "minutes": 25,
+   "prereqs": [
+    "c-vectors"
+   ],
+   "state": "locked",
+   "mastery": 0.1
+  },
+  {
+   "id": "c-matrix-transform",
+   "moduleId": "m-la",
+   "title": "Matrices as transformations",
+   "objective": "Read a matrix as a function that moves space.",
+   "minutes": 30,
+   "prereqs": [
+    "c-span"
+   ],
+   "state": "locked",
+   "mastery": 0.1
+  },
+  {
+   "id": "c-matmul",
+   "moduleId": "m-la",
+   "title": "Matrix multiplication",
+   "objective": "Compose transformations; compute products by hand and with NumPy.",
+   "minutes": 30,
+   "prereqs": [
+    "c-matrix-transform",
+    "c-dot"
+   ],
+   "state": "locked",
+   "mastery": 0.1
+  },
+  {
+   "id": "c-det",
+   "moduleId": "m-la",
+   "title": "Determinant",
+   "objective": "Interpret the determinant as signed volume scaling.",
+   "minutes": 20,
+   "prereqs": [
+    "c-matrix-transform"
+   ],
+   "state": "locked",
+   "mastery": 0.1
+  },
+  {
+   "id": "c-inverse",
+   "moduleId": "m-la",
+   "title": "Inverses & linear systems",
+   "objective": "Solve Ax = b and know when no unique solution exists.",
+   "minutes": 30,
+   "prereqs": [
+    "c-det",
+    "c-matmul"
+   ],
+   "state": "locked",
+   "mastery": 0.1
+  },
+  {
+   "id": "c-eigen",
+   "moduleId": "m-la",
+   "title": "Eigenvectors & eigenvalues",
+   "objective": "Find the directions a transformation only stretches.",
+   "minutes": 35,
+   "prereqs": [
+    "c-inverse"
+   ],
+   "state": "locked",
+   "mastery": 0.1
+  },
+  {
+   "id": "c-svd",
+   "moduleId": "m-la",
+   "title": "Singular value decomposition",
+   "objective": "Factor any matrix into rotate-stretch-rotate and use it for compression.",
+   "minutes": 40,
+   "prereqs": [
+    "c-eigen"
+   ],
+   "state": "locked",
+   "mastery": 0.1
+  }
+ ],
+ "cards": [
+  {
+   "conceptId": "c-vectors",
+   "version": 2,
+   "factCheck": "passed",
+   "checkedAt": "2026-10-14",
+   "objective": "Represent data as vectors; add, scale and measure them.",
+   "bloom": "apply",
+   "core": "A vector is an ordered list of numbers that can be added and scaled. Geometrically it is an arrow from the origin; in ML it is how every piece of data is stored.",
+   "formal": "A vector in $\\mathbb{R}^n$ is $v = (v_1, \\dots, v_n)$. Addition and scaling are componentwise: $(u+v)_i = u_i + v_i$, $(cv)_i = c\\,v_i$. Length: $\\lVert v \\rVert = \\sqrt{\\sum_i v_i^2}$.",
+   "why": "Componentwise rules are exactly what makes \"tip-to-tail\" geometry work: moving along x and moving along y are independent, so the steps add separately. The length formula is Pythagoras applied repeatedly, one axis at a time.",
+   "angles": [
+    {
+     "id": "geometric",
+     "label": "Geometric",
+     "summary": "Arrows in space; tip-to-tail addition; stretching."
+    },
+    {
+     "id": "algebraic",
+     "label": "Algebraic",
+     "summary": "Ordered lists in R^n; componentwise rules; axioms."
+    },
+    {
+     "id": "computational",
+     "label": "Computational",
+     "summary": "NumPy arrays; data as vectors; embeddings."
+    }
+   ],
+   "examples": [
+    {
+     "label": "A 28×28 image as a 784-dim vector",
+     "domain": "ML"
+    },
+    {
+     "label": "Word embeddings: king − man + woman ≈ queen",
+     "domain": "NLP"
+    },
+    {
+     "label": "Walking directions as displacement",
+     "domain": "everyday"
+    }
+   ],
+   "misconceptions": [
+    "A vector is tied to a location (it is not: the same arrow can be drawn anywhere).",
+    "Adding vectors adds their lengths (it does not: |u + v| ≤ |u| + |v|)."
+   ],
+   "sources": [
+    {
+     "title": "3Blue1Brown: Vectors, what even are they?",
+     "url": "https://www.3blue1brown.com/lessons/vectors",
+     "kind": "video",
+     "why": "The canonical geometric intuition; 10 minutes."
+    },
+    {
+     "title": "Mathematics for Machine Learning, ch. 2",
+     "url": "https://mml-book.github.io/",
+     "kind": "book",
+     "why": "Precise definitions with ML framing; free PDF."
+    },
+    {
+     "title": "Immersive Linear Algebra, ch. 2",
+     "url": "https://immersivemath.com/ila/ch02_vectors/ch02.html",
+     "kind": "interactive",
+     "why": "Interactive figures you can drag."
+    }
+   ]
+  },
+  {
+   "conceptId": "c-lincomb",
+   "version": 1,
+   "factCheck": "pending",
+   "checkedAt": "2026-10-14",
+   "objective": "Build new vectors from weighted sums of others.",
+   "bloom": "apply",
+   "core": "A linear combination is a weighted sum $a u + b v$. Every output of a linear layer is one.",
+   "formal": "$w = \\sum_i c_i v_i$ with scalars $c_i$.",
+   "why": "Scaling and adding are the only two operations a vector space promises, so weighted sums are everything you can build.",
+   "angles": [
+    {
+     "id": "geometric",
+     "label": "Geometric",
+     "summary": "Reaching points by stretching and chaining arrows."
+    },
+    {
+     "id": "computational",
+     "label": "Computational",
+     "summary": "A neuron = weighted sum of inputs."
+    }
+   ],
+   "examples": [
+    {
+     "label": "Mixing paint colors (RGB)",
+     "domain": "everyday"
+    }
+   ],
+   "misconceptions": [
+    "Coefficients must be positive."
+   ],
+   "sources": [
+    {
+     "title": "3Blue1Brown: Linear combinations, span, and basis vectors",
+     "url": "https://www.3blue1brown.com/lessons/span",
+     "kind": "video",
+     "why": "Canonical intuition."
+    }
+   ]
+  }
+ ],
+ "vectorSections": [
+  {
+   "id": "s-why",
+   "heading": "Why this comes first",
+   "variants": {
+    "geometric": "Every model you will build, from linear regression to GPT, stores everything as vectors: an image, a sentence, the weights of a network, the gradient that updates them. When Karpathy writes `x = x + self.attn(x)`, both sides are vectors. Being fluent with them is the cheapest way to make everything later easier.",
+    "algebraic": "Linear algebra is the grammar of ML. Every object you will manipulate (inputs, weights, activations, gradients) lives in a vector space $\\mathbb{R}^n$. Get the rules of that space right now and every later derivation becomes bookkeeping.",
+    "computational": "Open any ML codebase and nearly every variable is an array: `images.shape == (batch, 784)`, `embeddings.shape == (vocab, 768)`. Those arrays are vectors (and stacks of vectors). This lesson is about what you are allowed to do with them, and why."
+   }
+  },
+  {
+   "id": "s-idea",
+   "heading": "What a vector is",
+   "variants": {
+    "geometric": "Picture an **arrow** starting at the origin. Its tip lands at a point, and the coordinates of that point *are* the vector:\n\n$$v = \\begin{pmatrix} 3 \\\\ 2 \\end{pmatrix}$$\n\nmeans \"go 3 steps along x, then 2 steps along y\". Two things define the arrow: **direction** and **length**. Where you draw it does not matter: slide it anywhere without rotating it and it is the same vector.\n\nIn 3D you add a third coordinate. In ML you keep going: a 28×28 grayscale image is an arrow in a 784-dimensional space. You can't picture 784 axes, but every rule you learn in 2D still holds.",
+    "algebraic": "A vector in $\\mathbb{R}^n$ is an **ordered list** of $n$ real numbers:\n\n$$v = (v_1, v_2, \\dots, v_n)$$\n\nOrder matters: $(3, 2) \\neq (2, 3)$. The numbers $v_i$ are the **components**, and $n$ is the dimension. Nothing more is assumed yet; what makes these lists *vectors* is the pair of operations below, addition and scaling, and the rules they obey.",
+    "computational": "In code, a vector is a 1-D array of numbers:\n\n```python\nimport numpy as np\nv = np.array([3.0, 2.0])     # a 2-D vector\nimg = np.random.rand(784)    # a flattened 28x28 image: a 784-D vector\n```\n\nThe position of each number carries meaning (pixel 0, pixel 1, ...), so order matters. A word embedding is the same thing: `emb[\"king\"]` is a vector with, say, 768 numbers that the model learned."
+   }
+  },
+  {
+   "id": "s-ops",
+   "heading": "Adding and scaling",
+   "variants": {
+    "geometric": "**Add** by chaining arrows **tip to tail**: walk along $u$, then along $v$; where you end up is $u + v$. Because the x-steps and y-steps don't interfere, you can also just add coordinates:\n\n$$\\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix} + \\begin{pmatrix} 3 \\\\ -1 \\end{pmatrix} = \\begin{pmatrix} 4 \\\\ 1 \\end{pmatrix}$$\n\n**Scale** by stretching: $2v$ is the same direction, twice as long; $-v$ flips it around; $0.5v$ shrinks it by half.",
+    "algebraic": "Both operations are **componentwise**:\n\n$$(u + v)_i = u_i + v_i, \\qquad (c\\,v)_i = c\\,v_i$$\n\nSo $(1, 2) + (3, -1) = (4, 1)$ and $2 \\cdot (1, 2) = (2, 4)$. These operations satisfy the vector-space axioms (commutativity, associativity, a zero vector, inverses, distributivity), which is exactly what lets you rearrange expressions like ordinary algebra.",
+    "computational": "NumPy does both componentwise, with no loops:\n\n```python\nu = np.array([1.0, 2.0]); v = np.array([3.0, -1.0])\nu + v      # array([4., 1.])\n2 * u      # array([2., 4.])\n```\n\nThis is the whole of a gradient-descent step: `w = w - lr * grad` scales the gradient vector and adds it to the weight vector."
+   },
+   "check": {
+    "id": "q-ops",
+    "prompt": "What is $2 \\cdot (1, -3) + (0, 4)$?",
+    "options": [
+     "$(2, -2)$",
+     "$(2, 10)$",
+     "$(1, 1)$",
+     "$(3, -2)$"
+    ],
+    "answer": 0,
+    "explanation": "Scale first: $2 \\cdot (1, -3) = (2, -6)$. Then add componentwise: $(2 + 0, -6 + 4) = (2, -2)$."
+   }
+  },
+  {
+   "id": "s-length",
+   "heading": "Length (the norm)",
+   "variants": {
+    "geometric": "The length of $v = (3, 4)$ is the hypotenuse of a right triangle with legs 3 and 4, so by Pythagoras:\n\n$$\\lVert v \\rVert = \\sqrt{3^2 + 4^2} = 5$$\n\nIn 3D, apply Pythagoras twice; in $n$ dimensions, keep going: square every component, add, take the root.",
+    "algebraic": "The Euclidean norm is\n\n$$\\lVert v \\rVert = \\sqrt{\\textstyle\\sum_{i=1}^{n} v_i^2}$$\n\nIt is never negative, is zero only for the zero vector, scales as $\\lVert c v \\rVert = |c|\\,\\lVert v \\rVert$, and obeys the triangle inequality $\\lVert u + v \\rVert \\le \\lVert u \\rVert + \\lVert v \\rVert$.",
+    "computational": "```python\nnp.linalg.norm(np.array([3.0, 4.0]))   # 5.0\n```\n\nYou will meet this constantly: gradient clipping caps `norm(grad)`, and dividing by the norm gives a **unit vector** (length 1), which is how embeddings are normalized before comparing them."
+   },
+   "check": {
+    "id": "q-norm",
+    "prompt": "What is the length of $(1, 2, 2)$?",
+    "options": [
+     "$5$",
+     "$3$",
+     "$\\sqrt{5}$",
+     "$9$"
+    ],
+    "answer": 1,
+    "explanation": "$\\sqrt{1^2 + 2^2 + 2^2} = \\sqrt{9} = 3$."
+   }
+  },
+  {
+   "id": "s-misc",
+   "heading": "A common trap",
+   "variants": {
+    "geometric": "\"Adding two vectors adds their lengths.\" It doesn't. Walk 3 m east, then 4 m north: you walked 7 m, but you are only **5 m** from the start. Lengths add only when the arrows point the same way, which is the triangle inequality: $\\lVert u + v \\rVert \\le \\lVert u \\rVert + \\lVert v \\rVert$.",
+    "algebraic": "Norms are not additive. With $u = (3, 0)$ and $v = (0, 4)$: $\\lVert u \\rVert + \\lVert v \\rVert = 7$ but $\\lVert u + v \\rVert = 5$. In general $\\lVert u + v \\rVert \\le \\lVert u \\rVert + \\lVert v \\rVert$, with equality only when one is a non-negative multiple of the other.",
+    "computational": "Try it:\n\n```python\nu, v = np.array([3., 0.]), np.array([0., 4.])\nnp.linalg.norm(u) + np.linalg.norm(v)  # 7.0\nnp.linalg.norm(u + v)                   # 5.0\n```\n\nSumming per-example gradients therefore gives a total gradient whose norm can be much smaller than the sum of norms: the gradients partly cancel."
+   },
+   "check": {
+    "id": "q-misc",
+    "prompt": "If $\\lVert u \\rVert = 2$ and $\\lVert v \\rVert = 3$, which value is **impossible** for $\\lVert u + v \\rVert$?",
+    "options": [
+     "$1$",
+     "$3.5$",
+     "$5$",
+     "$6$"
+    ],
+    "answer": 3,
+    "explanation": "By the triangle inequality, $\\lVert u + v \\rVert \\le 2 + 3 = 5$, and it is at least $|3 - 2| = 1$. So 6 is impossible."
+   }
+  },
+  {
+   "id": "s-code",
+   "heading": "Build it yourself",
+   "variants": {
+    "geometric": "Implement the three operations with plain Python lists (no NumPy), so the rules are in your fingers, not just your head."
+   },
+   "code": {
+    "id": "x-vec",
+    "prompt": "Implement `add(u, v)`, `scale(c, v)` and `norm(v)` for vectors given as Python lists.",
+    "starter": "import math\n\ndef add(u, v):\n    # componentwise sum\n    ...\n\ndef scale(c, v):\n    # multiply every component by c\n    ...\n\ndef norm(v):\n    # Euclidean length\n    ...\n",
+    "tests": "assert add([1, 2], [3, -1]) == [4, 1], \"add([1, 2], [3, -1]) should be [4, 1]\"\nassert scale(2, [1, -3]) == [2, -6], \"scale(2, [1, -3]) should be [2, -6]\"\nassert abs(norm([3, 4]) - 5) < 1e-9, \"norm([3, 4]) should be 5\"\nassert abs(norm([1, 2, 2]) - 3) < 1e-9, \"norm([1, 2, 2]) should be 3\"\nprint(\"All tests passed\")"
+   }
+  }
+ ],
+ "playbook": {
+  "version": 3,
+  "adjust": {
+   "pace": 0,
+   "depth": 1,
+   "rigor": 0
+  },
+  "entries": [
+   {
+    "id": "p-geo",
+    "dimension": "angle",
+    "value": "geometric",
+    "score": 0.74,
+    "evidence": 2.5,
+    "verdict": "works",
+    "note": "You said: \"pictures before formulas\". Placement answers on geometry questions were strong."
+   },
+   {
+    "id": "p-comp",
+    "dimension": "angle",
+    "value": "computational",
+    "score": 0.6,
+    "evidence": 1,
+    "verdict": "trying",
+    "note": "You code daily; one good outcome so far."
+   },
+   {
+    "id": "p-alg",
+    "dimension": "angle",
+    "value": "algebraic",
+    "score": 0.5,
+    "evidence": 0.5,
+    "verdict": "trying",
+    "note": "Not tried yet."
+   },
+   {
+    "id": "p-ml",
+    "dimension": "example-domain",
+    "value": "ML / AI",
+    "score": 0.8,
+    "evidence": 2,
+    "verdict": "works",
+    "note": "Stated interest; matches your goal."
+   },
+   {
+    "id": "p-code",
+    "dimension": "format",
+    "value": "code next to math",
+    "score": 0.62,
+    "evidence": 1,
+    "verdict": "trying",
+    "note": "You asked to see code alongside formulas."
+   }
+  ]
+ },
+ "diffs": [
+  {
+   "id": "d-placement",
+   "ts": "2026-10-14T09:12:00",
+   "status": "approved",
+   "reason": "Placement diagnostic: you answered all algebra-refresher questions correctly.",
+   "changes": [
+    {
+     "op": "compress",
+     "title": "Algebra & functions refresher",
+     "detail": "Marked as known; one spaced review in 7 days instead of 4 lessons."
+    }
+   ]
+  }
+ ],
+ "routes": [
+  {
+   "role": "Research",
+   "description": "Parallel researchers, one per perspective",
+   "provider": "claude",
+   "model": "opus"
+  },
+  {
+   "role": "Source curation",
+   "description": "Dedupe sources, pick canonical ones",
+   "provider": "claude",
+   "model": "opus"
+  },
+  {
+   "role": "Curriculum",
+   "description": "Roadmap outline and prerequisite graph",
+   "provider": "claude",
+   "model": "opus"
+  },
+  {
+   "role": "Source cards",
+   "description": "Write concept cards (knowledge center #1)",
+   "provider": "claude",
+   "model": "opus"
+  },
+  {
+   "role": "Fact-check",
+   "description": "Independent check of every card",
+   "provider": "codex",
+   "model": "default"
+  },
+  {
+   "role": "Renditions",
+   "description": "Your version of each lesson (knowledge center #2)",
+   "provider": "claude",
+   "model": "sonnet"
+  },
+  {
+   "role": "Tutor chat",
+   "description": "Socratic help inside a lesson",
+   "provider": "claude",
+   "model": "sonnet"
+  },
+  {
+   "role": "Grading",
+   "description": "Free-text and explain-back answers",
+   "provider": "claude",
+   "model": "sonnet"
+  },
+  {
+   "role": "Code review",
+   "description": "Feedback on exercise solutions",
+   "provider": "cursor",
+   "model": "default"
+  },
+  {
+   "role": "Roadmap review",
+   "description": "Propose roadmap changes from feedback",
+   "provider": "claude",
+   "model": "opus"
+  }
+ ]
+}

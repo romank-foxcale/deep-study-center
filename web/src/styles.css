@@ -245,3 +245,20 @@ a.concept:hover { background: var(--surface-2); text-decoration: none; }
   .slider-row { grid-template-columns: 60px 1fr 40px; }
   .slider-row .muted { display: none; }
 }
+
+/* backend-wired states */
+.boot { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.error { color: var(--bad); }
+.pill-bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+.banner-bad { background: var(--bad-soft); }
+.app-error { margin: 12px 16px 0; }
+.sidebar-goal-select { margin: 0 4px 12px; width: calc(100% - 8px); font-size: 0.8rem; }
+.skeleton { margin: 0.6em 0; padding: 18px 14px; border-radius: 8px; color: var(--muted); font-size: 0.9rem;
+  background: linear-gradient(90deg, var(--surface-2), var(--surface), var(--surface-2)); background-size: 200% 100%; animation: shimmer 1.6s infinite linear; }
+.rendering { opacity: 0.6; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+.pipe-step.failed { color: var(--bad); }
+.msg .md p:first-child { margin-top: 0; }
+.msg .md p:last-child { margin-bottom: 0; }
+.msg { white-space: normal; }
+.msg.me { white-space: pre-wrap; }
