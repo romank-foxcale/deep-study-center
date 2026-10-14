@@ -68,6 +68,23 @@ CREATE TABLE IF NOT EXISTS chats (
 CREATE TABLE IF NOT EXISTS reviews (
   concept_id TEXT PRIMARY KEY, card TEXT NOT NULL, due TEXT NOT NULL, learned_at TEXT NOT NULL);
 
+-- Explain-back answers and the grader's verdicts (graded evidence goes to `evidence`).
+CREATE TABLE IF NOT EXISTS gradings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, concept_id TEXT NOT NULL, item_id TEXT NOT NULL,
+  answer TEXT NOT NULL, status TEXT NOT NULL, score REAL, feedback TEXT, missing TEXT, followup TEXT);
+
+-- Placement diagnostic: a question bank per goal (one row per module) and the answers.
+CREATE TABLE IF NOT EXISTS placement_items (
+  goal_id TEXT NOT NULL, module_id TEXT NOT NULL, item TEXT NOT NULL, PRIMARY KEY (goal_id, module_id));
+CREATE TABLE IF NOT EXISTS placement_answers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, goal_id TEXT NOT NULL, module_id TEXT NOT NULL,
+  choice INTEGER, correct INTEGER NOT NULL);
+
+-- Weekly reflections over the feedback log, with proposals the learner accepts or rejects.
+CREATE TABLE IF NOT EXISTS reflections (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, summary TEXT NOT NULL, proposals TEXT NOT NULL,
+  source TEXT NOT NULL);
+
 CREATE TABLE IF NOT EXISTS routes (
   role TEXT PRIMARY KEY, ord INTEGER NOT NULL, description TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS jobs (
@@ -75,6 +92,11 @@ CREATE TABLE IF NOT EXISTS jobs (
   input TEXT NOT NULL, output TEXT, error TEXT, progress TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 """
+
+MIGRATIONS = [
+    ("evidence", "score", "REAL"),                         # soft evidence (0..1), e.g. graded explain-back
+    ("modules", "known", "INTEGER NOT NULL DEFAULT 0"),    # placement showed the learner knows it
+]
 
 
 def workspace() -> Path:
@@ -106,6 +128,14 @@ class DB:
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA foreign_keys=ON")
         self.conn.executescript(SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Additive column migrations for workspaces created by older versions."""
+        for table, column, ddl in MIGRATIONS:
+            cols = {r["name"] for r in self.conn.execute(f"PRAGMA table_info({table})").fetchall()}
+            if column not in cols:
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
     def q(self, sql: str, args: tuple | list = ()) -> list[dict]:
         with self.lock:

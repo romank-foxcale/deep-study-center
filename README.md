@@ -16,24 +16,33 @@ See [docs/SPEC.md](docs/SPEC.md) for the full design and the decisions behind it
 
 ## Status
 
-**Milestone 2: backend** (current). The app is real end to end:
+**Milestone 3** (current). On top of the milestone-2 backend:
 
-- **Engine** (deterministic, tested): BKT mastery gate, FSRS spaced reviews, playbook replay from an append-only
-  signal log, angle choice with per-section pins. No LLM calls.
-- **Store**: SQLite in your workspace (`~/DeepStudy`, override with `DSC_WORKSPACE`). Cards are versioned; lesson prose
-  is cached per (card version, section, angle, style), so a playbook change re-renders only what changed.
-- **Agent jobs** on your own subscription via the `claude` CLI (headless): module research with web search,
-  roadmap outline for a new goal, lesson rendering, tutor chat, roadmap review after feedback, independent fact-check.
-  Each job is routed per Settings; missing providers fall back to Claude, and every job has an offline fallback.
-- **Frontend** talks to the API; answers are graded on the server (keys never reach the browser before you answer).
+- **Explain-back**: lessons ask you to explain an idea in your own words; an independent grader agent scores it
+  against a hidden rubric (1 / 0.5 / 0, with what's missing and a follow-up question). Passing it is part of the
+  mastery gate, and partial credit counts as soft evidence.
+- **Placement**: a quiz over the roadmap outline (one question per module, binary search per track, "I don't know"
+  welcome) proposes compressing the modules you already know; you approve it on the roadmap.
+- **Research ahead**: the next module is researched automatically while you work on the current one
+  (Settings → Research to turn it off).
+- **Weekly reflection**: once a week, after a few pieces of feedback, an agent reviews your feedback log, practice
+  results and notes, writes a short summary, and proposes playbook changes you accept or reject.
+- **Codex and Cursor adapters**: `codex exec` (structured output via `--output-schema`) and the Cursor CLI
+  (`cursor-agent` / `agent`, JSON parsed from the result). Both strip API-key variables so your plan is used.
+  Not yet tested against the real CLIs.
+- **CI**: backend tests and the frontend type-check, lint and build run on every push and pull request.
+
+Milestone 2 built the backend: the deterministic engine (BKT, FSRS, playbook replay), the SQLite workspace
+(`~/DeepStudy`, override with `DSC_WORKSPACE`), and agent jobs on your own subscription for research, roadmap
+outlines, lesson rendering, tutor chat, roadmap reviews and fact-checks, each with an offline fallback.
 
 The app starts from a demo roadmap (AI researcher & engineer). "Vectors" has pre-written prose; every other lesson is
-written for you on first open. *+ New goal* runs the real interview → outline → research pipeline.
+written for you on first open. *+ New goal* runs the real interview → outline → placement → research pipeline.
 
 ## Run
 
 Requires Python 3.11+, Node 20+, and the [Claude Code](https://code.claude.com) CLI logged in with your subscription
-(`claude` on PATH). Codex and Cursor adapters come in milestone 3.
+(`claude` on PATH). Optional: `codex` and the Cursor CLI, logged in, if you route jobs to them in Settings.
 
 ```bash
 cd backend
@@ -63,18 +72,21 @@ backend/dsc/
   state.py              read side: snapshots for the UI
   actions.py            write side: every UI action
   lesson.py             renditions: open, refresh, prose cache, render scheduling
-  jobs.py               agent jobs (research, outline, render, tutor, roadmap review, fact-check) + fallbacks
-  providers.py          agent-CLI adapters (claude -p), routing and fallback
+  jobs.py               agent jobs (research, outline, render, tutor, roadmap review, fact-check,
+                        grading, placement quiz, reflection) + offline fallbacks
+  progress.py           evidence recording, research one module ahead
+  providers.py          agent-CLI adapters (claude -p, codex exec, Cursor CLI), routing and fallback
   prompts/              one prompt per job
   seed/demo.json        demo roadmap
 backend/tests/          engine and end-to-end flow tests (fake provider)
 web/src/
   store.tsx             API client: snapshot + actions, polling while jobs run
-  pages/                Home, Goal setup, Roadmap, Lesson, Reviews, Me, Library, Settings
-  components/           inline checks, Pyodide exercise, side panel (tutor, notes, source card), feedback dialog
+  pages/                Home, Goal setup, Placement, Roadmap, Lesson, Reviews, Me, Library, Settings
+  components/           inline checks, explain-back, Pyodide exercise, side panel (tutor, notes, source card),
+                        feedback dialog
 ```
 
 ## Next
 
-Milestone 3: Codex and Cursor adapters, placement diagnostic for new goals, explain-back answers graded by an
-agent, "research the next module" running automatically one module ahead, weekly reflection over the feedback log.
+Ideas for milestone 4: a local Python runner for PyTorch exercises, interactive visualizations for the lessons that
+need them, promoting good cards into a library shared across goals, search across notes, and an export to Anki.

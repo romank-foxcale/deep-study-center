@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException
@@ -11,19 +12,21 @@ from fastapi.staticfiles import StaticFiles
 from . import actions, lesson, providers, state
 from .db import DB, workspace
 from .jobs import Jobs
-from .seed import seed_demo
+from .seed import ensure_routes, seed_demo
 
 
 def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path | None = None) -> FastAPI:
     db = db or DB(workspace() / "study.db")
     if not db.one("SELECT 1 FROM routes LIMIT 1"):
         seed_demo(db)  # first run: start from the demo roadmap
+    ensure_routes(db)
     jobs = jobs or Jobs(db)
     app = FastAPI(title="Deep Study Center")
     app.state.db, app.state.jobs = db, jobs
 
     @app.get("/api/state")
     def get_state() -> dict:
+        maybe_reflect(db, jobs)
         return state.snapshot(db)
 
     @app.post("/api/action")
@@ -56,6 +59,20 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
             return FileResponse(static_dir / "index.html")
 
     return app
+
+
+REFLECT_EVERY = timedelta(days=7)
+REFLECT_MIN_FEEDBACK = 3
+
+
+def maybe_reflect(db: DB, jobs: Jobs) -> None:
+    """Weekly reflection: once a week, if there's been enough feedback since the last one."""
+    last = db.meta("last_reflection")
+    if last and datetime.now(timezone.utc) - datetime.fromisoformat(last) < REFLECT_EVERY:
+        return
+    since = db.one("SELECT COUNT(*) AS n FROM feedback WHERE ts > ?", (last or "",))["n"]
+    if since >= REFLECT_MIN_FEEDBACK and not jobs.active("reflect"):
+        jobs.enqueue("reflect", "Weekly reflection", {})
 
 
 def _require_concept(db: DB, cid: str) -> None:

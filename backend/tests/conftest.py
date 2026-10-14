@@ -27,6 +27,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("DSC_WORKSPACE", str(tmp_path))
     db = DB(tmp_path / "study.db")
     seed_demo(db)
+    db.set_meta("auto_research", "0")  # tests that want research-ahead turn it on explicitly
     runner = FakeRunner()
     jobs = Jobs(db, runner=runner, inline=True)
     return db, jobs, runner

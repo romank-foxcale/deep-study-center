@@ -20,6 +20,12 @@ export default function Roadmap() {
       <h1>Roadmap</h1>
       <p className="lead">{s.goal.title}. Tracks → modules → concepts. It changes as you learn, but only with your approval.</p>
 
+      {s.placement && !s.placement.finished && (
+        <div className="card card-accent row row-between">
+          <span>Already know some of this? A short placement quiz finds where you should start.</span>
+          <Link className="btn btn-primary" to="/placement">Take placement</Link>
+        </div>
+      )}
       {reviewing && <div className="card card-warn"><p className="muted">Reviewing your feedback; a proposed change will appear here.</p></div>}
       {pending.map(d => (
         <div key={d.id} className="card card-warn">
@@ -49,6 +55,7 @@ export default function Roadmap() {
                 <div key={m.id} className="module">
                   <button className="module-head" onClick={() => setOpen(o => ({ ...o, [m.id]: !o[m.id] }))} aria-expanded={!!open[m.id]}>
                     <span className="module-title">{m.title}</span>
+                    {m.known && <span className="pill pill-ok" title="Placement showed you know this">known</span>}
                     <span className={`pill ${m.research === 'ready' ? 'pill-ok' : m.research === 'researching' ? 'pill-warn' : ''}`}>{m.research}</span>
                     <span className="muted small">{cs.length ? `${done}/${cs.length} learned` : `~${m.plannedConcepts} concepts planned`}</span>
                   </button>
@@ -70,7 +77,7 @@ export default function Roadmap() {
                           })}
                         </ol>
                       )}
-                      {m.research === 'outline' && (
+                      {m.research === 'outline' && !m.known && (
                         <div className="module-empty row">
                           <span className="muted">Outline only. Concepts and source cards are researched when you're about one module away.</span>
                           <button className="btn btn-small" onClick={() => dispatch({ type: 'researchModule', moduleId: m.id })}>Research now</button>

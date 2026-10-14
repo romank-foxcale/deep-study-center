@@ -20,6 +20,8 @@ WORKS, AVOID, MIN_EVIDENCE = 0.68, 0.32, 1.5
 # BKT and mastery gate (as in study-center's mentor_core.learner).
 SLIP, GUESS, TRANSIT = 0.10, 0.25, 0.15
 GATE_P, GATE_CORRECT = 0.95, 3
+PASS_SCORE = 0.8          # a graded answer at or above this counts as correct
+PLACEMENT_MAX = 20        # placement diagnostic question cap
 CONFIRM_AFTER = timedelta(hours=20)
 
 
@@ -109,11 +111,12 @@ def choose_angles(sections: list[dict], playbook: dict, pinned: dict[str, str]) 
 
 # ---------------------------------------------------------------- mastery
 
-def bkt(p: float, correct: bool) -> float:
-    if correct:
-        post = p * (1 - SLIP) / (p * (1 - SLIP) + (1 - p) * GUESS)
-    else:
-        post = p * SLIP / (p * SLIP + (1 - p) * (1 - GUESS))
+def bkt(p: float, score: float | bool) -> float:
+    """Soft-evidence BKT step: mixes the correct/incorrect posteriors by ``score`` (0..1)."""
+    score = float(score)
+    p_right = p * (1 - SLIP) / (p * (1 - SLIP) + (1 - p) * GUESS)
+    p_wrong = p * SLIP / (p * SLIP + (1 - p) * (1 - GUESS))
+    post = score * p_right + (1 - score) * p_wrong
     return min(1.0, post + (1 - post) * TRANSIT)
 
 
@@ -128,7 +131,8 @@ class ConceptState:
 def derive_concepts(concepts: list[dict], evidence: list[dict]) -> dict[str, ConceptState]:
     """Replay evidence (oldest first) into per-concept state.
 
-    learned: P(learned) >= 0.95 and >= 3 distinct items answered correctly.
+    learned: P(learned) >= 0.95 and >= 3 distinct items answered correctly, plus an explain-back
+    passed when the card has one (``explain_items``).
     mastered: a correct spaced review at least 20 h after learning. rusty: the latest review failed.
     locked/ready from prerequisites; learning once the learner has started or answered anything.
     """
@@ -140,8 +144,11 @@ def derive_concepts(concepts: list[dict], evidence: list[dict]) -> dict[str, Con
     base: dict[str, ConceptState] = {}
     for c in concepts:
         p, items, learned_at, status = c["p_init"], set(), None, None
+        explain_items = set(c.get("explain_items") or [])
+        explained = not explain_items
         for ev in by_concept.get(c["id"], []):
-            ok = bool(ev["correct"])
+            score = ev["score"] if ev.get("score") is not None else float(ev["correct"])
+            ok = score >= PASS_SCORE
             if ev["kind"] == "review":
                 if learned_at and not ok:
                     status = "rusty"
@@ -149,10 +156,11 @@ def derive_concepts(concepts: list[dict], evidence: list[dict]) -> dict[str, Con
                     confirmed = status == "mastered" or _ts(ev["ts"]) - _ts(learned_at) >= CONFIRM_AFTER
                     status = "mastered" if confirmed else "learned"
                 continue
-            p = bkt(p, ok)
+            p = bkt(p, score)
             if ok:
                 items.add(ev["item_id"])
-            if learned_at is None and p >= GATE_P and len(items) >= GATE_CORRECT:
+                explained = explained or ev["item_id"] in explain_items
+            if learned_at is None and p >= GATE_P and len(items) >= GATE_CORRECT and explained:
                 learned_at, status = ev["ts"], "learned"
             if status == "rusty" and ok:
                 status = "learned"
@@ -195,3 +203,41 @@ def review(card_json: str, correct: bool, at: str) -> tuple[str, str]:
 def _card_json(card: Card) -> str:
     import json
     return json.dumps(card.to_dict())
+
+
+# ---------------------------------------------------------------- placement diagnostic
+
+def placement(tracks: list[list[str]], answers: list[dict], max_questions: int = PLACEMENT_MAX) -> dict:
+    """Adaptive placement over the roadmap outline.
+
+    ``tracks`` lists module ids per track in prerequisite order. Knowing a module implies knowing
+    the earlier modules of its track; a gap implies gaps in the later ones. Each probe is the middle
+    of the longest uncertain run (a binary search per track), so a few questions place the learner.
+    Returns {status: {module: known|gap|uncertain}, next: module | None, asked, done}.
+    """
+    status = {m: "uncertain" for t in tracks for m in t}
+    for a in answers:
+        for t in tracks:
+            if a["module_id"] not in t:
+                continue
+            i = t.index(a["module_id"])
+            if a["correct"]:
+                for m in t[:i + 1]:
+                    status[m] = "known"
+            else:
+                for m in t[i:]:
+                    if status[m] != "known" or m == a["module_id"]:
+                        status[m] = "gap"
+    asked = len(answers)
+    best: tuple[int, str] | None = None
+    for t in tracks:
+        run: list[str] = []
+        for m in t + [None]:
+            if m is not None and status[m] == "uncertain":
+                run.append(m)
+                continue
+            if run and (best is None or len(run) > best[0]):
+                best = (len(run), run[len(run) // 2])
+            run = []
+    nxt = best[1] if best and asked < max_questions else None
+    return {"status": status, "next": nxt, "asked": asked, "done": nxt is None}

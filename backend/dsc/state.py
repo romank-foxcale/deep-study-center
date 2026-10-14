@@ -19,8 +19,11 @@ def playbook(db: DB) -> dict:
 def concepts_raw(db: DB, goal_id: str) -> list[dict]:
     rows = db.q("""SELECT c.* FROM concepts c JOIN modules m ON m.id = c.module_id JOIN tracks t ON t.id = m.track_id
                    WHERE t.goal_id = ? ORDER BY t.ord, m.ord, c.ord""", (goal_id,))
+    bodies = {r["concept_id"]: loads(r["body"]) for r in db.q(
+        """SELECT c.concept_id, c.body FROM cards c WHERE c.version = (SELECT MAX(version) FROM cards WHERE concept_id = c.concept_id)""")}
     for r in rows:
         r["prereqs"] = loads(r["prereqs"], [])
+        r["explain_items"] = [s["explain"]["id"] for s in bodies.get(r["id"], {}).get("sections", []) if s.get("explain")]
     return rows
 
 
@@ -40,14 +43,26 @@ def latest_card(db: DB, concept_id: str) -> dict | None:
 
 
 def public_card(card: dict) -> dict:
-    """Card without answer keys (the learner sees keys only after answering)."""
+    """Card without answer keys or grading rubrics (the learner sees them only after answering)."""
     out = dict(card)
-    out["sections"] = [{**s, "check": strip_check(s["check"])} if s.get("check") else s for s in card.get("sections", [])]
+    sections = []
+    for s in card.get("sections", []):
+        s = dict(s)
+        if s.get("check"):
+            s["check"] = strip_check(s["check"])
+        if s.get("explain"):
+            s["explain"] = strip_explain(s["explain"])
+        sections.append(s)
+    out["sections"] = sections
     return out
 
 
 def strip_check(check: dict) -> dict:
     return {k: v for k, v in check.items() if k not in ("answer", "explanation")}
+
+
+def strip_explain(item: dict) -> dict:
+    return {k: v for k, v in item.items() if k not in ("rubric", "exemplar")}
 
 
 def rendition_row(db: DB, concept_id: str) -> dict | None:
@@ -73,13 +88,44 @@ def answers(db: DB, concept_ids: list[str]) -> dict:
     cards = {cid: latest_card(db, cid) for cid in {r["concept_id"] for r in rows}}
     for r in rows:
         key = f'{r["concept_id"]}:{r["item_id"]}'
-        item = {"choice": r["choice"], "correct": bool(r["correct"])}
+        item = {"choice": r["choice"], "correct": bool(r["correct"]), "score": r["score"]}
         check = next((s["check"] for s in (cards[r["concept_id"]] or {}).get("sections", [])
                       if s.get("check", {}).get("id") == r["item_id"]), None)
         if check:
             item.update(answer=check["answer"], explanation=check["explanation"])
         out[key] = item
     return out
+
+
+def gradings(db: DB, concept_ids: list[str]) -> dict:
+    """Latest explain-back attempt per (concept, item): pending, graded or ungraded."""
+    out: dict[str, dict] = {}
+    if not concept_ids:
+        return out
+    for g in db.q(f"SELECT * FROM gradings WHERE concept_id IN ({','.join('?' * len(concept_ids))}) ORDER BY id", concept_ids):
+        out[f'{g["concept_id"]}:{g["item_id"]}'] = {
+            "id": g["id"], "status": g["status"], "answer": g["answer"], "score": g["score"],
+            "feedback": g["feedback"], "missing": loads(g["missing"], []), "followup": g["followup"]}
+    return out
+
+
+def placement(db: DB, goal_id: str) -> dict:
+    """Placement diagnostic state for a goal (question shown without its key)."""
+    tracks = db.q("SELECT id FROM tracks WHERE goal_id=? ORDER BY ord", (goal_id,))
+    order = [[m["id"] for m in db.q("SELECT id FROM modules WHERE track_id=? ORDER BY ord", (t["id"],))] for t in tracks]
+    items = {r["module_id"]: loads(r["item"]) for r in db.q("SELECT * FROM placement_items WHERE goal_id=?", (goal_id,))}
+    answers = db.q("SELECT * FROM placement_answers WHERE goal_id=? ORDER BY id", (goal_id,))
+    asked_tracks = [[m for m in t if m in items] for t in order]
+    res = engine.placement([t for t in asked_tracks if t], answers)
+    nxt = res["next"]
+    question = None
+    if nxt:
+        m = db.one("SELECT title FROM modules WHERE id=?", (nxt,))
+        question = {"moduleId": nxt, "module": m["title"], "prompt": items[nxt]["prompt"], "options": items[nxt]["options"]}
+    counts = {k: sum(1 for v in res["status"].values() if v == k) for k in ("known", "gap", "uncertain")}
+    return {"available": bool(items), "finished": db.meta(f"placement_done:{goal_id}") == "1",
+            "asked": res["asked"], "done": res["done"], "question": question, "counts": counts,
+            "status": res["status"]}
 
 
 def snapshot(db: DB) -> dict:
@@ -89,7 +135,8 @@ def snapshot(db: DB) -> dict:
             "goals": [{"id": g["id"], "title": g["title"]} for g in db.q("SELECT id, title FROM goals ORDER BY created_at")]}
     if not gid:
         return {**base, "goal": None, "tracks": [], "modules": [], "concepts": [], "cards": [], "renditions": [],
-                "feedback": [], "notes": [], "diffs": [], "chats": {}, "answers": {}, "reviews": []}
+                "feedback": [], "notes": [], "diffs": [], "chats": {}, "answers": {}, "reviews": [], "gradings": {},
+                "placement": None, "reflections": reflections(db), "settings": {"autoResearch": db.meta("auto_research", "1") == "1"}}
 
     g = db.one("SELECT * FROM goals WHERE id=?", (gid,))
     tracks = db.q("SELECT * FROM tracks WHERE goal_id=? ORDER BY ord", (gid,))
@@ -113,7 +160,7 @@ def snapshot(db: DB) -> dict:
                  "hoursPerWeek": g["hours"], "profile": g["profile"]},
         "tracks": [{"id": t["id"], "title": t["title"], "summary": t["summary"],
                     "moduleIds": [m["id"] for m in modules if m["track_id"] == t["id"]]} for t in tracks],
-        "modules": [{"id": m["id"], "trackId": m["track_id"], "title": m["title"], "research": m["research"],
+        "modules": [{"id": m["id"], "trackId": m["track_id"], "title": m["title"], "research": m["research"], "known": bool(m["known"]),
                      "summary": m["summary"], "plannedConcepts": m["planned"],
                      "conceptIds": [c["id"] for c in concepts if c["module_id"] == m["id"]]} for m in modules],
         "concepts": [{"id": c["id"], "moduleId": c["module_id"], "title": c["title"], "objective": c["objective"],
@@ -130,6 +177,10 @@ def snapshot(db: DB) -> dict:
                   for d in db.q("SELECT * FROM diffs WHERE goal_id=? ORDER BY id DESC", (gid,))],
         "chats": _chats(db, ids),
         "answers": answers(db, ids),
+        "gradings": gradings(db, ids),
+        "placement": placement(db, gid),
+        "reflections": reflections(db),
+        "settings": {"autoResearch": db.meta("auto_research", "1") == "1"},
         "reviews": [{"conceptId": r["concept_id"], "due": r["due"], "isDue": r["due"] <= now}
                     for r in db.q(f"SELECT * FROM reviews WHERE concept_id IN {in_goal} ORDER BY due", ids)],
     }
@@ -142,6 +193,11 @@ def _chats(db: DB, ids: list[str]) -> dict:
     for m in db.q(f"SELECT * FROM chats WHERE concept_id IN ({','.join('?' * len(ids))}) ORDER BY id", ids):
         out.setdefault(m["concept_id"], []).append({"role": m["role"], "text": m["text"]})
     return out
+
+
+def reflections(db: DB) -> list[dict]:
+    return [{"id": r["id"], "ts": r["ts"], "summary": r["summary"], "proposals": loads(r["proposals"], []), "source": r["source"]}
+            for r in db.q("SELECT * FROM reflections ORDER BY id DESC LIMIT 5")]
 
 
 def routes(db: DB) -> list[dict]:

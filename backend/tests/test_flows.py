@@ -84,11 +84,15 @@ def test_render_failure_is_reported(env):
 
 
 def test_answers_are_graded_on_the_server_and_learning_schedules_a_review(env):
-    db, jobs, _ = env
+    db, jobs, runner = env
     s = act(db, jobs, type="answer", conceptId="c-vectors", checkId="q-ops", choice=1, angle="geometric")
     assert s["answers"]["c-vectors:q-ops"]["correct"] is False and s["answers"]["c-vectors:q-ops"]["answer"] == 0
     for item, choice in (("q-ops", 0), ("q-norm", 1), ("q-misc", 3)):
         s = act(db, jobs, type="answer", conceptId="c-vectors", checkId=item, choice=choice, angle="geometric")
+    assert {c["id"]: c["state"] for c in s["concepts"]}["c-vectors"] == "learning"  # explain-back still missing
+    runner.responses["Grading"] = {"score": 1, "feedback": "Clear.", "missing": [], "followup": ""}
+    s = act(db, jobs, type="explain", conceptId="c-vectors", itemId="e-ops", angle="geometric",
+            answer="Moving right doesn't change how far up you are, so each coordinate adds on its own.")
     states = {c["id"]: c["state"] for c in s["concepts"]}
     assert states["c-vectors"] == "learned" and states["c-dot"] == "ready"
     assert s["reviews"][0]["conceptId"] == "c-vectors" and not s["reviews"][0]["isDue"]

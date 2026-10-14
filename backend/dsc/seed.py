@@ -16,6 +16,18 @@ from .db import DB, dumps, now
 TABLES = ("goals", "tracks", "modules", "concepts", "cards", "prose", "renditions", "signals", "evidence",
           "feedback", "notes", "diffs", "chats", "reviews", "routes", "jobs", "meta")
 
+# Routes added after the demo data was exported; ensure_routes() adds them to older workspaces too.
+EXTRA_ROUTES = [
+    {"role": "Placement", "description": "Placement quiz for a new goal", "provider": "claude", "model": "sonnet"},
+    {"role": "Reflection", "description": "Weekly reflection over your feedback", "provider": "claude", "model": "opus"},
+]
+
+VECTORS_EXPLAIN = {"s-ops": {
+    "id": "e-ops", "prompt": "In your own words: why can you add two vectors by adding their coordinates separately? Use a picture or an example.",
+    "rubric": ["Moving along one axis doesn't change the other coordinate (the axes are independent)",
+               "So the total displacement in each coordinate is the sum of the parts",
+               "A tip-to-tail picture or a concrete numeric example"]}}
+
 LINCOMB_SECTIONS = [
     {"id": "s-why", "heading": "Why weighted sums matter", "angles": ["geometric", "computational"],
      "purpose": "Every neuron output and every linear layer is a weighted sum of inputs; linear combinations are the only thing a vector space lets you build."},
@@ -25,7 +37,11 @@ LINCOMB_SECTIONS = [
      "purpose": "Find coefficients that produce a given vector from two others; picture it as stretching and chaining arrows; solve the small linear system.",
      "check": {"id": "q-reach", "prompt": "Which coefficients give $a(1, 0) + b(1, 1) = (3, 2)$?",
                "options": ["$a = 1, b = 2$", "$a = 3, b = 2$", "$a = 2, b = 1$", "$a = 1, b = 1$"], "answer": 0,
-               "explanation": "The second component only comes from $b$, so $b = 2$. Then $a + b = 3$ gives $a = 1$."}},
+               "explanation": "The second component only comes from $b$, so $b = 2$. Then $a + b = 3$ gives $a = 1$."},
+     "explain": {"id": "e-reach", "prompt": "Explain why two non-parallel vectors in the plane can reach every point, and why two parallel ones cannot.",
+                 "rubric": ["Scaling a vector moves along its own direction (a line through the origin)",
+                            "Two different directions give two independent knobs, so both coordinates can be matched (two equations, two unknowns)",
+                            "Parallel vectors share one direction, so every combination stays on that single line"]}},
     {"id": "s-neuron", "heading": "A neuron is a linear combination", "angles": ["computational", "algebraic"],
      "purpose": "A linear layer output y = w1 x1 + ... + wn xn; weights are coefficients; matrix rows are many combinations at once.",
      "check": {"id": "q-neuron", "prompt": "A unit computes $y = 2x_1 - x_2$. What is $y$ for $x = (3, 4)$?",
@@ -64,11 +80,13 @@ def seed_demo(db: DB) -> None:
                         (g["id"], g["title"], g["why"], g["doneLooksLike"], g["hoursPerWeek"],
                          "Software engineer who codes daily; likes pictures before formulas; examples from ML.", ts))
         db.conn.execute("INSERT INTO meta(key, value) VALUES('active_goal', ?)", (g["id"],))
+        db.conn.execute("INSERT INTO meta(key, value) VALUES(?, '1')", (f"placement_done:{g['id']}",))  # see diffs
         for i, t in enumerate(d["tracks"]):
             db.conn.execute("INSERT INTO tracks VALUES(?,?,?,?,?)", (t["id"], g["id"], i, t["title"], t["summary"]))
         for i, m in enumerate(d["modules"]):
             db.conn.execute("INSERT INTO modules(id, track_id, ord, title, research, planned) VALUES(?,?,?,?,?,?)",
-                            (m["id"], m["trackId"], i, m["title"], m["research"], m.get("plannedConcepts") or len(m["conceptIds"])))
+                            (m["id"], m["trackId"], i, m["title"], "ready" if m["research"] == "ready" else "outline",
+                             m.get("plannedConcepts") or len(m["conceptIds"])))
         for i, c in enumerate(d["concepts"]):
             db.conn.execute("INSERT INTO concepts VALUES(?,?,?,?,?,?,?,?,?)",
                             (c["id"], c["moduleId"], i, c["title"], c["objective"], c["minutes"], dumps(c["prereqs"]),
@@ -81,6 +99,8 @@ def seed_demo(db: DB) -> None:
                 sec["check"] = s["check"]
             if s.get("code"):
                 sec["code"] = s["code"]
+            if s["id"] in VECTORS_EXPLAIN:
+                sec["explain"] = VECTORS_EXPLAIN[s["id"]]
             vec_sections.append(sec)
         for card in d["cards"]:
             body = {k: v for k, v in card.items() if k not in ("conceptId", "version", "factCheck", "checkedAt")}
@@ -111,5 +131,14 @@ def seed_demo(db: DB) -> None:
         for diff in d["diffs"]:
             db.conn.execute("INSERT INTO diffs(ts, goal_id, reason, changes, status) VALUES(?,?,?,?,?)",
                             (diff["ts"], g["id"], diff["reason"], dumps(diff["changes"]), diff["status"]))
-        for i, r in enumerate(d["routes"]):
+        for i, r in enumerate(d["routes"] + EXTRA_ROUTES):
             db.conn.execute("INSERT INTO routes VALUES(?,?,?,?,?)", (r["role"], i, r["description"], r["provider"], r["model"]))
+
+
+def ensure_routes(db: DB) -> None:
+    """Add job routes introduced by newer versions to an existing workspace."""
+    n = db.one("SELECT COUNT(*) AS n FROM routes")["n"]
+    for r in EXTRA_ROUTES:
+        if not db.one("SELECT 1 FROM routes WHERE role=?", (r["role"],)):
+            db.x("INSERT INTO routes VALUES(?,?,?,?,?)", (r["role"], n, r["description"], r["provider"], r["model"]))
+            n += 1

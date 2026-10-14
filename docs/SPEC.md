@@ -111,7 +111,7 @@ feedback / outcome ──▶ signal log ──▶ playbook replay ──▶ play
 ## 5. Open questions
 - Card promotion to the shared library: automatic after N good uses, or manual?
 - Local Python runner for PyTorch exercises (later).
-- Codex (`codex exec`) and Cursor (`cursor-agent -p`) adapters: flags and output formats to verify (milestone 3).
+- Codex and Cursor adapters are written against their docs (2026-10-14) but untested against the real CLIs.
 
 ## 6. Milestone 2 notes (2026-10-14)
 - State lives in the backend; the UI renders snapshots (`GET /api/state`) and posts actions (`POST /api/action`).
@@ -123,3 +123,24 @@ feedback / outcome ──▶ signal log ──▶ playbook replay ──▶ play
 - The card holds the lesson plan (sections, checks with hidden keys, exercises); renditions only write prose.
   Code-exercise tests run in the browser, so they are visible to the learner by design.
 - Jobs run on a 3-thread pool; jobs interrupted by a restart are marked failed on startup.
+
+
+## 7. Milestone 3 notes (2026-10-14)
+- **Explain-back**: cards may give one section an `explain` item (`prompt`, hidden `rubric`). The grader job sees
+  the rubric and the learner's answer (inside `<learner>` tags, treated as data) but not the lesson chat. Its score
+  (0 / 0.5 / 1) is soft evidence for BKT; the mastery gate requires a passed explain-back when the card has one.
+- **Placement**: one MCQ per module, written once per goal (`placement_items`). The engine runs a binary search per
+  track: knowing a module implies knowing the earlier ones in its track, a gap implies gaps later. At most 20
+  questions. Finishing proposes a roadmap diff that compresses known modules; approval sets `modules.known`.
+- **Research ahead**: after opening a lesson, answering, approving a diff or finishing a research job, the module
+  after the learner's current one is researched if it is still an outline (one research job at a time).
+- **Reflection**: triggered on state reads when 7 days have passed since the last one and there have been at least
+  3 pieces of feedback since (or via "Reflect now"). Proposals change the playbook only when accepted, as
+  `stated` + `correction` signals or an `adjust` signal.
+- **Codex**: `codex exec --skip-git-repo-check --ephemeral --sandbox read-only --cd <job> --output-last-message <file>
+  [--output-schema <file>] [--search] -`, prompt on stdin, `CODEX_API_KEY`/`OPENAI_API_KEY` removed. Schemas are
+  converted to OpenAI strict mode (all properties required, optional ones nullable, nulls dropped afterwards).
+- **Cursor**: `cursor-agent` (or `agent`) `-p --output-format json --trust --mode ask --workspace <job>`; no
+  structured-output flag, so the schema is appended to the prompt and JSON is parsed from `result`.
+  `CURSOR_API_KEY` removed. The prompt is passed as an argument, so very long prompts may hit command-line limits
+  on Windows.

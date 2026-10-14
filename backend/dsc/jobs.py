@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import engine, providers, state
+from . import engine, progress, providers, state
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
 
@@ -74,6 +74,8 @@ class Jobs:
         try:
             out = handler(self, jid, data)
             self.db.x("UPDATE jobs SET status='done', output=?, updated_at=? WHERE id=?", (dumps(out), now(), jid))
+            if job["kind"] == "research_module":
+                progress.research_ahead(self.db, self)  # keep going until research is one module ahead
         except ProviderUnavailable as e:
             if fallback:
                 fallback(self, jid, data)
@@ -227,7 +229,8 @@ def run_outline(jobs: Jobs, jid: int, d: dict) -> dict:
                 db.conn.execute("INSERT INTO modules(id, track_id, ord, title, research, planned, summary) VALUES(?,?,?,?,?,?,?)",
                                 (mid, tid, mi, m["title"], "outline", m["planned"], m["summary"]))
         db.conn.execute("INSERT INTO meta(key, value) VALUES('active_goal', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (gid,))
-    jobs.progress(jid, f"roadmap: {len(out['tracks'])} tracks; researching the first module next")
+    jobs.progress(jid, f"roadmap: {len(out['tracks'])} tracks; writing a placement quiz and researching the first module")
+    jobs.enqueue("placement_bank", "Write placement quiz", {"goal_id": gid})
     if first_module:
         db.x("UPDATE modules SET research='researching' WHERE id=?", (first_module,))
         jobs.enqueue("research_module", "Research first module", {"module_id": first_module})
@@ -241,6 +244,8 @@ _CHECK = {"type": "object", "required": ["prompt", "options", "answer", "explana
     "answer": {"type": "integer"}, "explanation": {"type": "string"}}}
 _CODE = {"type": "object", "required": ["prompt", "starter", "tests"], "properties": {
     "prompt": {"type": "string"}, "starter": {"type": "string"}, "tests": {"type": "string"}}}
+_EXPLAIN = {"type": "object", "required": ["prompt", "rubric"], "properties": {
+    "prompt": {"type": "string"}, "rubric": {"type": "array", "minItems": 1, "items": {"type": "string"}}}}
 _ANGLE = {"enum": list(engine.ANGLES)}
 RESEARCH_SCHEMA = {"type": "object", "required": ["concepts"], "properties": {"concepts": {"type": "array", "minItems": 1, "items": {
     "type": "object", "required": ["key", "title", "objective", "minutes", "prereq_keys", "card"], "properties": {
@@ -260,7 +265,7 @@ RESEARCH_SCHEMA = {"type": "object", "required": ["concepts"], "properties": {"c
                      "sections": {"type": "array", "minItems": 2, "items": {"type": "object", "required": ["id", "heading", "purpose", "angles"],
                                   "properties": {"id": {"type": "string"}, "heading": {"type": "string"}, "purpose": {"type": "string"},
                                                  "angles": {"type": "array", "minItems": 1, "items": _ANGLE},
-                                                 "check": _CHECK, "code": _CODE}}}}}}}}}}
+                                                 "check": _CHECK, "code": _CODE, "explain": _EXPLAIN}}}}}}}}}}
 
 
 def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
@@ -291,6 +296,8 @@ def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
                     s["check"]["id"] = f'q-{s["id"]}'
                 if s.get("code"):
                     s["code"]["id"] = f'x-{s["id"]}'
+                if s.get("explain"):
+                    s["explain"]["id"] = f'e-{s["id"]}'
             prereqs = [keymap[k] for k in c["prereq_keys"] if k in keymap]
             if target:
                 db.conn.execute("UPDATE concepts SET objective=?, minutes=? WHERE id=?", (c["objective"], c["minutes"], cid))
@@ -334,6 +341,114 @@ def run_fact_check(jobs: Jobs, jid: int, d: dict) -> dict:
     return {"checked": len(out["results"])}
 
 
+# ---------------------------------------------------------------- explain-back grading
+
+GRADE_SCHEMA = {"type": "object", "required": ["score", "feedback", "missing", "followup"], "properties": {
+    "score": {"enum": [0, 0.5, 1]}, "feedback": {"type": "string"},
+    "missing": {"type": "array", "items": {"type": "string"}}, "followup": {"type": "string"}}}
+
+
+def run_grade(jobs: Jobs, jid: int, d: dict) -> dict:
+    db = jobs.db
+    g = db.one("SELECT * FROM gradings WHERE id=?", (d["grading_id"],))
+    card = state.latest_card(db, g["concept_id"]) or {}
+    sec = next(s for s in card.get("sections", []) if s.get("explain", {}).get("id") == g["item_id"])
+    concept = db.one("SELECT title FROM concepts WHERE id=?", (g["concept_id"],))
+    out = jobs.call(jid, "Grading", Call(
+        prompt=prompt("grade", concept=concept["title"], question=sec["explain"]["prompt"],
+                      rubric="\n".join(f"- {r}" for r in sec["explain"]["rubric"]), answer=g["answer"]),
+        schema=GRADE_SCHEMA, model="sonnet", timeout=240))
+    score = float(out["score"])
+    db.x("UPDATE gradings SET status='graded', score=?, feedback=?, missing=?, followup=? WHERE id=?",
+         (score, out["feedback"], dumps(out.get("missing", [])), out.get("followup") or "", g["id"]))
+    progress.record_evidence(db, g["concept_id"], g["item_id"], score, angle=d.get("angle"))
+    return {"score": score}
+
+
+def fallback_grade(jobs: Jobs, jid: int, d: dict) -> None:
+    jobs.db.x("UPDATE gradings SET status='ungraded', feedback=? WHERE id=?",
+              ("No grader is available right now (see Settings → Providers). Your answer is saved; try again later.",
+               d["grading_id"]))
+
+
+# ---------------------------------------------------------------- placement question bank
+
+PLACEMENT_SCHEMA = {"type": "object", "required": ["items"], "properties": {"items": {"type": "array", "items": {
+    "type": "object", "required": ["module_id", "prompt", "options", "answer", "explanation"], "properties": {
+        "module_id": {"type": "string"}, "prompt": {"type": "string"},
+        "options": {"type": "array", "minItems": 3, "maxItems": 5, "items": {"type": "string"}},
+        "answer": {"type": "integer"}, "explanation": {"type": "string"}}}}}}
+
+
+def run_placement_bank(jobs: Jobs, jid: int, d: dict) -> dict:
+    db = jobs.db
+    g = db.one("SELECT * FROM goals WHERE id=?", (d["goal_id"],))
+    mods = db.q("""SELECT m.id, m.title, m.summary FROM modules m JOIN tracks t ON t.id = m.track_id
+                   WHERE t.goal_id=? ORDER BY t.ord, m.ord""", (g["id"],))
+    out = jobs.call(jid, "Placement", Call(
+        prompt=prompt("placement", goal=g["title"], profile=g["profile"],
+                      modules="\n".join(f'{m["id"]}: {m["title"]} - {m["summary"] or ""}' for m in mods)),
+        schema=PLACEMENT_SCHEMA, model="sonnet", timeout=600))
+    ids = {m["id"] for m in mods}
+    n = 0
+    for it in out["items"]:
+        if it["module_id"] in ids and 0 <= it["answer"] < len(it["options"]):
+            db.x("INSERT OR REPLACE INTO placement_items VALUES(?,?,?)", (g["id"], it["module_id"], dumps(it)))
+            n += 1
+    jobs.progress(jid, f"{n} placement questions ready")
+    return {"items": n}
+
+
+# ---------------------------------------------------------------- weekly reflection
+
+REFLECT_SCHEMA = {"type": "object", "required": ["summary", "proposals"], "properties": {
+    "summary": {"type": "string"},
+    "proposals": {"type": "array", "maxItems": 4, "items": {"type": "object", "required": ["dimension", "value", "why"], "properties": {
+        "dimension": {"enum": ["angle", "example-domain", "format", "pace", "depth", "rigor"]},
+        "value": {"type": "string"}, "verdict": {"enum": ["works", "avoid", "trying"]},
+        "delta": {"type": "integer"}, "why": {"type": "string"}}}}}}
+
+
+def _reflection_inputs(db: DB) -> dict:
+    fb = db.q("SELECT f.*, c.title FROM feedback f JOIN concepts c ON c.id = f.concept_id ORDER BY f.id DESC LIMIT 40")
+    outcomes = db.q("""SELECT angle, COUNT(*) AS n, AVG(COALESCE(score, correct)) AS avg FROM evidence
+                       WHERE angle IS NOT NULL AND voided = 0 GROUP BY angle""")
+    return {
+        "feedback": "\n".join(f'- [{f["title"]}] {", ".join(loads(f["tags"]))}' + (f': "{f["text"]}"' if f["text"] else "")
+                              for f in fb) or "(no feedback yet)",
+        "outcomes": "\n".join(f'- {o["angle"]}: {o["n"]} answers, {o["avg"] * 100:.0f}% correct' for o in outcomes) or "(none yet)",
+        "notes": db.one("SELECT COUNT(*) AS n FROM notes")["n"],
+        "studied": db.one("SELECT COUNT(*) AS n FROM renditions WHERE studied = 1")["n"],
+        "fb_count": len(fb), "outcome_rows": outcomes,
+    }
+
+
+def run_reflect(jobs: Jobs, jid: int, d: dict) -> dict:
+    db = jobs.db
+    x = _reflection_inputs(db)
+    out = jobs.call(jid, "Reflection", Call(
+        prompt=prompt("reflect", goal=_goal(db)["title"], playbook=state.playbook_text(state.playbook(db)),
+                      feedback=x["feedback"], outcomes=x["outcomes"], notes=x["notes"], studied=x["studied"]),
+        schema=REFLECT_SCHEMA, model="opus", timeout=600))
+    proposals = [{**p, "status": "pending"} for p in out["proposals"]
+                 if (p["dimension"] in engine.ADJUST_KEYS and p.get("delta")) or p.get("verdict")]
+    db.x("INSERT INTO reflections(ts, summary, proposals, source) VALUES(?,?,?,?)", (now(), out["summary"], dumps(proposals), "llm"))
+    db.set_meta("last_reflection", now())
+    return {"proposals": len(proposals)}
+
+
+def fallback_reflect(jobs: Jobs, jid: int, d: dict) -> None:
+    """Offline: a plain summary from the numbers, with no proposals."""
+    db = jobs.db
+    x = _reflection_inputs(db)
+    best = max(x["outcome_rows"], key=lambda o: o["avg"], default=None)
+    parts = [f'You gave feedback {x["fb_count"]} time(s) and wrote {x["notes"]} note(s).']
+    if best:
+        parts.append(f'Your practice went best after {best["angle"]} explanations ({best["avg"] * 100:.0f}% correct).')
+    parts.append("A model wasn't available, so this reflection has no proposals.")
+    db.x("INSERT INTO reflections(ts, summary, proposals, source) VALUES(?,?,?,?)", (now(), " ".join(parts), "[]", "offline"))
+    db.set_meta("last_reflection", now())
+
 HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "render": (run_render, None),
     "tutor": (run_tutor, fallback_tutor),
@@ -341,4 +456,7 @@ HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "outline": (run_outline, None),
     "research_module": (run_research_module, fallback_research_module),
     "fact_check": (run_fact_check, None),
+    "grade": (run_grade, fallback_grade),
+    "placement_bank": (run_placement_bank, None),
+    "reflect": (run_reflect, fallback_reflect),
 }
