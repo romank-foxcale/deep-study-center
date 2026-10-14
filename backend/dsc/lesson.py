@@ -8,7 +8,7 @@ Rules (docs/SPEC.md §2.3):
 
 from __future__ import annotations
 
-from . import engine, state
+from . import engine, progress, state
 from .db import DB, dumps
 from .jobs import Jobs
 
@@ -56,6 +56,7 @@ def open_lesson(db: DB, jobs: Jobs, cid: str) -> dict:
     elif r:
         ensure_prose(db, jobs, cid)
     db.x("UPDATE concepts SET started=1 WHERE id=?", (cid,))
+    progress.research_ahead(db, jobs)
     return {**view(db, cid), "refreshed": refreshed}
 
 
@@ -95,6 +96,7 @@ def view(db: DB, cid: str) -> dict:
             "body": (exact or approx or {}).get("body"), "approximate": bool(approx and not exact),
             "pending": not exact and rendering,
             "check": state.strip_check(s["check"]) if s.get("check") else None, "code": s.get("code"),
+            "explain": state.strip_explain(s["explain"]) if s.get("explain") else None,
         })
     return {
         "conceptId": cid, "card": state.public_card(card) if card else None, "sections": sections,

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from . import engine, lesson, state
+from . import engine, lesson, progress, state
 from .db import DB, dumps, now
 from .jobs import Jobs
 from .seed import seed_demo
@@ -40,7 +40,7 @@ def _entry(pb: dict, dimension: str, value: str) -> dict | None:
 def _card_item(db: DB, cid: str, item_id: str) -> dict | None:
     card = state.latest_card(db, cid) or {}
     for s in card.get("sections", []):
-        for kind in ("check", "code"):
+        for kind in ("check", "code", "explain"):
             if s.get(kind, {}).get("id") == item_id:
                 return {"kind": kind, **s[kind]}
     return None
@@ -53,19 +53,25 @@ def answer(db: DB, jobs: Jobs, a: dict) -> None:
     item = _card_item(db, cid, item_id)
     if not item:
         raise ActionError(f"unknown item {item_id}")
+    if item["kind"] == "explain":
+        raise ActionError("explain-back answers go through the 'explain' action")
     # Checks are graded here against the hidden key; code exercises run in the browser (Pyodide).
     correct = (a.get("choice") == item["answer"]) if item["kind"] == "check" else bool(a.get("correct"))
-    gid = state.active_goal(db)
-    _, before = state.concept_states(db, gid)
-    db.x("INSERT INTO evidence(ts, concept_id, item_id, kind, choice, correct, angle) VALUES(?,?,?,?,?,?,?)",
-         (now(), cid, item_id, "practice", a.get("choice"), int(correct), a.get("angle")))
-    db.x("UPDATE concepts SET started=1 WHERE id=?", (cid,))
-    if a.get("angle"):  # outcome signal: weak evidence about the angle used; doesn't re-render anything
-        _signal(db, "outcome", "angle", a["angle"], 0.03 if correct else -0.03, 0.3, bumps=False)
-    _, after = state.concept_states(db, gid)
-    if after[cid].learned_at and not before[cid].learned_at:
-        card, due = engine.first_review(after[cid].learned_at)
-        db.x("INSERT OR REPLACE INTO reviews VALUES(?,?,?,?)", (cid, card, due, after[cid].learned_at))
+    progress.record_evidence(db, cid, item_id, 1.0 if correct else 0.0, choice=a.get("choice"), angle=a.get("angle"))
+    progress.research_ahead(db, jobs)
+
+
+def explain(db: DB, jobs: Jobs, a: dict) -> None:
+    """Explain-back: the learner's own words, graded against a rubric by an independent grader job."""
+    cid, item_id, text = a["conceptId"], a["itemId"], (a.get("answer") or "").strip()
+    item = _card_item(db, cid, item_id)
+    if not item or item["kind"] != "explain":
+        raise ActionError(f"unknown explain-back item {item_id}")
+    if len(text) < 15:
+        raise ActionError("write a few sentences in your own words first")
+    gid = db.x("INSERT INTO gradings(ts, concept_id, item_id, answer, status) VALUES(?,?,?,?,?)",
+               (now(), cid, item_id, text[:4000], "pending"))
+    jobs.enqueue("grade", "Grade explanation", {"grading_id": gid, "concept_id": cid, "angle": a.get("angle")})
 
 
 def review(db: DB, jobs: Jobs, a: dict) -> None:
@@ -207,6 +213,9 @@ def decide_diff(db: DB, jobs: Jobs, a: dict) -> None:
     for ch in loads(d["changes"]):
         if ch["op"] == "insert" and ch.get("anchor"):
             _insert_concept(db, jobs, ch)
+        elif ch["op"] == "compress" and ch.get("module"):
+            db.x("UPDATE modules SET known=1 WHERE id=?", (ch["module"],))
+    progress.research_ahead(db, jobs)
 
 
 def _insert_concept(db: DB, jobs: Jobs, ch: dict) -> None:
@@ -248,6 +257,77 @@ def set_goal(db: DB, jobs: Jobs, a: dict) -> None:
     db.set_meta("active_goal", a["id"])
 
 
+# ---------------------------------------------------------------- placement diagnostic
+
+def start_placement(db: DB, jobs: Jobs, a: dict) -> None:
+    gid = state.active_goal(db)
+    if not db.one("SELECT 1 FROM placement_items WHERE goal_id=?", (gid,)) and not jobs.active("placement_bank", goal_id=gid):
+        jobs.enqueue("placement_bank", "Write placement quiz", {"goal_id": gid})
+
+
+def placement_answer(db: DB, jobs: Jobs, a: dict) -> None:
+    """One placement answer; choice None means "I don't know" (counted as a gap, never a guess)."""
+    gid = state.active_goal(db)
+    row = db.one("SELECT item FROM placement_items WHERE goal_id=? AND module_id=?", (gid, a["moduleId"]))
+    if not row:
+        raise ActionError("no placement question for that module")
+    from .db import loads
+    item = loads(row["item"])
+    choice = a.get("choice")
+    correct = choice is not None and choice == item["answer"]
+    db.x("INSERT INTO placement_answers(ts, goal_id, module_id, choice, correct) VALUES(?,?,?,?,?)",
+         (now(), gid, a["moduleId"], choice, int(correct)))
+
+
+def finish_placement(db: DB, jobs: Jobs, a: dict) -> None:
+    """Turn placement results into a roadmap proposal: compress modules the learner already knows."""
+    gid = state.active_goal(db)
+    p = state.placement(db, gid)
+    known = [m for m, st in p["status"].items() if st == "known"]
+    if known:
+        titles = {m["id"]: m["title"] for m in db.q(
+            f"SELECT id, title FROM modules WHERE id IN ({','.join('?' * len(known))})", known)}
+        changes = [{"op": "compress", "title": titles[m], "module": m,
+                    "detail": "Placement showed you know this: marked as known; open it any time to review."} for m in known]
+        db.x("INSERT INTO diffs(ts, goal_id, reason, changes, status) VALUES(?,?,?,?,'pending')",
+             (now(), gid, f"Placement: you already know {len(known)} module{'s' if len(known) != 1 else ''}.", dumps(changes)))
+    db.set_meta(f"placement_done:{gid}", "1")
+
+
+def reset_placement(db: DB, jobs: Jobs, a: dict) -> None:
+    """Retake: clear this goal's placement answers (modules already marked known stay known)."""
+    gid = state.active_goal(db)
+    db.x("DELETE FROM placement_answers WHERE goal_id=?", (gid,))
+    db.set_meta(f"placement_done:{gid}", "0")
+    start_placement(db, jobs, a)
+
+
+# ---------------------------------------------------------------- reflection
+
+def reflect(db: DB, jobs: Jobs, a: dict) -> None:
+    if not jobs.active("reflect"):
+        jobs.enqueue("reflect", "Weekly reflection", {})
+
+
+def decide_proposal(db: DB, jobs: Jobs, a: dict) -> None:
+    """Accept or reject one reflection proposal; accepting writes it to the playbook as a signal."""
+    from .db import loads
+    r = db.one("SELECT * FROM reflections WHERE id=?", (a["reflectionId"],))
+    proposals = loads(r["proposals"], []) if r else []
+    i = a["index"]
+    if not r or not 0 <= i < len(proposals) or proposals[i]["status"] != "pending":
+        raise ActionError("no pending proposal there")
+    p = proposals[i]
+    if a["accept"]:
+        if p["dimension"] in engine.ADJUST_KEYS:
+            _signal(db, "adjust", p["dimension"], p["dimension"], max(-1, min(1, int(p.get("delta") or 0))))
+        else:
+            _signal(db, "stated", p["dimension"], p["value"], 0, 0.5, note=f'From reflection: {p["why"]}')
+            _signal(db, "correction", p["dimension"], p["value"], note=p["verdict"])
+    proposals[i] = {**p, "status": "accepted" if a["accept"] else "rejected"}
+    db.x("UPDATE reflections SET proposals=? WHERE id=?", (dumps(proposals), r["id"]))
+
+
 # ---------------------------------------------------------------- playbook & settings
 
 def correct_entry(db: DB, jobs: Jobs, a: dict) -> None:
@@ -273,12 +353,21 @@ def route(db: DB, jobs: Jobs, a: dict) -> None:
     db.x("UPDATE routes SET provider=?, model=? WHERE role=?", (a["provider"], a["model"], a["role"]))
 
 
+def set_setting(db: DB, jobs: Jobs, a: dict) -> None:
+    if a["key"] != "autoResearch":
+        raise ActionError("unknown setting")
+    db.set_meta("auto_research", "1" if a["value"] else "0")
+    progress.research_ahead(db, jobs)
+
+
 def reset(db: DB, jobs: Jobs, a: dict) -> None:
     seed_demo(db)
 
 
 ACTIONS = {
-    "answer": answer, "review": review, "feedback": feedback, "explainDifferently": explain_differently,
+    "answer": answer, "explain": explain, "review": review,
+    "startPlacement": start_placement, "placementAnswer": placement_answer, "finishPlacement": finish_placement, "resetPlacement": reset_placement,
+    "reflect": reflect, "decideProposal": decide_proposal, "setSetting": set_setting, "feedback": feedback, "explainDifferently": explain_differently,
     "refresh": refresh, "markStudied": mark_studied, "addNote": add_note, "deleteNote": delete_note,
     "chat": chat, "decideDiff": decide_diff, "researchModule": research_module, "createGoal": create_goal,
     "setGoal": set_goal, "correctEntry": correct_entry, "adjust": adjust, "route": route, "reset": reset,

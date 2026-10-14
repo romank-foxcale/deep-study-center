@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getLesson, openLesson, useStore } from '../store'
+import { getLesson, jobActive, openLesson, useStore } from '../store'
 import type { Angle, LessonView } from '../types'
 import Markdown from '../components/Markdown'
 import InlineCheck from '../components/InlineCheck'
 import CodeExercise from '../components/CodeExercise'
+import ExplainBack from '../components/ExplainBack'
 import FeedbackDialog from '../components/FeedbackDialog'
 import SidePanel, { SourceCardView, type Tab } from '../components/SidePanel'
 import StateBadge, { MasteryBar } from '../components/StateBadge'
@@ -150,6 +151,11 @@ export default function Lesson() {
                 <CodeExercise exercise={sec.code} passed={!!s.answers[`${id}:${sec.code.id}`]?.correct}
                   onResult={ok => dispatch({ type: 'answer', conceptId: id, checkId: sec.code!.id, angle: sec.angle, correct: ok })} />
               )}
+              {sec.explain && (
+                <ExplainBack key={sec.explain.id} item={sec.explain} grading={s.gradings[`${id}:${sec.explain.id}`]}
+                  inProgress={jobActive(s, 'grade', { concept_id: id })}
+                  onSubmit={answer => dispatch({ type: 'explain', conceptId: id, itemId: sec.explain!.id, angle: sec.angle, answer })} />
+              )}
             </section>
           )
         })}
@@ -157,7 +163,7 @@ export default function Lesson() {
         {sections.length > 0 && (
           <footer className="gate">
             <h3>Mastery</h3>
-            <p className="muted">The engine decides, not a “mark complete” button: P(learned) ≥ 0.95 and at least 3 different items correct, then a spaced review a day later confirms it.</p>
+            <p className="muted">The engine decides, not a “mark complete” button: P(learned) ≥ 0.95, at least 3 different items correct, and your explain-back passed; then a spaced review a day later confirms it.</p>
             <div className="row">
               <MasteryBar value={concept.mastery} /><span>P(learned) = {concept.mastery.toFixed(2)}</span>
               <span>· correct answers: {correct}</span>

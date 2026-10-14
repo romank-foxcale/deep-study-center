@@ -1,4 +1,5 @@
-import { useStore } from '../store'
+import { jobActive, useStore } from '../store'
+import Markdown from '../components/Markdown'
 import { FeedbackList } from '../components/SidePanel'
 import type { Playbook } from '../types'
 
@@ -45,6 +46,40 @@ export default function Me() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="card">
+        <div className="row row-between">
+          <h2>Weekly reflection</h2>
+          <button className="btn btn-small" disabled={jobActive(s, 'reflect')} onClick={() => dispatch({ type: 'reflect' })}>
+            {jobActive(s, 'reflect') ? 'Reflecting…' : 'Reflect now'}
+          </button>
+        </div>
+        <p className="muted small">Once a week (after a few pieces of feedback) an agent reads your feedback log, practice results and notes,
+          looks for patterns, and proposes playbook changes. Nothing changes until you accept it.</p>
+        {s.reflections.length === 0 ? <p className="muted">No reflection yet.</p> : (() => {
+          const r = s.reflections[0]
+          return (
+            <div className="reflection">
+              <div className="muted small">{new Date(r.ts).toLocaleDateString()}{r.source === 'offline' ? ' · offline summary' : ''}</div>
+              <Markdown>{r.summary}</Markdown>
+              {r.proposals.map((p, i) => (
+                <div key={i} className="proposal">
+                  <div>
+                    <strong>{p.verdict ? `${p.dimension} "${p.value}" → ${p.verdict}` : `${p.dimension} ${p.delta! > 0 ? '+' : ''}${p.delta}`}</strong>
+                    <div className="muted small">{p.why}</div>
+                  </div>
+                  {p.status === 'pending' ? (
+                    <div className="row">
+                      <button className="btn btn-small btn-primary" onClick={() => dispatch({ type: 'decideProposal', reflectionId: r.id, index: i, accept: true })}>Accept</button>
+                      <button className="btn btn-small" onClick={() => dispatch({ type: 'decideProposal', reflectionId: r.id, index: i, accept: false })}>Reject</button>
+                    </div>
+                  ) : <span className={`pill ${p.status === 'accepted' ? 'pill-ok' : ''}`}>{p.status}</span>}
+                </div>
+              ))}
+            </div>
+          )
+        })()}
       </div>
 
       <div className="card">

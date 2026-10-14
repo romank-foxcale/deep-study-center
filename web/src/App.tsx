@@ -9,6 +9,7 @@ import Me from './pages/Me'
 import Library from './pages/Library'
 import Settings from './pages/Settings'
 import Review from './pages/Review'
+import Placement from './pages/Placement'
 
 const NAV = [
   { to: '/', label: 'Home', end: true },
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="/goal/new" element={<GoalSetup />} />
           <Route path="/roadmap" element={<Roadmap />} />
           <Route path="/review" element={<Review />} />
+          <Route path="/placement" element={<Placement />} />
           <Route path="/lesson/:id" element={<Lesson />} />
           <Route path="/me" element={<Me />} />
           <Route path="/library" element={<Library />} />

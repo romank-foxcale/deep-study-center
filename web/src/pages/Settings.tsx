@@ -57,6 +57,17 @@ export default function Settings() {
       </div>
 
       <div className="card">
+        <h2>Research</h2>
+        <label className="row">
+          <input type="checkbox" checked={s.settings.autoResearch}
+            onChange={e => dispatch({ type: 'setSetting', key: 'autoResearch', value: e.target.checked })} />
+          <span>Research automatically, one module ahead of you</span>
+        </label>
+        <p className="muted small">Each module's research runs on the provider set for “Research” (with web search) and can take several
+          minutes of your plan's usage. Turn this off to research modules only when you click “Research now”.</p>
+      </div>
+
+      <div className="card">
         <h2>Recent jobs</h2>
         {s.jobs.length === 0 ? <p className="muted">None yet.</p> : (
           <table className="table">

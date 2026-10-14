@@ -21,6 +21,14 @@ export type Action =
   | { type: 'correctEntry'; id: string; verdict: Verdict | 'remove' }
   | { type: 'adjust'; key: 'pace' | 'depth' | 'rigor'; value: number }
   | { type: 'route'; role: string; provider: string; model: string }
+  | { type: 'explain'; conceptId: string; itemId: string; answer: string; angle?: Angle }
+  | { type: 'startPlacement' }
+  | { type: 'placementAnswer'; moduleId: string; choice: number | null }
+  | { type: 'finishPlacement' }
+  | { type: 'resetPlacement' }
+  | { type: 'reflect' }
+  | { type: 'decideProposal'; reflectionId: number; index: number; accept: boolean }
+  | { type: 'setSetting'; key: 'autoResearch'; value: boolean }
   | { type: 'reset' }
 
 export const FEEDBACK_TAGS = [

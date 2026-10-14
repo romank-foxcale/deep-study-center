@@ -23,6 +23,8 @@ export interface Module {
   title: string
   summary: string
   research: ResearchStatus
+  /** Placement showed the learner already knows this module. */
+  known: boolean
   conceptIds: string[]
   plannedConcepts: number
 }
@@ -46,6 +48,40 @@ export interface McqCheck { id: string; prompt: string; options: string[] }
 
 export interface CodeExercise { id: string; prompt: string; starter: string; tests: string }
 
+/** Explain-back item as the learner sees it: the grading rubric stays on the server. */
+export interface ExplainItem { id: string; prompt: string }
+
+export interface Grading {
+  id: number
+  status: 'pending' | 'graded' | 'ungraded'
+  answer: string
+  score: number | null
+  feedback: string | null
+  missing: string[]
+  followup: string | null
+}
+
+export interface PlacementState {
+  available: boolean
+  finished: boolean
+  asked: number
+  done: boolean
+  question: { moduleId: string; module: string; prompt: string; options: string[] } | null
+  counts: { known: number; gap: number; uncertain: number }
+  status: Record<string, 'known' | 'gap' | 'uncertain'>
+}
+
+export interface Proposal {
+  dimension: string
+  value: string
+  verdict?: Verdict
+  delta?: number
+  why: string
+  status: 'pending' | 'accepted' | 'rejected'
+}
+
+export interface Reflection { id: number; ts: string; summary: string; proposals: Proposal[]; source: 'llm' | 'offline' }
+
 export interface CardSection {
   id: string
   heading: string
@@ -53,6 +89,7 @@ export interface CardSection {
   angles: Angle[]
   check?: McqCheck
   code?: CodeExercise
+  explain?: ExplainItem
 }
 
 /** Knowledge center #1: canonical, learner-independent, versioned. */
@@ -94,6 +131,7 @@ export interface LessonSectionView {
   pending: boolean
   check: McqCheck | null
   code: CodeExercise | null
+  explain: ExplainItem | null
 }
 
 /** Knowledge center #2 output for one lesson, as the page shows it. */
@@ -141,7 +179,7 @@ export interface RoadmapDiff { id: number; ts: string; reason: string; changes: 
 
 export interface ChatMessage { role: 'tutor' | 'me'; text: string }
 
-export interface Answer { choice: number | null; correct: boolean; answer?: number; explanation?: string }
+export interface Answer { choice: number | null; correct: boolean; score?: number | null; answer?: number; explanation?: string }
 
 export interface ProviderRoute { role: string; description: string; provider: Provider; model: string }
 
@@ -178,4 +216,8 @@ export interface State {
   providers: ProviderStatus[]
   jobs: Job[]
   reviews: Review[]
+  gradings: Record<string, Grading>
+  placement: PlacementState | null
+  reflections: Reflection[]
+  settings: { autoResearch: boolean }
 }

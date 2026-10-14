@@ -19,6 +19,6 @@ Process:
    - 2-3 angles chosen from geometric / algebraic / computational, each with a one-line summary;
    - example bank tagged by domain (include ML/AI examples), 1-3 misconceptions;
    - 1-3 canonical sources (title, URL you actually found, kind, why it is the best);
-   - a lesson plan of 4-6 sections. Each section: id (s-...), heading, purpose (what it must convey), angles it can be taught through, and optionally one multiple-choice check (prompt, 4 options, answer index, explanation) and, for at most one section, a Python exercise (prompt, starter code, tests as plain asserts that print "All tests passed"; standard library only, or numpy).
+   - a lesson plan of 4-6 sections. Each section: id (s-...), heading, purpose (what it must convey), angles it can be taught through, and optionally one multiple-choice check (prompt, 4 options, answer index, explanation) and, for at most one section, a Python exercise (prompt, starter code, tests as plain asserts that print "All tests passed"; standard library only, or numpy). For conceptual concepts, give exactly one section an explain-back item: a question asking the learner to explain the idea in their own words (the "why", not a definition), with a rubric of 2-4 required ideas.
 Keep it 80/20: what matters most for the goal, fully covered.
 Return JSON matching the schema.

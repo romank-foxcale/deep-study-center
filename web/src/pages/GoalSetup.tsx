@@ -36,7 +36,7 @@ export default function GoalSetup() {
   }
 
   const jobs = submitted
-    ? s.jobs.filter(j => ['outline', 'research_module', 'fact_check'].includes(j.kind) && j.updatedAt >= submitted.at.slice(0, 19))
+    ? s.jobs.filter(j => ['outline', 'research_module', 'fact_check', 'placement_bank'].includes(j.kind) && j.updatedAt >= submitted.at.slice(0, 19))
     : []
   const created = submitted && s.goal && s.goal.id !== submitted.goalBefore
 
@@ -57,7 +57,9 @@ export default function GoalSetup() {
                     {j.progress.length > 0 && j.status !== 'failed' && <span className="muted small"> · {j.progress.slice(-1)[0]}</span>}</span>
                 </div>
               ))}
-              {created && <p>Your roadmap is ready. <Link to="/roadmap" className="link">Open it →</Link> (the first module's lessons appear when its research finishes)</p>}
+              {created && <p>Your roadmap is ready. <Link to="/placement" className="link">Take the placement quiz →</Link> to skip
+                what you already know, or <Link to="/roadmap" className="link">open the roadmap</Link>. The first module's lessons appear
+                when its research finishes.</p>}
             </div>
           )}
         </div>
