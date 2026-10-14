@@ -95,6 +95,11 @@ CREATE TABLE IF NOT EXISTS library (
   key TEXT PRIMARY KEY, title TEXT NOT NULL, objective TEXT NOT NULL, body TEXT NOT NULL, version INTEGER NOT NULL,
   source_concept TEXT NOT NULL, source_goal TEXT NOT NULL, promoted_at TEXT NOT NULL, uses INTEGER NOT NULL DEFAULT 0);
 
+-- Card refresh: proposed new versions of a card, shown as a diff for the learner to approve.
+CREATE TABLE IF NOT EXISTS card_proposals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, concept_id TEXT NOT NULL, base_version INTEGER NOT NULL,
+  body TEXT NOT NULL, summary TEXT NOT NULL, changes TEXT NOT NULL, status TEXT NOT NULL);
+
 CREATE TABLE IF NOT EXISTS routes (
   role TEXT PRIMARY KEY, ord INTEGER NOT NULL, description TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS jobs (
@@ -106,6 +111,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 MIGRATIONS = [
     ("evidence", "score", "REAL"),                         # soft evidence (0..1), e.g. graded explain-back
     ("modules", "known", "INTEGER NOT NULL DEFAULT 0"),    # placement showed the learner knows it
+    ("cards", "refreshed_at", "TEXT"),                     # last time a refresh job reviewed this version
 ]
 
 

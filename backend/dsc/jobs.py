@@ -320,7 +320,7 @@ def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
                                 (cid, m["id"], base_ord + i, c["title"], c["objective"], c["minutes"], dumps(prereqs), 0.1))
             body = {**c["card"], "objective": c["objective"]}
             ver = (db.conn.execute("SELECT COALESCE(MAX(version), 0) FROM cards WHERE concept_id=?", (cid,)).fetchone()[0]) + 1
-            db.conn.execute("INSERT INTO cards VALUES(?,?,?,?,?)",
+            db.conn.execute("INSERT INTO cards(concept_id, version, body, fact_check, checked_at) VALUES(?,?,?,?,?)",
                             (cid, ver, dumps(body), "passed" if c.get("reused") else "pending", ts))
         db.conn.execute("UPDATE modules SET research='ready' WHERE id=?", (m["id"],))
     jobs.progress(jid, f"wrote {len(concepts)} concept card(s); fact-checking next")
@@ -466,6 +466,50 @@ def fallback_reflect(jobs: Jobs, jid: int, d: dict) -> None:
     db.x("INSERT INTO reflections(ts, summary, proposals, source) VALUES(?,?,?,?)", (now(), " ".join(parts), "[]", "offline"))
     db.set_meta("last_reflection", now())
 
+# ---------------------------------------------------------------- card refresh
+
+REFRESH_SCHEMA = {"type": "object", "required": ["changed", "summary", "changes"], "properties": {
+    "changed": {"type": "boolean"}, "summary": {"type": "string"},
+    "changes": {"type": "array", "items": {"type": "string"}},
+    "card": RESEARCH_SCHEMA["properties"]["concepts"]["items"]["properties"]["card"]}}
+
+
+def run_refresh_card(jobs: Jobs, jid: int, d: dict) -> dict:
+    """Review one card against the web; store a proposal (never a new version) if it should change."""
+    db = jobs.db
+    cid = d["concept_id"]
+    card = state.latest_card(db, cid)
+    if not card:
+        return {"changed": False}
+    body = {k: v for k, v in card.items() if k not in ("conceptId", "version", "factCheck", "checkedAt", "factIssues")}
+    out = jobs.call(jid, "Card refresh", Call(
+        prompt=prompt("refresh_card", card=json.dumps(body, ensure_ascii=False, indent=1), written=card["checkedAt"],
+                      today=now()[:10]),
+        schema=REFRESH_SCHEMA, model="opus", tools=("WebSearch", "WebFetch"), timeout=1200, max_turns=40))
+    db.x("UPDATE cards SET refreshed_at=? WHERE concept_id=? AND version=?", (now(), cid, card["version"]))
+    if not out.get("changed") or not out.get("card"):
+        jobs.progress(jid, f"no changes needed: {out.get('summary', '')}"[:300])
+        return {"changed": False, "summary": out.get("summary", "")}
+    new = {**out["card"], "objective": out["card"].get("objective") or card["objective"]}
+    old_ids = {s["id"]: s for s in card.get("sections", [])}
+    for s in new.get("sections", []):
+        prev = old_ids.get(s["id"], {})
+        for kind, prefix in (("check", "q"), ("code", "x"), ("explain", "e")):
+            if s.get(kind):  # keep item ids stable so past answers still line up
+                s[kind]["id"] = prev.get(kind, {}).get("id") or f'{prefix}-{s["id"]}'
+        if "viz" in s:
+            s["viz"] = viz.validate(s["viz"])
+            if not s["viz"]:
+                del s["viz"]
+        if s.get("code") and s["code"].get("runtime") not in ("pyodide", "local"):
+            s["code"]["runtime"] = "pyodide"
+    db.x("UPDATE card_proposals SET status='superseded' WHERE concept_id=? AND status='pending'", (cid,))
+    db.x("INSERT INTO card_proposals(ts, concept_id, base_version, body, summary, changes, status) VALUES(?,?,?,?,?,?,'pending')",
+         (now(), cid, card["version"], dumps(new), out["summary"], dumps(out["changes"])))
+    jobs.progress(jid, f"proposed {len(out['changes'])} change(s)")
+    return {"changed": True}
+
+
 HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "render": (run_render, None),
     "tutor": (run_tutor, fallback_tutor),
@@ -477,4 +521,5 @@ HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "placement_bank": (run_placement_bank, None),
     "reflect": (run_reflect, fallback_reflect),
     "runner_setup": (lambda jobs, jid, d: runner.setup(lambda msg: jobs.progress(jid, msg)), None),
+    "refresh_card": (run_refresh_card, None),
 }

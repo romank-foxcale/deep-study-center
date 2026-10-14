@@ -1,9 +1,14 @@
 import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { getPlan } from '../store'
+import type { Plan } from '../types'
 import { useStore } from '../store'
 import { MasteryBar } from '../components/StateBadge'
 
 export default function Home() {
-  const { s } = useStore()
+  const { s, dispatch } = useStore()
+  const [plan, setPlan] = useState<Plan | null>(null)
+  useEffect(() => { getPlan().then(setPlan, () => setPlan(null)) }, [s])
   if (!s.goal) {
     return (
       <div className="page">
@@ -58,6 +63,35 @@ export default function Home() {
           </ul>
         </div>
       </div>
+
+      {plan && (() => {
+        const today = plan.days[0]
+        return (
+          <div className="card">
+            <div className="row row-between">
+              <div className="eyebrow">Today's plan · {today.minutes} of {today.budget} min</div>
+              <Link to="/week" className="link">This week →</Link>
+            </div>
+            {!today.study ? <p className="muted">Not a study day. Rest is part of learning.</p>
+              : today.items.length === 0 ? <p className="muted">Nothing planned yet: research for your next module is still running.</p>
+              : <ul className="plain">{today.items.map((it, i) => (
+                  <li key={i}>
+                    <span className={`pill ${it.kind === 'review' ? 'pill-warn' : ''}`}>{it.kind}</span>{' '}
+                    <Link to={it.kind === 'review' ? '/review' : `/lesson/${it.conceptId}`}
+                      onClick={() => { if (it.goalId !== s.goal?.id) dispatch({ type: 'setGoal', id: it.goalId }) }}>{it.title}</Link>
+                    <span className="muted small"> · {it.minutes} min{it.note ? ` · ${it.note}` : ''}</span>
+                  </li>))}</ul>}
+          </div>
+        )
+      })()}
+
+      {s.cardProposals.length > 0 && (
+        <Link to="/library" className="card card-link card-warn">
+          <div className="eyebrow">Source updates to review</div>
+          <p>{s.cardProposals.length} card{s.cardProposals.length > 1 ? 's have' : ' has'} a proposed update: {s.cardProposals[0].summary}</p>
+          <span className="link">Review →</span>
+        </Link>
+      )}
 
       {pending.length > 0 && (
         <Link to="/roadmap" className="card card-link card-warn">

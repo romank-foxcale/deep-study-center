@@ -11,9 +11,11 @@ import Settings from './pages/Settings'
 import Review from './pages/Review'
 import Placement from './pages/Placement'
 import Search from './pages/Search'
+import Week from './pages/Week'
 
 const NAV = [
   { to: '/', label: 'Home', end: true },
+  { to: '/week', label: 'This week' },
   { to: '/roadmap', label: 'Roadmap' },
   { to: '/review', label: 'Reviews' },
   { to: '/library', label: 'Source library' },
@@ -53,6 +55,7 @@ export default function App() {
             {n.label}
             {n.to === '/roadmap' && pending > 0 && <span className="pill pill-warn">{pending}</span>}
             {n.to === '/review' && due > 0 && <span className="pill pill-warn">{due}</span>}
+            {n.to === '/library' && s.cardProposals.length > 0 && <span className="pill pill-warn">{s.cardProposals.length}</span>}
           </NavLink>
         ))}
         <NavLink to="/goal/new" className="nav-link nav-new">+ New goal</NavLink>
@@ -70,6 +73,7 @@ export default function App() {
           <Route path="/review" element={<Review />} />
           <Route path="/placement" element={<Placement />} />
           <Route path="/search" element={<Search />} />
+          <Route path="/week" element={<Week />} />
           <Route path="/lesson/:id" element={<Lesson />} />
           <Route path="/me" element={<Me />} />
           <Route path="/library" element={<Library />} />

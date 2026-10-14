@@ -80,7 +80,7 @@ def test_run_endpoint_requires_setup_approval_and_a_clean_check(env, monkeypatch
     sec = next(s for s in card["sections"] if s["id"] == "s-neuron")
     sec["code"]["tests"] += "\nprint('extra')"
     body_json = {k: v for k, v in card.items() if k not in ("conceptId", "version", "factCheck", "checkedAt")}
-    db.x("INSERT INTO cards VALUES(?,?,?,?,?)", ("c-lincomb", card["version"] + 1, dumps(body_json), "passed", "2026-10-14"))
+    db.x("INSERT INTO cards(concept_id, version, body, fact_check, checked_at) VALUES(?,?,?,?,?)", ("c-lincomb", card["version"] + 1, dumps(body_json), "passed", "2026-10-14"))
     assert client.post("/api/run", json=body).json()["status"] == "needs_approval"
     assert client.post("/api/run", json={"conceptId": "c-vectors", "itemId": "x-vec", "code": ""}).status_code == 400
 

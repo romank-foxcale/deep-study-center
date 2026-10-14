@@ -39,3 +39,23 @@
 .search-hit p { margin: 6px 0 0; }
 mark { background: var(--warn-soft); color: inherit; padding: 0 2px; border-radius: 3px; }
 @media (max-width: 760px) { .sidebar-search { width: 100%; padding: 4px 0; } }
+
+/* Milestone 5: weekly plan, card update diffs */
+.plan-settings { display: flex; flex-direction: column; gap: 10px; }
+.plan-settings .row > span:first-child { min-width: 110px; font-weight: 600; }
+.week { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.day { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.day.today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.day.rest { opacity: 0.6; }
+.day-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.day-head .muted:last-child { margin-left: auto; }
+.plan-item { display: flex; flex-direction: column; padding-left: 8px; border-left: 3px solid var(--accent); }
+.plan-review { border-left-color: var(--warn); }
+.goal-share { display: grid; grid-template-columns: minmax(0, 1fr) 120px auto; gap: 10px; align-items: center; padding: 4px 0; }
+.goal-share-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diff-table { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.diff-row { display: grid; grid-template-columns: 140px 1fr 1fr; gap: 8px; font-size: 0.85rem; }
+.diff-field { font-weight: 600; }
+.diff-before { background: var(--bad-soft); padding: 4px 6px; border-radius: 4px; white-space: pre-wrap; }
+.diff-after { background: var(--ok-soft); padding: 4px 6px; border-radius: 4px; white-space: pre-wrap; }
+@media (max-width: 760px) { .diff-row { grid-template-columns: 1fr; } .goal-share { grid-template-columns: 1fr; } }

@@ -28,6 +28,7 @@ def env(tmp_path, monkeypatch):
     db = DB(tmp_path / "study.db")
     seed_demo(db)
     db.set_meta("auto_research", "0")  # tests that want research-ahead turn it on explicitly
+    db.set_meta("auto_refresh", "0")   # same for card refresh
     runner = FakeRunner()
     jobs = Jobs(db, runner=runner, inline=True)
     return db, jobs, runner
