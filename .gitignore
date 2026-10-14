@@ -1,0 +1,19 @@
+# dependencies and builds
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Python (backend, milestone 2)
+__pycache__/
+.venv/
+*.pyc
+
+# learner data must never land in this public repo
+DeepStudy/
+*.db
+*.sqlite
+
+# local tooling
+.claude/settings.local.json
+.DS_Store
+Thumbs.db
