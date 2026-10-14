@@ -20,6 +20,7 @@ TABLES = ("goals", "tracks", "modules", "concepts", "cards", "prose", "rendition
 EXTRA_ROUTES = [
     {"role": "Placement", "description": "Placement quiz for a new goal", "provider": "claude", "model": "sonnet"},
     {"role": "Reflection", "description": "Weekly reflection over your feedback", "provider": "claude", "model": "opus"},
+    {"role": "Card refresh", "description": "Re-check older cards for errors and better sources", "provider": "claude", "model": "opus"},
 ]
 
 VECTORS_EXPLAIN = {"s-ops": {
@@ -121,7 +122,7 @@ def seed_demo(db: DB) -> None:
         for card in d["cards"]:
             body = {k: v for k, v in card.items() if k not in ("conceptId", "version", "factCheck", "checkedAt")}
             body["sections"] = vec_sections if card["conceptId"] == "c-vectors" else LINCOMB_SECTIONS
-            db.conn.execute("INSERT INTO cards VALUES(?,?,?,?,?)",
+            db.conn.execute("INSERT INTO cards(concept_id, version, body, fact_check, checked_at) VALUES(?,?,?,?,?)",
                             (card["conceptId"], card["version"], dumps(body), card["factCheck"], card["checkedAt"]))
 
         # Playbook: the prototype's starting entries become stated signals, replayed like any others.

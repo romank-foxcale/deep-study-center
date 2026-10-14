@@ -9,7 +9,9 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import actions, lesson, library, progress, providers, runner, state
+from fastapi.responses import Response
+
+from . import actions, lesson, library, planner, progress, providers, runner, state
 from .db import DB, workspace
 from .jobs import Jobs
 from .seed import ensure_routes, seed_demo
@@ -27,6 +29,7 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
     @app.get("/api/state")
     def get_state() -> dict:
         maybe_reflect(db, jobs)
+        maybe_refresh_cards(db, jobs)
         return state.snapshot(db)
 
     @app.post("/api/action")
@@ -67,6 +70,15 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
         progress.record_evidence(db, cid, item_id, 1.0 if result["passed"] else 0.0, angle=body.get("angle"))
         return {"status": "ran", **result}
 
+    @app.get("/api/plan")
+    def get_plan() -> dict:
+        return planner.plan_week(db)
+
+    @app.get("/api/plan.ics")
+    def get_plan_ics() -> Response:
+        return Response(planner.to_ics(planner.plan_week(db)), media_type="text/calendar",
+                        headers={"Content-Disposition": 'attachment; filename="study-plan.ics"'})
+
     @app.get("/api/search")
     def search(q: str = "") -> list[dict]:
         return library.search(db, q)
@@ -102,6 +114,27 @@ def maybe_reflect(db: DB, jobs: Jobs) -> None:
     since = db.one("SELECT COUNT(*) AS n FROM feedback WHERE ts > ?", (last or "",))["n"]
     if since >= REFLECT_MIN_FEEDBACK and not jobs.active("reflect"):
         jobs.enqueue("reflect", "Weekly reflection", {})
+
+
+REFRESH_AFTER = timedelta(days=30)
+REFRESH_PER_DAY = 3
+
+
+def maybe_refresh_cards(db: DB, jobs: Jobs) -> None:
+    """Card refresh: at most a few cards a day, oldest first, only cards not reviewed in 30 days."""
+    if db.meta("auto_refresh", "1") != "1" or jobs.active("refresh_card") or jobs.active("research_module"):
+        return
+    today = datetime.now(timezone.utc).date().isoformat()
+    if db.one("SELECT COUNT(*) AS n FROM jobs WHERE kind='refresh_card' AND created_at >= ?", (today,))["n"] >= REFRESH_PER_DAY:
+        return
+    cutoff = (datetime.now(timezone.utc) - REFRESH_AFTER).isoformat()
+    row = db.one("""SELECT c.concept_id, k.title FROM cards c JOIN concepts k ON k.id = c.concept_id
+                    WHERE c.version = (SELECT MAX(version) FROM cards WHERE concept_id = c.concept_id)
+                      AND COALESCE(c.refreshed_at, c.checked_at) < ?
+                      AND NOT EXISTS (SELECT 1 FROM card_proposals p WHERE p.concept_id = c.concept_id AND p.status = 'pending')
+                    ORDER BY COALESCE(c.refreshed_at, c.checked_at) LIMIT 1""", (cutoff,))
+    if row:
+        jobs.enqueue("refresh_card", f"Check {row['title']} for updates", {"concept_id": row["concept_id"]})
 
 
 def _require_concept(db: DB, cid: str) -> None:

@@ -16,7 +16,17 @@ See [docs/SPEC.md](docs/SPEC.md) for the full design and the decisions behind it
 
 ## Status
 
-**Milestone 4** (current):
+**Milestone 5** (current):
+
+- **This week**: one plan across all your goals. Your weekly hours are split by goal; each study day starts with the
+  spaced reviews due, then lessons in roadmap order from the goal furthest behind its share, with a confirmation
+  review the day after each lesson. Set hours, study days and a start time; export the week to your calendar (.ics).
+  Today's plan is on Home.
+- **Card refresh**: cards not reviewed in 30 days are re-checked against the web (a few a day, or on demand per card)
+  for errors, outdated claims and better sources. A proposed update is shown as a diff; approving it creates the
+  next card version, which is fact-checked again, and your lessons re-render. Nothing changes without approval.
+
+**Milestone 4** added:
 
 - **Interactive visuals**: built-in widgets (draggable vectors with tip-to-tail sums, linear-combination sliders,
   a 2x2 matrix transforming the plane, function plots with parameter sliders). Agents place them in lessons as a
@@ -90,13 +100,15 @@ backend/dsc/
   runner.py             local Python runner: approval by test hash, static check, isolated run
   viz.py                interactive-visual specs and their validation
   library.py            shared card library, full-text search, Anki export
+  planner.py            weekly plan across goals and its calendar (.ics) export
   providers.py          agent-CLI adapters (claude -p, codex exec, Cursor CLI), routing and fallback
   prompts/              one prompt per job
   seed/demo.json        demo roadmap
 backend/tests/          engine and end-to-end flow tests (fake provider)
 web/src/
   store.tsx             API client: snapshot + actions, polling while jobs run
-  pages/                Home, Goal setup, Placement, Roadmap, Lesson, Reviews, Search, Me, Library, Settings
+  pages/                Home, This week, Goal setup, Placement, Roadmap, Lesson, Reviews, Search, Me, Library,
+                        Settings
   components/           inline checks, explain-back, Pyodide and local exercises, side panel (tutor, notes,
                         source card), feedback dialog
   components/viz/       interactive widgets and a safe expression evaluator for plots
@@ -104,5 +116,5 @@ web/src/
 
 ## Next
 
-Ideas: cards that refresh when better sources appear, multi-goal planning (one weekly plan across goals), a mobile
-review mode, and a Docker option for the local runner.
+Ideas: phone reviews over the home network (deliberately skipped for now: the app has no login), a Docker option for
+the local runner, per-goal time settings on the week page, and suggestions for which cards to share.

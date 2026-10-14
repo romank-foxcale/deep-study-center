@@ -140,7 +140,7 @@ def snapshot(db: DB) -> dict:
     if not gid:
         return {**base, "goal": None, "tracks": [], "modules": [], "concepts": [], "cards": [], "renditions": [],
                 "feedback": [], "notes": [], "diffs": [], "chats": {}, "answers": {}, "reviews": [], "gradings": {},
-                "placement": None, "reflections": reflections(db), "settings": {"autoResearch": db.meta("auto_research", "1") == "1"}}
+                "placement": None, "reflections": reflections(db), "settings": settings(db), "cardProposals": []}
 
     g = db.one("SELECT * FROM goals WHERE id=?", (gid,))
     tracks = db.q("SELECT * FROM tracks WHERE goal_id=? ORDER BY ord", (gid,))
@@ -184,7 +184,8 @@ def snapshot(db: DB) -> dict:
         "gradings": gradings(db, ids),
         "placement": placement(db, gid),
         "reflections": reflections(db),
-        "settings": {"autoResearch": db.meta("auto_research", "1") == "1"},
+        "settings": settings(db),
+        "cardProposals": card_proposals(db, ids),
         "reviews": [{"conceptId": r["concept_id"], "due": r["due"], "isDue": r["due"] <= now}
                     for r in db.q(f"SELECT * FROM reviews WHERE concept_id IN {in_goal} ORDER BY due", ids)],
     }
@@ -196,6 +197,63 @@ def _chats(db: DB, ids: list[str]) -> dict:
         return out
     for m in db.q(f"SELECT * FROM chats WHERE concept_id IN ({','.join('?' * len(ids))}) ORDER BY id", ids):
         out.setdefault(m["concept_id"], []).append({"role": m["role"], "text": m["text"]})
+    return out
+
+
+def settings(db: DB) -> dict:
+    from . import planner
+    p = planner.settings(db)
+    return {"autoResearch": db.meta("auto_research", "1") == "1", "autoRefresh": db.meta("auto_refresh", "1") == "1",
+            "weeklyHours": p["weekly_hours"], "studyDays": p["study_days"], "startTime": p["start_time"]}
+
+
+def card_proposals(db: DB, concept_ids: list[str]) -> list[dict]:
+    if not concept_ids:
+        return []
+    rows = db.q(f"""SELECT * FROM card_proposals WHERE status = 'pending' AND concept_id IN ({','.join('?' * len(concept_ids))})
+                    ORDER BY id DESC""", concept_ids)
+    out = []
+    for r in rows:
+        current = latest_card(db, r["concept_id"]) or {}
+        out.append({"id": r["id"], "ts": r["ts"], "conceptId": r["concept_id"], "baseVersion": r["base_version"],
+                    "summary": r["summary"], "changes": loads(r["changes"], []),
+                    "diff": card_diff(current, loads(r["body"], {}))})
+    return out
+
+
+def card_diff(old: dict, new: dict) -> list[dict]:
+    """Field-level differences the learner reviews before approving a new card version."""
+    out = []
+    for k in ("objective", "core", "formal", "why"):
+        if (old.get(k) or "") != (new.get(k) or ""):
+            out.append({"field": k, "before": old.get(k) or "", "after": new.get(k) or ""})
+    for k in ("misconceptions",):
+        if old.get(k, []) != new.get(k, []):
+            out.append({"field": k, "before": "\n".join(old.get(k, [])), "after": "\n".join(new.get(k, []))})
+    old_src, new_src = {s["url"]: s for s in old.get("sources", [])}, {s["url"]: s for s in new.get("sources", [])}
+    added = [f'{s["title"]} ({u})' for u, s in new_src.items() if u not in old_src]
+    removed = [f'{s["title"]} ({u})' for u, s in old_src.items() if u not in new_src]
+    if added or removed:
+        out.append({"field": "sources", "before": "\n".join(removed), "after": "\n".join(added)})
+    def norm(s: dict) -> dict:  # compare with defaults filled in, so normalisation alone isn't a "change"
+        if s.get("code"):
+            s = {**s, "code": {"runtime": "pyodide", **s["code"]}}
+        return s
+
+    old_secs = {s["id"]: norm(s) for s in old.get("sections", [])}
+    new_secs = {s["id"]: norm(s) for s in new.get("sections", [])}
+    for sid in list(old_secs) + [x for x in new_secs if x not in old_secs]:
+        a, b = old_secs.get(sid), new_secs.get(sid)
+        if a == b:
+            continue
+        label = (b or a)["heading"]
+        if not b:
+            out.append({"field": f"section: {label}", "before": "removed", "after": ""})
+        elif not a:
+            out.append({"field": f"section: {label}", "before": "", "after": "new section"})
+        else:
+            parts = [k for k in ("heading", "purpose", "angles", "check", "code", "explain", "viz") if a.get(k) != b.get(k)]
+            out.append({"field": f"section: {label}", "before": "", "after": "changed: " + ", ".join(parts)})
     return out
 
 

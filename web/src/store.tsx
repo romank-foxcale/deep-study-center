@@ -2,7 +2,7 @@
 // /api/action and return the next snapshot. While agent jobs run, the snapshot is polled.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Angle, LessonView, RunResult, SearchHit, State, Verdict } from './types'
+import type { Angle, LessonView, Plan, RunResult, SearchHit, State, Verdict } from './types'
 
 export type Action =
   | { type: 'answer'; conceptId: string; checkId: string; angle?: Angle; choice?: number; correct?: boolean }
@@ -28,7 +28,10 @@ export type Action =
   | { type: 'resetPlacement' }
   | { type: 'reflect' }
   | { type: 'decideProposal'; reflectionId: number; index: number; accept: boolean }
-  | { type: 'setSetting'; key: 'autoResearch'; value: boolean }
+  | { type: 'setSetting'; key: 'autoResearch' | 'autoRefresh'; value: boolean }
+  | { type: 'refreshCard'; conceptId: string }
+  | { type: 'decideCardProposal'; id: number; approve: boolean }
+  | { type: 'setPlanSettings'; weeklyHours?: number; studyDays?: number[]; startTime?: string; goalId?: string; hours?: number }
   | { type: 'promoteCard'; conceptId: string }
   | { type: 'setupRunner' }
   | { type: 'reset' }
@@ -54,6 +57,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const getLesson = (id: string) => api<LessonView>(`/api/lesson/${encodeURIComponent(id)}`)
+export const getPlan = () => api<Plan>('/api/plan')
 export const searchAll = (q: string) => api<SearchHit[]>(`/api/search?q=${encodeURIComponent(q)}`)
 export const runLocal = (body: { conceptId: string; itemId: string; code: string; angle?: Angle; approve?: boolean }) =>
   api<RunResult>('/api/run', { method: 'POST', body: JSON.stringify(body) })

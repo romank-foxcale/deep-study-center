@@ -354,9 +354,10 @@ def route(db: DB, jobs: Jobs, a: dict) -> None:
 
 
 def set_setting(db: DB, jobs: Jobs, a: dict) -> None:
-    if a["key"] != "autoResearch":
+    keys = {"autoResearch": "auto_research", "autoRefresh": "auto_refresh"}
+    if a["key"] not in keys:
         raise ActionError("unknown setting")
-    db.set_meta("auto_research", "1" if a["value"] else "0")
+    db.set_meta(keys[a["key"]], "1" if a["value"] else "0")
     progress.research_ahead(db, jobs)
 
 
@@ -372,6 +373,59 @@ def setup_runner(db: DB, jobs: Jobs, a: dict) -> None:
         jobs.enqueue("runner_setup", "Set up local Python (numpy, torch)", {})
 
 
+def refresh_card(db: DB, jobs: Jobs, a: dict) -> None:
+    if not state.latest_card(db, a["conceptId"]):
+        raise ActionError("no card to refresh")
+    if not jobs.active("refresh_card", concept_id=a["conceptId"]):
+        title = db.one("SELECT title FROM concepts WHERE id=?", (a["conceptId"],))["title"]
+        jobs.enqueue("refresh_card", f"Check {title} for updates", {"concept_id": a["conceptId"]})
+
+
+def decide_card_proposal(db: DB, jobs: Jobs, a: dict) -> None:
+    """Approve: the proposal becomes the card's next version (fact-checked again; lessons re-render).
+    Reject: nothing changes."""
+    from .db import loads
+    p = db.one("SELECT * FROM card_proposals WHERE id=?", (a["id"],))
+    if not p or p["status"] != "pending":
+        raise ActionError("no pending proposal with that id")
+    if not a["approve"]:
+        db.x("UPDATE card_proposals SET status='rejected' WHERE id=?", (p["id"],))
+        return
+    current = state.latest_card(db, p["concept_id"])
+    if current and current["version"] != p["base_version"]:
+        db.x("UPDATE card_proposals SET status='superseded' WHERE id=?", (p["id"],))
+        raise ActionError("the card changed since this was proposed; ask for a fresh check")
+    ver = (current["version"] if current else 0) + 1
+    body = loads(p["body"])
+    db.x("INSERT INTO cards(concept_id, version, body, fact_check, checked_at) VALUES(?,?,?,?,?)",
+         (p["concept_id"], ver, dumps(body), "pending", now()))
+    db.x("UPDATE card_proposals SET status='approved' WHERE id=?", (p["id"],))
+    db.x("UPDATE concepts SET objective=? WHERE id=?", (body.get("objective") or current["objective"], p["concept_id"]))
+    jobs.enqueue("fact_check", "Fact-check updated card", {"concept_ids": [p["concept_id"]]})
+
+
+def set_plan_settings(db: DB, jobs: Jobs, a: dict) -> None:
+    if "weeklyHours" in a:
+        h = float(a["weeklyHours"])
+        if not 0.5 <= h <= 80:
+            raise ActionError("weekly hours must be between 0.5 and 80")
+        db.set_meta("plan_weekly_hours", str(h))
+    if "studyDays" in a:
+        days = sorted({int(d) for d in a["studyDays"] if 0 <= int(d) <= 6})
+        if not days:
+            raise ActionError("pick at least one study day")
+        db.set_meta("plan_study_days", ",".join(map(str, days)))
+    if "startTime" in a:
+        if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", a["startTime"]):
+            raise ActionError("start time must look like 19:00")
+        db.set_meta("plan_start_time", a["startTime"])
+    if "hours" in a and "goalId" in a:
+        h = float(a["hours"])
+        if not 0.5 <= h <= 80:
+            raise ActionError("hours must be between 0.5 and 80")
+        db.x("UPDATE goals SET hours=? WHERE id=?", (h, a["goalId"]))
+
+
 def reset(db: DB, jobs: Jobs, a: dict) -> None:
     seed_demo(db)
 
@@ -380,7 +434,8 @@ ACTIONS = {
     "answer": answer, "explain": explain, "review": review,
     "startPlacement": start_placement, "placementAnswer": placement_answer, "finishPlacement": finish_placement, "resetPlacement": reset_placement,
     "reflect": reflect, "decideProposal": decide_proposal, "setSetting": set_setting,
-    "promoteCard": promote_card, "setupRunner": setup_runner, "feedback": feedback, "explainDifferently": explain_differently,
+    "promoteCard": promote_card, "setupRunner": setup_runner,
+    "refreshCard": refresh_card, "decideCardProposal": decide_card_proposal, "setPlanSettings": set_plan_settings, "feedback": feedback, "explainDifferently": explain_differently,
     "refresh": refresh, "markStudied": mark_studied, "addNote": add_note, "deleteNote": delete_note,
     "chat": chat, "decideDiff": decide_diff, "researchModule": research_module, "createGoal": create_goal,
     "setGoal": set_goal, "correctEntry": correct_entry, "adjust": adjust, "route": route, "reset": reset,

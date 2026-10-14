@@ -55,6 +55,26 @@ export type VizSpec =
   | { type: 'matrix2d'; caption: string; matrix: number[][] }
   | { type: 'plot'; caption: string; expr: string; xmin: number; xmax: number; params: { name: string; min: number; max: number; value: number }[] }
 
+export interface PlanItem { kind: 'review' | 'lesson'; goalId: string; conceptId: string; title: string; minutes: number; note: string }
+
+export interface Plan {
+  start: string
+  settings: { weekly_hours: number; study_days: number[]; start_time: string }
+  days: { date: string; weekday: string; study: boolean; budget: number; minutes: number; items: PlanItem[] }[]
+  goals: { id: string; title: string; share: number; plannedMinutes: number; targetMinutes: number }[]
+  upcomingResearch: { goalId: string; moduleId: string; title: string; research: ResearchStatus }[]
+}
+
+export interface CardProposal {
+  id: number
+  ts: string
+  conceptId: string
+  baseVersion: number
+  summary: string
+  changes: string[]
+  diff: { field: string; before: string; after: string }[]
+}
+
 export interface LibraryCard { key: string; title: string; objective: string; version: number; sourceConcept: string; promotedAt: string; uses: number }
 
 export interface SearchHit { kind: 'note' | 'lesson' | 'card'; ref: string; conceptId: string; title: string; snippet: string }
@@ -237,7 +257,8 @@ export interface State {
   gradings: Record<string, Grading>
   placement: PlacementState | null
   reflections: Reflection[]
-  settings: { autoResearch: boolean }
+  settings: { autoResearch: boolean; autoRefresh: boolean; weeklyHours: number; studyDays: number[]; startTime: string }
+  cardProposals: CardProposal[]
   library: LibraryCard[]
   runner: { setUp: boolean; packages: string[] }
   ankiExport: string | null

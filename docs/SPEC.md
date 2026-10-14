@@ -161,3 +161,25 @@ feedback / outcome ──▶ signal log ──▶ playbook replay ──▶ play
 - **Search**: an FTS5 index over notes, the current rendition's prose and cards, rebuilt per query (small data).
 - **Anki**: genanki deck per goal with stable ids; MCQ checks and explain-back prompts of learned, mastered or
   rusty concepts; `$...$` math converted to MathJax delimiters.
+
+
+## 9. Milestone 5 notes (2026-10-14)
+Scope chosen: weekly plan and card refresh. Phone access was skipped: the server binds to 127.0.0.1 and has no
+authentication, so exposing it on a network needs its own design (pairing token, read-only review scope).
+- **Plan** (`planner.py`, deterministic): weekly minutes = settings (default: sum of goals' hours/week), split equally
+  over study days. Each goal's share follows its hours/week. Day order: reviews due by that day (including confirmation
+  reviews projected one study day after a planned lesson), then lessons from the goal with the lowest used/target ratio.
+  Lessons follow roadmap order; a locked lesson is plannable once its prerequisites are learned or planned earlier
+  in the week. Modules placement marked known are skipped. A day can overrun by up to 15% to keep a lesson whole.
+  Concepts without a card are planned with "needs research"; the next unresearched module per goal is listed.
+- **Calendar**: one VEVENT per study day with items, at the start time in floating local time, RFC 5545 escaping and
+  75-octet folding. Stable UIDs per date so re-importing updates the events.
+- **Card refresh**: `refresh_card` job (route "Card refresh", Opus with web search) reviews the latest version. No
+  change → `cards.refreshed_at` is set. A change → a `card_proposals` row (earlier pending ones are superseded). Item
+  ids are restored from the previous version so past answers still line up; visuals are re-validated. Approval
+  inserts version + 1 (fact-check pending, then the fact-check job runs), which makes renditions stale. Approval is
+  refused if the card changed since the proposal. Automatic: on state reads, if enabled, at most 3 jobs a day, oldest
+  `COALESCE(refreshed_at, checked_at)` older than 30 days, skipping cards with a pending proposal and never while a
+  research job runs.
+- The diff the learner sees is field-level (objective, core, formal, why, misconceptions, sources added/removed,
+  sections added/removed/changed, with defaults filled in so normalisation alone isn't a change).

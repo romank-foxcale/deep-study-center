@@ -73,6 +73,11 @@ export default function Settings() {
             onChange={e => dispatch({ type: 'setSetting', key: 'autoResearch', value: e.target.checked })} />
           <span>Research automatically, one module ahead of you</span>
         </label>
+        <label className="row">
+          <input type="checkbox" checked={s.settings.autoRefresh}
+            onChange={e => dispatch({ type: 'setSetting', key: 'autoRefresh', value: e.target.checked })} />
+          <span>Re-check cards older than 30 days for errors and better sources (up to 3 a day)</span>
+        </label>
         <p className="muted small">Each module's research runs on the provider set for “Research” (with web search) and can take several
           minutes of your plan's usage. Turn this off to research modules only when you click “Research now”.</p>
       </div>
