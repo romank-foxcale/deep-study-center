@@ -9,6 +9,7 @@ export default function Library() {
   const refreshing = new Set(s.jobs.filter(j => j.kind === 'refresh_card' && (j.status === 'queued' || j.status === 'running'))
     .map(j => j.input.concept_id ?? ''))
   const exported = s.ankiExport?.split('|')
+  const suggested = new Set(s.shareSuggestions)
   return (
     <div className="page">
       <h1>Source library</h1>
@@ -20,6 +21,10 @@ export default function Library() {
           <button role="tab" aria-selected={tab === 'shared'} className={`tab ${tab === 'shared' ? 'on' : ''}`} onClick={() => setTab('shared')}>Shared library ({s.library.length})</button>
         </div>
         <span className="spacer" />
+        {suggested.size > 0 && (
+          <button className="btn" title="Fact-checked cards for concepts you've learned"
+            onClick={() => dispatch({ type: 'promoteSuggested' })}>Share {suggested.size} suggested</button>
+        )}
         <a className="btn" href="/api/export/anki" download>Export Anki deck</a>
         {exported && <span className="muted small">last export: {exported[1]} cards, {new Date(exported[0]).toLocaleDateString()}</span>}
       </div>
@@ -61,7 +66,8 @@ export default function Library() {
               const concept = s.concepts.find(x => x.id === c.conceptId)
               return (
                 <tr key={c.conceptId}>
-                  <td><Link to={`/lesson/${c.conceptId}`}>{concept?.title}</Link></td>
+                  <td><Link to={`/lesson/${c.conceptId}`}>{concept?.title}</Link>
+                    {suggested.has(c.conceptId) && <> <span className="pill pill-ok" title="You've learned it and it's fact-checked">suggested to share</span></>}</td>
                   <td>v{c.version}</td>
                   <td><span className={`pill ${c.factCheck === 'passed' ? 'pill-ok' : 'pill-warn'}`}>{c.factCheck}</span></td>
                   <td>{c.sources.map(src => <div key={src.url}><a href={src.url} target="_blank" rel="noreferrer">{src.title}</a></div>)}</td>

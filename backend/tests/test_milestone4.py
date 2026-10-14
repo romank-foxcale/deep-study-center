@@ -61,11 +61,11 @@ def test_run_endpoint_requires_setup_approval_and_a_clean_check(env, monkeypatch
     client = TestClient(create_app(db=db, jobs=jobs))
     body = {"conceptId": "c-lincomb", "itemId": "x-neuron", "code": "import torch\ndef neuron(x):\n    return x[:1]\n"}
     monkeypatch.setattr(runner, "is_set_up", lambda: False)
-    assert client.post("/api/run", json=body).json() == {"status": "needs_setup"}
+    assert client.post("/api/run", json=body).json() == {"status": "needs_setup", "mode": "local"}
 
     monkeypatch.setattr(runner, "is_set_up", lambda: True)
     calls = []
-    monkeypatch.setattr(runner, "run", lambda code, tests, rid: calls.append(code) or {"passed": True, "output": "All tests passed"})
+    monkeypatch.setattr(runner, "run", lambda code, tests, rid, use_docker=False: calls.append(code) or {"passed": True, "output": "All tests passed"})
     r = client.post("/api/run", json=body).json()
     assert r["status"] == "needs_approval" and "torch.tensor([3.0, 4.0, 2.0])" in r["tests"] and not calls
     r = client.post("/api/run", json={**body, "approve": True}).json()

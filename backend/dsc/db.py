@@ -100,6 +100,10 @@ CREATE TABLE IF NOT EXISTS card_proposals (
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, concept_id TEXT NOT NULL, base_version INTEGER NOT NULL,
   body TEXT NOT NULL, summary TEXT NOT NULL, changes TEXT NOT NULL, status TEXT NOT NULL);
 
+-- Time actually spent per day and concept (from page activity heartbeats), for plan vs. actual.
+CREATE TABLE IF NOT EXISTS activity (
+  day TEXT NOT NULL, concept_id TEXT NOT NULL, seconds INTEGER NOT NULL, PRIMARY KEY (day, concept_id));
+
 CREATE TABLE IF NOT EXISTS routes (
   role TEXT PRIMARY KEY, ord INTEGER NOT NULL, description TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS jobs (

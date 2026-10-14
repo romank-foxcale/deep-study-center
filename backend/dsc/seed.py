@@ -152,6 +152,40 @@ def seed_demo(db: DB) -> None:
             db.conn.execute("INSERT INTO routes VALUES(?,?,?,?,?)", (r["role"], i, r["description"], r["provider"], r["model"]))
 
 
+def init_empty(db: DB) -> None:
+    """First run without the demo: job routes only; the learner starts their own goal."""
+    d = load_demo()
+    with db.tx():
+        for i, r in enumerate(d["routes"] + EXTRA_ROUTES):
+            db.conn.execute("INSERT OR IGNORE INTO routes VALUES(?,?,?,?,?)", (r["role"], i, r["description"], r["provider"], r["model"]))
+        db.conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES('first_run', '1')")
+
+
+PER_CONCEPT_TABLES = ("cards", "prose", "renditions", "evidence", "feedback", "notes", "chats", "reviews", "gradings",
+                      "card_proposals", "runner_approvals", "activity")
+
+
+def delete_goal(db: DB, goal_id: str) -> None:
+    """Remove a goal and everything learned inside it (backups keep a copy). The playbook stays:
+    it describes the learner, not the goal."""
+    concept_ids = [r["id"] for r in db.q("""SELECT c.id FROM concepts c JOIN modules m ON m.id = c.module_id
+                                           JOIN tracks t ON t.id = m.track_id WHERE t.goal_id = ?""", (goal_id,))]
+    with db.tx():
+        for t in PER_CONCEPT_TABLES:
+            db.conn.executemany(f"DELETE FROM {t} WHERE concept_id = ?", [(c,) for c in concept_ids])
+        db.conn.execute("DELETE FROM concepts WHERE module_id IN (SELECT m.id FROM modules m JOIN tracks t ON t.id = m.track_id WHERE t.goal_id = ?)", (goal_id,))
+        db.conn.execute("DELETE FROM modules WHERE track_id IN (SELECT id FROM tracks WHERE goal_id = ?)", (goal_id,))
+        for t in ("tracks", "diffs", "placement_items", "placement_answers"):
+            db.conn.execute(f"DELETE FROM {t} WHERE goal_id = ?", (goal_id,))
+        db.conn.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
+        db.conn.execute("DELETE FROM meta WHERE key = ?", (f"placement_done:{goal_id}",))
+        nxt = db.conn.execute("SELECT id FROM goals ORDER BY created_at LIMIT 1").fetchone()
+        if nxt:
+            db.conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES('active_goal', ?)", (nxt[0],))
+        else:
+            db.conn.execute("DELETE FROM meta WHERE key = 'active_goal'")
+
+
 def ensure_routes(db: DB) -> None:
     """Add job routes introduced by newer versions to an existing workspace."""
     n = db.one("SELECT COUNT(*) AS n FROM routes")["n"]

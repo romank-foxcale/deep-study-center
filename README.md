@@ -14,9 +14,34 @@ Two knowledge centers:
 It runs locally and uses your own Claude / ChatGPT / Cursor subscriptions through their CLIs.
 See [docs/SPEC.md](docs/SPEC.md) for the full design and the decisions behind it.
 
+## Quick start
+
+```powershell
+.\start.ps1        # Windows
+```
+
+```bash
+./start.sh         # macOS / Linux
+```
+
+The first run creates the Python environment, builds the frontend, starts the app on http://127.0.0.1:8000 and
+opens your browser. You choose between starting your own goal and exploring the demo. Your data lives in `~/DeepStudy`
+(override with `DSC_WORKSPACE`) and is backed up daily to `~/DeepStudy/backups`.
+
 ## Status
 
-**Milestone 5** (current):
+**Milestone 6** (current): daily-use readiness.
+
+- One command to set up and start (`start.ps1` / `start.sh`, or `dsc start`); the frontend is rebuilt only when it changed.
+- First run starts empty and lets you pick your own goal or the demo; goals can be removed in Settings (after a backup).
+- Daily backups of the workspace database (newest 14 kept), plus "Back up now".
+- Undo an answer (mis-click) or remove a grade you disagree with; mastery is recomputed from what remains.
+- Live research progress: each web search and page the research agent reads shows up as it happens.
+- This week: per-goal hours, and time actually spent (counted while a lesson is open and you're active).
+- Library: suggestions for which cards to share (fact-checked, and you've learned the concept).
+- Docker option for exercises (no network, read-only, resource limits, unprivileged user). Untested until Docker is installed.
+
+**Milestone 5** added:
 
 - **This week**: one plan across all your goals. Your weekly hours are split by goal; each study day starts with the
   spaced reviews due, then lessons in roadmap order from the goal furthest behind its share, with a confirmation
@@ -63,7 +88,7 @@ written for you on first open. *+ New goal* runs the real interview → outline 
 
 ## Run
 
-Requires Python 3.11+, Node 20+, and the [Claude Code](https://code.claude.com) CLI logged in with your subscription
+Manual setup (what the start scripts do). Requires Python 3.11+, Node 20+, and the [Claude Code](https://code.claude.com) CLI logged in with your subscription
 (`claude` on PATH). Optional: `codex` and the Cursor CLI, logged in, if you route jobs to them in Settings.
 
 ```bash
@@ -101,6 +126,7 @@ backend/dsc/
   viz.py                interactive-visual specs and their validation
   library.py            shared card library, full-text search, Anki export
   planner.py            weekly plan across goals and its calendar (.ics) export
+  backup.py             daily workspace backups
   providers.py          agent-CLI adapters (claude -p, codex exec, Cursor CLI), routing and fallback
   prompts/              one prompt per job
   seed/demo.json        demo roadmap
@@ -116,5 +142,5 @@ web/src/
 
 ## Next
 
-Ideas: phone reviews over the home network (deliberately skipped for now: the app has no login), a Docker option for
-the local runner, per-goal time settings on the week page, and suggestions for which cards to share.
+Ideas: phone reviews over the home network (needs a pairing/login design first), and test the Docker runner once
+Docker Desktop is installed.

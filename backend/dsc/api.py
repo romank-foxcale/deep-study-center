@@ -11,16 +11,16 @@ from fastapi.staticfiles import StaticFiles
 
 from fastapi.responses import Response
 
-from . import actions, lesson, library, planner, progress, providers, runner, state
+from . import actions, backup, lesson, library, planner, progress, providers, runner, state
 from .db import DB, workspace
 from .jobs import Jobs
-from .seed import ensure_routes, seed_demo
+from .seed import ensure_routes, init_empty
 
 
 def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path | None = None) -> FastAPI:
     db = db or DB(workspace() / "study.db")
     if not db.one("SELECT 1 FROM routes LIMIT 1"):
-        seed_demo(db)  # first run: start from the demo roadmap
+        init_empty(db)  # first run: the learner chooses their own goal or the demo
     ensure_routes(db)
     jobs = jobs or Jobs(db)
     app = FastAPI(title="Deep Study Center")
@@ -30,6 +30,7 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
     def get_state() -> dict:
         maybe_reflect(db, jobs)
         maybe_refresh_cards(db, jobs)
+        backup.maybe_backup(db)
         return state.snapshot(db)
 
     @app.post("/api/action")
@@ -57,8 +58,9 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
         item = actions._card_item(db, cid, item_id)
         if not item or item["kind"] != "code" or item.get("runtime") != "local":
             raise HTTPException(400, "not a local exercise")
-        if not runner.is_set_up():
-            return {"status": "needs_setup"}
+        use_docker = runner.mode(db) == "docker"
+        if not (runner.docker_ready() if use_docker else runner.is_set_up()):
+            return {"status": "needs_setup", "mode": "docker" if use_docker else "local"}
         if body.get("approve"):
             runner.approve(db, cid, item_id, item["tests"])
         if not runner.is_approved(db, cid, item_id, item["tests"]):
@@ -66,9 +68,20 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
         problems = runner.static_check(f'{code}\n{item["tests"]}')
         if problems:
             return {"status": "blocked", "problems": problems}
-        result = runner.run(code, item["tests"], f"{cid}-{item_id}")
+        result = runner.run(code, item["tests"], f"{cid}-{item_id}", use_docker=use_docker)
         progress.record_evidence(db, cid, item_id, 1.0 if result["passed"] else 0.0, angle=body.get("angle"))
         return {"status": "ran", **result}
+
+    @app.post("/api/activity")
+    def activity(body: dict = Body(...)) -> dict:
+        """Heartbeat from an open, visible lesson the learner is interacting with (seconds since the last one)."""
+        cid, secs = body.get("conceptId", ""), int(body.get("seconds", 0))
+        if not 0 < secs <= 120 or not db.one("SELECT 1 FROM concepts WHERE id=?", (cid,)):
+            raise HTTPException(400, "bad heartbeat")
+        day = datetime.now().date().isoformat()  # local day, to match the plan
+        db.x("""INSERT INTO activity VALUES(?,?,?) ON CONFLICT(day, concept_id) DO UPDATE SET seconds = seconds + excluded.seconds""",
+             (day, cid, secs))
+        return {"ok": True}
 
     @app.get("/api/plan")
     def get_plan() -> dict:

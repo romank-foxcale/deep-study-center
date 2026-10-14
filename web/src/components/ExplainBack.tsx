@@ -7,22 +7,24 @@ interface Props {
   grading?: Grading
   inProgress: boolean
   onSubmit: (answer: string) => void
+  /** Remove a grade you disagree with (its evidence is voided) and answer again. */
+  onUndo?: () => void
 }
 
 const SCORE_LABEL: Record<string, string> = { '1': 'Solid', '0.5': 'Almost', '0': 'Not yet' }
 
 /** Explain-back: the learner's own words, graded against a hidden rubric by an independent grader. */
-export default function ExplainBack({ item, grading, inProgress, onSubmit }: Props) {
+export default function ExplainBack({ item, grading, inProgress, onSubmit, onUndo }: Props) {
   const [text, setText] = useState('')
   const [retry, setRetry] = useState(false)
-  const showForm = !grading || retry || grading.status === 'ungraded'
+  const showForm = !grading || retry || grading.status === 'ungraded' || grading.status === 'voided'
   const pending = inProgress || grading?.status === 'pending'
 
   return (
     <div className="check explain">
       <div className="check-label">Explain it back</div>
       <Markdown>{item.prompt}</Markdown>
-      {grading && !retry && (
+      {grading && !retry && grading.status !== 'voided' && (
         <div className="explain-answer">
           <div className="muted small">Your answer</div>
           <p>{grading.answer}</p>
@@ -37,8 +39,11 @@ export default function ExplainBack({ item, grading, inProgress, onSubmit }: Pro
         </div>
       )}
       {grading?.status === 'ungraded' && <p className="muted small">{grading.feedback}</p>}
-      {grading?.status === 'graded' && !retry && grading.score !== 1 && (
-        <button className="btn" onClick={() => { setRetry(true); setText(grading.answer) }}>Try again</button>
+      {grading?.status === 'graded' && !retry && (
+        <div className="row">
+          {grading.score !== 1 && <button className="btn" onClick={() => { setRetry(true); setText(grading.answer) }}>Try again</button>}
+          {onUndo && <button className="link small" onClick={onUndo}>I disagree with this grade: remove it</button>}
+        </div>
       )}
       {showForm && !pending && (
         <>

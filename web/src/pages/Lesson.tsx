@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getLesson, jobActive, openLesson, useStore } from '../store'
+import { getLesson, jobActive, openLesson, postActivity, useStore } from '../store'
 import type { Angle, LessonView } from '../types'
 import Markdown from '../components/Markdown'
 import InlineCheck from '../components/InlineCheck'
@@ -51,6 +51,18 @@ export default function Lesson() {
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the snapshot
   }, [s])
+
+  // Time actually spent: a heartbeat every 30 s while the lesson is visible and you've interacted recently.
+  useEffect(() => {
+    let lastInput = Date.now()
+    const mark = () => { lastInput = Date.now() }
+    const events = ['pointerdown', 'keydown', 'scroll', 'pointermove'] as const
+    events.forEach(e => window.addEventListener(e, mark, { passive: true }))
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible' && Date.now() - lastInput < 120_000) postActivity(id, 30).catch(() => {})
+    }, 30_000)
+    return () => { clearInterval(t); events.forEach(e => window.removeEventListener(e, mark)) }
+  }, [id])
 
   useEffect(() => {
     if (!toast) return
@@ -148,7 +160,8 @@ export default function Lesson() {
               {sec.approximate && <p className="muted small">{sec.pending ? 'Showing the closest earlier version while your new one is written.' : 'Closest earlier version.'}</p>}
               {sec.check && (
                 <InlineCheck key={sec.check.id} check={sec.check} previous={s.answers[`${id}:${sec.check.id}`]}
-                  onAnswer={choice => dispatch({ type: 'answer', conceptId: id, checkId: sec.check!.id, angle: sec.angle, choice })} />
+                  onAnswer={choice => dispatch({ type: 'answer', conceptId: id, checkId: sec.check!.id, angle: sec.angle, choice })}
+                  onUndo={() => dispatch({ type: 'undoAnswer', conceptId: id, itemId: sec.check!.id })} />
               )}
               {sec.code?.runtime === 'local' && (
                 <LocalExercise key={sec.code.id} conceptId={id} exercise={sec.code} angle={sec.angle}
@@ -161,7 +174,8 @@ export default function Lesson() {
               {sec.explain && (
                 <ExplainBack key={sec.explain.id} item={sec.explain} grading={s.gradings[`${id}:${sec.explain.id}`]}
                   inProgress={jobActive(s, 'grade', { concept_id: id })}
-                  onSubmit={answer => dispatch({ type: 'explain', conceptId: id, itemId: sec.explain!.id, angle: sec.angle, answer })} />
+                  onSubmit={answer => dispatch({ type: 'explain', conceptId: id, itemId: sec.explain!.id, angle: sec.angle, answer })}
+                  onUndo={() => dispatch({ type: 'undoAnswer', conceptId: id, itemId: sec.explain!.id })} />
               )}
             </section>
           )

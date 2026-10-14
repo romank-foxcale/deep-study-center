@@ -24,6 +24,13 @@ from pathlib import Path
 from .db import DB, now, workspace
 
 PACKAGES = ("numpy", "torch")
+IMAGE = "deep-study-center-runner:1"
+DOCKERFILE = """FROM python:3.12-slim
+RUN pip install --no-cache-dir numpy torch --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
+RUN useradd -m learner
+USER learner
+WORKDIR /work
+"""
 TIMEOUT = 90
 
 BLOCKED_MODULES = {
@@ -68,6 +75,51 @@ def setup(progress=lambda msg: None) -> dict:
     return {"versions": versions}
 
 
+# ---------------------------------------------------------------- Docker mode (stricter isolation)
+
+
+def mode(db: DB) -> str:
+    return db.meta("runner_mode", "local") or "local"
+
+
+def docker_available() -> bool:
+    import shutil
+    if not shutil.which("docker"):
+        return False
+    try:
+        return subprocess.run(["docker", "info", "--format", "{{.ServerVersion}}"], capture_output=True, timeout=15).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def docker_ready() -> bool:
+    try:
+        return subprocess.run(["docker", "image", "inspect", IMAGE], capture_output=True, timeout=15).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def setup_docker(progress=lambda msg: None) -> dict:
+    """Build the runner image (CPU-only PyTorch). Large download, one time."""
+    ctx = workspace() / "runner-docker"
+    ctx.mkdir(parents=True, exist_ok=True)
+    (ctx / "Dockerfile").write_text(DOCKERFILE, encoding="utf-8")
+    progress("building the exercise container (CPU PyTorch; this can take several minutes)")
+    proc = subprocess.run(["docker", "build", "-t", IMAGE, str(ctx)], capture_output=True, text=True, timeout=3600)
+    if proc.returncode != 0:
+        raise RuntimeError(f"docker build failed: {proc.stderr.strip()[-400:]}")
+    progress("container ready")
+    return {"image": IMAGE}
+
+
+def docker_command(folder: Path) -> list[str]:
+    """No network, read-only root and code, limited memory/CPU/processes, unprivileged user."""
+    return ["docker", "run", "--rm", "--network", "none", "--read-only", "--tmpfs", "/tmp:rw,size=64m",
+            "--memory", "2g", "--cpus", "2", "--pids-limit", "256", "--cap-drop", "ALL",
+            "--security-opt", "no-new-privileges", "-v", f"{folder}:/work:ro", "-w", "/work",
+            IMAGE, "python", "-I", "-X", "utf8", "-B", "exercise.py"]
+
+
 def tests_hash(tests: str) -> str:
     return hashlib.sha256(tests.encode("utf-8")).hexdigest()[:16]
 
@@ -105,20 +157,22 @@ def static_check(source: str) -> list[str]:
     return sorted(set(problems))
 
 
-def run(code: str, tests: str, run_id: str) -> dict:
-    """Run learner code + tests in the runner environment. Passed = exit 0 and 'All tests passed'."""
+def run(code: str, tests: str, run_id: str, use_docker: bool = False) -> dict:
+    """Run learner code + tests locally or in the container. Passed = exit 0 and 'All tests passed'."""
     folder = workspace() / "runs" / run_id
     folder.mkdir(parents=True, exist_ok=True)
     script = folder / "exercise.py"
     script.write_text(f"{code}\n\n# ---- tests ----\n{tests}\n", encoding="utf-8")
     keep = ("SYSTEMROOT", "WINDIR", "TEMP", "TMP", "PATH", "HOME", "USERPROFILE", "LANG")
     env = {k: v for k, v in os.environ.items() if k in keep}
+    cmd = docker_command(folder) if use_docker else [str(python_path()), "-I", "-X", "utf8", "-B", str(script)]
     try:  # -I: isolated mode (ignores PYTHON* env and user site); -X utf8: UTF-8 stdio despite -I
-        proc = subprocess.run([str(python_path()), "-I", "-X", "utf8", "-B", str(script)], cwd=folder, env=env,
+        proc = subprocess.run(cmd, cwd=folder, env=env,
                               capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT)
     except subprocess.TimeoutExpired:
         return {"passed": False, "output": f"Stopped after {TIMEOUT}s (infinite loop or very slow code?)"}
-    out = (proc.stdout + ("\n" + proc.stderr if proc.stderr else "")).strip().replace(str(script), "exercise.py")
+    out = (proc.stdout + ("\n" + proc.stderr if proc.stderr else "")).strip()
+    out = out.replace(str(script), "exercise.py").replace("/work/exercise.py", "exercise.py")
     lines = out.splitlines()
     if proc.returncode != 0 and lines:
         # Show the error line and the traceback frames from the exercise only.

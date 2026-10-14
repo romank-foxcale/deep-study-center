@@ -2,6 +2,7 @@ import { useStore } from '../store'
 
 export default function Settings() {
   const { s, dispatch } = useStore()
+  const running = (kind: string) => s.jobs.some(j => j.kind === kind && (j.status === 'queued' || j.status === 'running'))
   return (
     <div className="page">
       <h1>Settings</h1>
@@ -60,10 +61,45 @@ export default function Settings() {
         <h2>Local Python for exercises</h2>
         <p className="muted small">Exercises that need PyTorch run on your machine in a separate environment in your workspace
           ({s.runner.packages.join(', ')}). You review each exercise's test code before it first runs.</p>
-        {s.runner.setUp
+        <div className="row" role="radiogroup" aria-label="Where exercises run">
+          <label className="row"><input type="radio" checked={s.runner.mode === 'local'} onChange={() => dispatch({ type: 'setRunnerMode', mode: 'local' })} />
+            Local environment</label>
+          <label className="row"><input type="radio" checked={s.runner.mode === 'docker'} onChange={() => dispatch({ type: 'setRunnerMode', mode: 'docker' })} />
+            Docker container (no network, read-only, resource limits)</label>
+        </div>
+        {s.runner.mode === 'local' && (s.runner.setUp
           ? <span className="pill pill-ok">ready</span>
-          : <button className="btn" disabled={s.jobs.some(j => j.kind === 'runner_setup' && (j.status === 'queued' || j.status === 'running'))}
-              onClick={() => dispatch({ type: 'setupRunner' })}>Set up (about 1 GB download)</button>}
+          : <button className="btn" disabled={running('runner_setup')}
+              onClick={() => dispatch({ type: 'setupRunner' })}>Set up (about 1 GB download)</button>)}
+        {s.runner.mode === 'docker' && (s.runner.dockerReady
+          ? <span className="pill pill-ok">container ready</span>
+          : <button className="btn" disabled={running('runner_docker_setup')}
+              onClick={() => dispatch({ type: 'setupRunnerDocker' })}>Build the container (CPU PyTorch, large download)</button>)}
+      </div>
+
+      <div className="card">
+        <h2>Backups</h2>
+        <p className="muted small">A copy of your workspace database is made every day while the app runs (the newest 14 are kept), and
+          always before a goal is removed. To restore one, stop the app and copy it over <code>study.db</code>.</p>
+        <p className="small">Folder: <code>{s.backups.folder}</code><br />
+          Last backup: {s.backups.last ? new Date(s.backups.last).toLocaleString() : 'none yet'}</p>
+        <button className="btn" onClick={() => dispatch({ type: 'backupNow' })}>Back up now</button>
+      </div>
+
+      <div className="card">
+        <h2>Goals</h2>
+        {s.goals.length === 0 ? <p className="muted">No goals yet.</p> : (
+          <ul className="plain">
+            {s.goals.map(g => (
+              <li key={g.id} className="row row-between">
+                <span>{g.title}{g.id === s.goal?.id && <span className="muted small"> · active</span>}</span>
+                <button className="btn btn-small" onClick={() => {
+                  if (confirm(`Remove "${g.title}" with all its lessons, notes and progress? A backup is made first. Your playbook is kept.`)) dispatch({ type: 'deleteGoal', id: g.id })
+                }}>Remove</button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="card">

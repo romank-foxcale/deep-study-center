@@ -64,7 +64,7 @@ class Jobs:
     def progress(self, jid: int, msg: str) -> None:
         row = self.db.one("SELECT progress FROM jobs WHERE id=?", (jid,))
         steps = loads(row["progress"], []) if row else []
-        self.db.x("UPDATE jobs SET progress=?, updated_at=? WHERE id=?", (dumps(steps + [msg]), now(), jid))
+        self.db.x("UPDATE jobs SET progress=?, updated_at=? WHERE id=?", (dumps((steps + [msg])[-60:]), now(), jid))
 
     def _run(self, jid: int) -> None:
         job = self.db.one("SELECT * FROM jobs WHERE id=?", (jid,))
@@ -90,6 +90,8 @@ class Jobs:
     def call(self, jid: int, role: str, call: Call) -> object:
         route = state.route(self.db, role)
         self.progress(jid, f"{role}: asking {route['provider']} ({route['model']})")
+        if call.tools and call.on_event is None:  # web research: show each search and page as it happens
+            call.on_event = lambda msg: self.progress(jid, msg)
         out, used = self.runner(route, call, workspace() / "jobs" / str(jid))
         if used != route["provider"]:
             self.progress(jid, f"{route['provider']} unavailable, used {used}")
@@ -522,4 +524,5 @@ HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "reflect": (run_reflect, fallback_reflect),
     "runner_setup": (lambda jobs, jid, d: runner.setup(lambda msg: jobs.progress(jid, msg)), None),
     "refresh_card": (run_refresh_card, None),
+    "runner_docker_setup": (lambda jobs, jid, d: runner.setup_docker(lambda msg: jobs.progress(jid, msg)), None),
 }

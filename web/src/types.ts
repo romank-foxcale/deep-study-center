@@ -60,8 +60,9 @@ export interface PlanItem { kind: 'review' | 'lesson'; goalId: string; conceptId
 export interface Plan {
   start: string
   settings: { weekly_hours: number; study_days: number[]; start_time: string }
-  days: { date: string; weekday: string; study: boolean; budget: number; minutes: number; items: PlanItem[] }[]
-  goals: { id: string; title: string; share: number; plannedMinutes: number; targetMinutes: number }[]
+  days: { date: string; weekday: string; study: boolean; budget: number; minutes: number; actualMinutes: number; items: PlanItem[] }[]
+  goals: { id: string; title: string; hours: number; share: number; plannedMinutes: number; targetMinutes: number }[]
+  actualLast7: { date: string; minutes: number }[]
   upcomingResearch: { goalId: string; moduleId: string; title: string; research: ResearchStatus }[]
 }
 
@@ -80,7 +81,7 @@ export interface LibraryCard { key: string; title: string; objective: string; ve
 export interface SearchHit { kind: 'note' | 'lesson' | 'card'; ref: string; conceptId: string; title: string; snippet: string }
 
 export type RunResult =
-  | { status: 'needs_setup' }
+  | { status: 'needs_setup'; mode?: 'local' | 'docker' }
   | { status: 'needs_approval'; tests: string }
   | { status: 'blocked'; problems: string[] }
   | { status: 'ran'; passed: boolean; output: string }
@@ -90,7 +91,7 @@ export interface ExplainItem { id: string; prompt: string }
 
 export interface Grading {
   id: number
-  status: 'pending' | 'graded' | 'ungraded'
+  status: 'pending' | 'graded' | 'ungraded' | 'voided'
   answer: string
   score: number | null
   feedback: string | null
@@ -260,6 +261,9 @@ export interface State {
   settings: { autoResearch: boolean; autoRefresh: boolean; weeklyHours: number; studyDays: number[]; startTime: string }
   cardProposals: CardProposal[]
   library: LibraryCard[]
-  runner: { setUp: boolean; packages: string[] }
+  runner: { setUp: boolean; packages: string[]; mode: 'local' | 'docker'; dockerReady: boolean }
+  backups: { folder: string; last: string | null; items: { name: string; size: number; at: string }[] }
+  firstRun: boolean
+  shareSuggestions: string[]
   ankiExport: string | null
 }
