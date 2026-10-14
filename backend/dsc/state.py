@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from . import engine, providers
+from . import engine, providers, runner
 from .db import DB, loads
 
 
@@ -131,7 +131,11 @@ def placement(db: DB, goal_id: str) -> dict:
 def snapshot(db: DB) -> dict:
     gid = active_goal(db)
     pb = playbook(db)
+    from . import library
     base = {"playbook": pb, "providers": providers.status(), "routes": routes(db), "jobs": jobs(db),
+            "library": library.listing(db),
+            "runner": {"setUp": runner.is_set_up(), "packages": list(runner.PACKAGES)},
+            "ankiExport": db.meta("last_anki_export"),
             "goals": [{"id": g["id"], "title": g["title"]} for g in db.q("SELECT id, title FROM goals ORDER BY created_at")]}
     if not gid:
         return {**base, "goal": None, "tracks": [], "modules": [], "concepts": [], "cards": [], "renditions": [],

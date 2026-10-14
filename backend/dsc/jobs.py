@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import engine, progress, providers, state
+from . import engine, library, progress, providers, runner, state, viz
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
 
@@ -243,13 +243,15 @@ _CHECK = {"type": "object", "required": ["prompt", "options", "answer", "explana
     "prompt": {"type": "string"}, "options": {"type": "array", "minItems": 2, "maxItems": 5, "items": {"type": "string"}},
     "answer": {"type": "integer"}, "explanation": {"type": "string"}}}
 _CODE = {"type": "object", "required": ["prompt", "starter", "tests"], "properties": {
-    "prompt": {"type": "string"}, "starter": {"type": "string"}, "tests": {"type": "string"}}}
+    "prompt": {"type": "string"}, "starter": {"type": "string"}, "tests": {"type": "string"},
+    "runtime": {"enum": ["pyodide", "local"]}}}
 _EXPLAIN = {"type": "object", "required": ["prompt", "rubric"], "properties": {
     "prompt": {"type": "string"}, "rubric": {"type": "array", "minItems": 1, "items": {"type": "string"}}}}
 _ANGLE = {"enum": list(engine.ANGLES)}
 RESEARCH_SCHEMA = {"type": "object", "required": ["concepts"], "properties": {"concepts": {"type": "array", "minItems": 1, "items": {
-    "type": "object", "required": ["key", "title", "objective", "minutes", "prereq_keys", "card"], "properties": {
+    "type": "object", "required": ["key", "title", "objective", "minutes", "prereq_keys"], "properties": {
         "key": {"type": "string"}, "title": {"type": "string"}, "objective": {"type": "string"},
+        "reuse_key": {"type": "string"},
         "minutes": {"type": "integer"}, "prereq_keys": {"type": "array", "items": {"type": "string"}},
         "card": {"type": "object", "required": ["bloom", "core", "formal", "why", "angles", "examples", "misconceptions", "sources", "sections"],
                  "properties": {
@@ -265,7 +267,7 @@ RESEARCH_SCHEMA = {"type": "object", "required": ["concepts"], "properties": {"c
                      "sections": {"type": "array", "minItems": 2, "items": {"type": "object", "required": ["id", "heading", "purpose", "angles"],
                                   "properties": {"id": {"type": "string"}, "heading": {"type": "string"}, "purpose": {"type": "string"},
                                                  "angles": {"type": "array", "minItems": 1, "items": _ANGLE},
-                                                 "check": _CHECK, "code": _CODE, "explain": _EXPLAIN}}}}}}}}}}
+                                                 "check": _CHECK, "code": _CODE, "explain": _EXPLAIN, "viz": viz.SCHEMA}}}}}}}}}}
 
 
 def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
@@ -282,9 +284,15 @@ def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
                       module=target["title"] if target else m["title"],
                       summary=target["detail"] if target else (m["summary"] or "no summary"),
                       earlier=", ".join(e["title"] for e in earlier) or "none",
-                      planned=1 if target else (m["planned"] or 8)),
+                      planned=1 if target else (m["planned"] or 8), library=library.index_text(db)),
         schema=RESEARCH_SCHEMA, model="opus", tools=("WebSearch", "WebFetch"), timeout=1800, max_turns=60))
-    concepts = out["concepts"][:1] if target else out["concepts"]
+    concepts = []
+    for c in (out["concepts"][:1] if target else out["concepts"]):
+        reused = library.take(db, c["reuse_key"]) if c.get("reuse_key") else None
+        if reused:  # an existing fact-checked card from the shared library
+            c = {**c, "card": reused, "reused": True}
+        if c.get("card"):
+            concepts.append(c)
     keymap = {c["key"]: (target["id"] if target else f'{m["id"]}-{slug(c["key"], 30)}') for c in concepts}
     base_ord = db.one("SELECT COALESCE(MAX(ord), -1) AS o FROM concepts WHERE module_id=?", (m["id"],))["o"] + 1
     ts = now()
@@ -292,6 +300,12 @@ def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
         for i, c in enumerate(concepts):
             cid = keymap[c["key"]]
             for s in c["card"]["sections"]:
+                if "viz" in s:
+                    s["viz"] = viz.validate(s["viz"])
+                    if not s["viz"]:
+                        del s["viz"]
+                if s.get("code") and s["code"].get("runtime") not in ("pyodide", "local"):
+                    s["code"]["runtime"] = "pyodide"
                 if s.get("check"):
                     s["check"]["id"] = f'q-{s["id"]}'
                 if s.get("code"):
@@ -306,10 +320,13 @@ def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
                                 (cid, m["id"], base_ord + i, c["title"], c["objective"], c["minutes"], dumps(prereqs), 0.1))
             body = {**c["card"], "objective": c["objective"]}
             ver = (db.conn.execute("SELECT COALESCE(MAX(version), 0) FROM cards WHERE concept_id=?", (cid,)).fetchone()[0]) + 1
-            db.conn.execute("INSERT INTO cards VALUES(?,?,?,?,?)", (cid, ver, dumps(body), "pending", ts))
+            db.conn.execute("INSERT INTO cards VALUES(?,?,?,?,?)",
+                            (cid, ver, dumps(body), "passed" if c.get("reused") else "pending", ts))
         db.conn.execute("UPDATE modules SET research='ready' WHERE id=?", (m["id"],))
     jobs.progress(jid, f"wrote {len(concepts)} concept card(s); fact-checking next")
-    jobs.enqueue("fact_check", f"Fact-check {m['title']}", {"concept_ids": list(keymap.values())})
+    to_check = [keymap[c["key"]] for c in concepts if not c.get("reused")]
+    if to_check:
+        jobs.enqueue("fact_check", f"Fact-check {m['title']}", {"concept_ids": to_check})
     return {"concepts": len(concepts)}
 
 
@@ -459,4 +476,5 @@ HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "grade": (run_grade, fallback_grade),
     "placement_bank": (run_placement_bank, None),
     "reflect": (run_reflect, fallback_reflect),
+    "runner_setup": (lambda jobs, jid, d: runner.setup(lambda msg: jobs.progress(jid, msg)), None),
 }

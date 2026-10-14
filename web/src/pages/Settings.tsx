@@ -57,6 +57,16 @@ export default function Settings() {
       </div>
 
       <div className="card">
+        <h2>Local Python for exercises</h2>
+        <p className="muted small">Exercises that need PyTorch run on your machine in a separate environment in your workspace
+          ({s.runner.packages.join(', ')}). You review each exercise's test code before it first runs.</p>
+        {s.runner.setUp
+          ? <span className="pill pill-ok">ready</span>
+          : <button className="btn" disabled={s.jobs.some(j => j.kind === 'runner_setup' && (j.status === 'queued' || j.status === 'running'))}
+              onClick={() => dispatch({ type: 'setupRunner' })}>Set up (about 1 GB download)</button>}
+      </div>
+
+      <div className="card">
         <h2>Research</h2>
         <label className="row">
           <input type="checkbox" checked={s.settings.autoResearch}

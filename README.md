@@ -16,7 +16,19 @@ See [docs/SPEC.md](docs/SPEC.md) for the full design and the decisions behind it
 
 ## Status
 
-**Milestone 3** (current). On top of the milestone-2 backend:
+**Milestone 4** (current):
+
+- **Interactive visuals**: built-in widgets (draggable vectors with tip-to-tail sums, linear-combination sliders,
+  a 2x2 matrix transforming the plane, function plots with parameter sliders). Agents place them in lessons as a
+  JSON spec that the backend validates; no agent-written code runs in your browser.
+- **Local Python runner** for exercises that need PyTorch: a separate environment in your workspace (set up once from
+  Settings), and you review each exercise's test code before it first runs. A static check blocks networking,
+  process, file-system and introspection code. It is not a sandbox; see `backend/dsc/runner.py`.
+- **Shared card library**: promote fact-checked cards; research for any goal reuses them instead of rewriting.
+- **Search** across your notes, lessons and source cards (SQLite FTS5).
+- **Anki export** of the questions and explain-back prompts of the concepts you've learned.
+
+**Milestone 3** added, on top of the milestone-2 backend:
 
 - **Explain-back**: lessons ask you to explain an idea in your own words; an independent grader agent scores it
   against a hidden rubric (1 / 0.5 / 0, with what's missing and a follow-up question). Passing it is part of the
@@ -75,18 +87,22 @@ backend/dsc/
   jobs.py               agent jobs (research, outline, render, tutor, roadmap review, fact-check,
                         grading, placement quiz, reflection) + offline fallbacks
   progress.py           evidence recording, research one module ahead
+  runner.py             local Python runner: approval by test hash, static check, isolated run
+  viz.py                interactive-visual specs and their validation
+  library.py            shared card library, full-text search, Anki export
   providers.py          agent-CLI adapters (claude -p, codex exec, Cursor CLI), routing and fallback
   prompts/              one prompt per job
   seed/demo.json        demo roadmap
 backend/tests/          engine and end-to-end flow tests (fake provider)
 web/src/
   store.tsx             API client: snapshot + actions, polling while jobs run
-  pages/                Home, Goal setup, Placement, Roadmap, Lesson, Reviews, Me, Library, Settings
-  components/           inline checks, explain-back, Pyodide exercise, side panel (tutor, notes, source card),
-                        feedback dialog
+  pages/                Home, Goal setup, Placement, Roadmap, Lesson, Reviews, Search, Me, Library, Settings
+  components/           inline checks, explain-back, Pyodide and local exercises, side panel (tutor, notes,
+                        source card), feedback dialog
+  components/viz/       interactive widgets and a safe expression evaluator for plots
 ```
 
 ## Next
 
-Ideas for milestone 4: a local Python runner for PyTorch exercises, interactive visualizations for the lessons that
-need them, promoting good cards into a library shared across goals, search across notes, and an export to Anki.
+Ideas: cards that refresh when better sources appear, multi-goal planning (one weekly plan across goals), a mobile
+review mode, and a Docker option for the local runner.

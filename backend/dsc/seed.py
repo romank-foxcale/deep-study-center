@@ -28,6 +28,10 @@ VECTORS_EXPLAIN = {"s-ops": {
                "So the total displacement in each coordinate is the sum of the parts",
                "A tip-to-tail picture or a concrete numeric example"]}}
 
+VECTORS_VIZ = {"s-ops": {"type": "vectors2d", "showSum": True,
+                          "caption": "Drag the arrow tips. The dashed arrow is u + v, drawn tip to tail.",
+                          "vectors": [{"x": 1, "y": 2, "label": "u"}, {"x": 3, "y": -1, "label": "v"}]}}
+
 LINCOMB_SECTIONS = [
     {"id": "s-why", "heading": "Why weighted sums matter", "angles": ["geometric", "computational"],
      "purpose": "Every neuron output and every linear layer is a weighted sum of inputs; linear combinations are the only thing a vector space lets you build."},
@@ -41,12 +45,22 @@ LINCOMB_SECTIONS = [
      "explain": {"id": "e-reach", "prompt": "Explain why two non-parallel vectors in the plane can reach every point, and why two parallel ones cannot.",
                  "rubric": ["Scaling a vector moves along its own direction (a line through the origin)",
                             "Two different directions give two independent knobs, so both coordinates can be matched (two equations, two unknowns)",
-                            "Parallel vectors share one direction, so every combination stays on that single line"]}},
+                            "Parallel vectors share one direction, so every combination stays on that single line"]},
+     "viz": {"type": "lincomb2d", "u": [1, 0], "v": [1, 1], "target": [3, 2],
+             "caption": "Move the sliders for a and b until a·u + b·v lands on the target."}},
     {"id": "s-neuron", "heading": "A neuron is a linear combination", "angles": ["computational", "algebraic"],
      "purpose": "A linear layer output y = w1 x1 + ... + wn xn; weights are coefficients; matrix rows are many combinations at once.",
      "check": {"id": "q-neuron", "prompt": "A unit computes $y = 2x_1 - x_2$. What is $y$ for $x = (3, 4)$?",
                "options": ["$10$", "$2$", "$-2$", "$5$"], "answer": 1,
-               "explanation": "$2 \\cdot 3 - 4 = 2$."}},
+               "explanation": "$2 \\cdot 3 - 4 = 2$."},
+     "code": {"id": "x-neuron", "runtime": "local",
+              "prompt": "With PyTorch: build a `torch.nn.Linear(3, 1, bias=False)` layer, set its weights to `[2, -1, 0.5]`, and return its output for the input `x`. Check that it equals the linear combination $2x_1 - x_2 + 0.5x_3$.",
+              "starter": "import torch\n\ndef neuron(x):\n    layer = torch.nn.Linear(3, 1, bias=False)\n    with torch.no_grad():\n        ...  # set layer.weight\n    return layer(x)\n",
+              "tests": "x = torch.tensor([3.0, 4.0, 2.0])\n"
+                       "y = neuron(x)\n"
+                       "assert y.shape == (1,), \"output should have shape (1,)\"\n"
+                       "assert abs(y.item() - (2*3 - 4 + 0.5*2)) < 1e-6, f\"expected 3.0, got {y.item()}\"\n"
+                       "print(\"All tests passed\")"}},
     {"id": "s-misc", "heading": "A common trap", "angles": ["geometric", "algebraic"],
      "purpose": "Coefficients can be negative or zero; the zero vector is always a combination; negative weights flip arrows.",
      "check": {"id": "q-zero", "prompt": "Is $(0, 0)$ a linear combination of $(1, 2)$ and $(3, 4)$?",
@@ -101,6 +115,8 @@ def seed_demo(db: DB) -> None:
                 sec["code"] = s["code"]
             if s["id"] in VECTORS_EXPLAIN:
                 sec["explain"] = VECTORS_EXPLAIN[s["id"]]
+            if s["id"] in VECTORS_VIZ:
+                sec["viz"] = VECTORS_VIZ[s["id"]]
             vec_sections.append(sec)
         for card in d["cards"]:
             body = {k: v for k, v in card.items() if k not in ("conceptId", "version", "factCheck", "checkedAt")}

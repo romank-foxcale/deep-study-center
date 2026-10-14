@@ -109,8 +109,7 @@ feedback / outcome ──▶ signal log ──▶ playbook replay ──▶ play
 - Unverified: reports that subscription `-p`/SDK usage draws from a separate monthly allowance.
 
 ## 5. Open questions
-- Card promotion to the shared library: automatic after N good uses, or manual?
-- Local Python runner for PyTorch exercises (later).
+- Card promotion to the shared library: manual for now (milestone 4); automatic suggestions later?
 - Codex and Cursor adapters are written against their docs (2026-10-14) but untested against the real CLIs.
 
 ## 6. Milestone 2 notes (2026-10-14)
@@ -144,3 +143,21 @@ feedback / outcome ──▶ signal log ──▶ playbook replay ──▶ play
   structured-output flag, so the schema is appended to the prompt and JSON is parsed from `result`.
   `CURSOR_API_KEY` removed. The prompt is passed as an argument, so very long prompts may hit command-line limits
   on Windows.
+
+
+## 8. Milestone 4 notes (2026-10-14)
+- **Local runner** (decision: review, then run locally). `runner-venv` in the workspace with numpy + torch, set up
+  from Settings. `/api/run` returns needs_setup | needs_approval (with the full test code) | blocked (static check)
+  | ran. Approvals are stored per (concept, item, sha256 of the tests), so changed tests need a new approval. Runs use
+  `python -I -X utf8 -B`, an empty folder, a minimal environment (no tokens or API keys), and a 90 s timeout.
+  The server records the evidence. This is not a sandbox; Docker could be offered later as a stricter option.
+- **Visuals**: `viz` on a card section is one of vectors2d, lincomb2d, matrix2d or plot. `viz.validate` clamps
+  numbers and whitelists plot expressions (numbers, x, up to 3 one-letter parameters, + - * / ^, a fixed function
+  list). It runs when cards are written and again whenever a lesson is read. The frontend evaluates plot
+  expressions with its own small parser (no eval).
+- **Shared library**: `library` keyed by the slug of the concept title. Only fact-checked cards can be promoted.
+  The research prompt lists the library; a concept may set `reuse_key` to take a library card (marked passed, not
+  re-checked, use counted).
+- **Search**: an FTS5 index over notes, the current rendition's prose and cards, rebuilt per query (small data).
+- **Anki**: genanki deck per goal with stable ids; MCQ checks and explain-back prompts of learned, mastered or
+  rusty concepts; `$...$` math converted to MathJax delimiters.

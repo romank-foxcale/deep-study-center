@@ -46,7 +46,24 @@ export interface Source { title: string; url: string; kind: string; why: string 
 /** Check as the learner sees it: no answer key until answered. */
 export interface McqCheck { id: string; prompt: string; options: string[] }
 
-export interface CodeExercise { id: string; prompt: string; starter: string; tests: string }
+export interface CodeExercise { id: string; prompt: string; starter: string; tests: string; runtime?: 'pyodide' | 'local' }
+
+/** Interactive visual: a built-in widget and its numbers (validated by the backend). */
+export type VizSpec =
+  | { type: 'vectors2d'; caption: string; vectors: { x: number; y: number; label: string }[]; showSum: boolean }
+  | { type: 'lincomb2d'; caption: string; u: number[]; v: number[]; target?: number[] }
+  | { type: 'matrix2d'; caption: string; matrix: number[][] }
+  | { type: 'plot'; caption: string; expr: string; xmin: number; xmax: number; params: { name: string; min: number; max: number; value: number }[] }
+
+export interface LibraryCard { key: string; title: string; objective: string; version: number; sourceConcept: string; promotedAt: string; uses: number }
+
+export interface SearchHit { kind: 'note' | 'lesson' | 'card'; ref: string; conceptId: string; title: string; snippet: string }
+
+export type RunResult =
+  | { status: 'needs_setup' }
+  | { status: 'needs_approval'; tests: string }
+  | { status: 'blocked'; problems: string[] }
+  | { status: 'ran'; passed: boolean; output: string }
 
 /** Explain-back item as the learner sees it: the grading rubric stays on the server. */
 export interface ExplainItem { id: string; prompt: string }
@@ -132,6 +149,7 @@ export interface LessonSectionView {
   check: McqCheck | null
   code: CodeExercise | null
   explain: ExplainItem | null
+  viz: VizSpec | null
 }
 
 /** Knowledge center #2 output for one lesson, as the page shows it. */
@@ -220,4 +238,7 @@ export interface State {
   placement: PlacementState | null
   reflections: Reflection[]
   settings: { autoResearch: boolean }
+  library: LibraryCard[]
+  runner: { setUp: boolean; packages: string[] }
+  ankiExport: string | null
 }

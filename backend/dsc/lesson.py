@@ -8,7 +8,7 @@ Rules (docs/SPEC.md §2.3):
 
 from __future__ import annotations
 
-from . import engine, progress, state
+from . import engine, progress, state, viz
 from .db import DB, dumps
 from .jobs import Jobs
 
@@ -97,6 +97,7 @@ def view(db: DB, cid: str) -> dict:
             "pending": not exact and rendering,
             "check": state.strip_check(s["check"]) if s.get("check") else None, "code": s.get("code"),
             "explain": state.strip_explain(s["explain"]) if s.get("explain") else None,
+            "viz": viz.validate(s.get("viz")),  # re-validated on every read: only safe widget specs reach the page
         })
     return {
         "conceptId": cid, "card": state.public_card(card) if card else None, "sections": sections,
