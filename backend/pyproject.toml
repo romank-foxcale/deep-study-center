@@ -24,7 +24,7 @@ build-backend = "setuptools.build_meta"
 include = ["dsc*"]
 
 [tool.setuptools.package-data]
-dsc = ["seed/*.json", "prompts/*.md"]
+dsc = ["seed/*.json", "prompts/*.md", "roadmap/*.toml", "roadmap/data/*.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

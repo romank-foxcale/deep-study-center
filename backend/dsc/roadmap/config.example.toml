@@ -1,0 +1,71 @@
+# Daily roadmap: your personal config.
+#
+# `dsc roadmap init` copies this file to <workspace>/roadmap/config.toml (default workspace:
+# ~/DeepStudy, set DSC_WORKSPACE to change it). Edit that copy, not this file. Your config and
+# progress stay in the workspace, outside the repository, so the repository can stay public.
+
+# The first day of the plan. Day numbers count from here.
+start_date = "2026-11-12"
+
+# One line about where you want to be. Printed on top of `dsc roadmap status`.
+goal = "Get hired as an ML/AI engineer at a large AI company within 2-3 years."
+
+[time]
+# Minutes you study on a normal day.
+minutes_per_day = 90
+# Days you study. Other days are rest days and get no plan.
+study_days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+# Optional: more or fewer minutes on some weekdays.
+[time.minutes_by_weekday]
+sat = 150
+
+[dsa]
+# Coding-interview practice every study day, from day 1.
+enabled = true
+new_per_day = 1             # new problems per day
+max_reviews_per_day = 2     # spaced reviews of problems you already solved
+review_intervals = [3, 7, 21, 60]   # days until each next review; a failed review comes back next day
+minutes_easy = 20
+minutes_medium = 35
+minutes_hard = 50
+minutes_review = 15
+skip_patterns = []          # pattern ids from dsa.toml you already master, e.g. ["arrays-hashing"]
+
+# Topic tracks. A track with a higher weight gets a larger share of days.
+# skip_basics = true skips units marked basic (math refresh, environment setup, intro classic ML).
+# skip = [...] lists unit ids you already know.
+[tracks.ml]
+enabled = true
+weight = 3
+skip_basics = false
+skip = []
+
+[tracks.earth]
+enabled = true
+weight = 1.5
+skip_basics = false
+skip = []
+
+[tracks.agents]
+enabled = true
+weight = 1.5
+skip_basics = false
+skip = []
+
+[tracks.sysdesign]
+enabled = true
+weight = 1
+skip_basics = false
+skip = []
+
+[tracks.public]
+enabled = true
+weight = 1
+skip_basics = false
+skip = []
+
+[posts]
+# One public post a week about what you studied that week.
+enabled = true
+weekday = "sun"
+minutes = 60

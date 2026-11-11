@@ -1,11 +1,13 @@
 """`dsc start` builds the frontend if needed, serves the app and opens the browser.
-`dsc serve` only serves; `dsc seed` resets to the demo; `dsc backup` writes a backup now."""
+`dsc serve` only serves; `dsc seed` resets to the demo; `dsc backup` writes a backup now; `dsc roadmap` is the daily
+study roadmap (see dsc/roadmap/cli.py)."""
 
 from __future__ import annotations
 
 import argparse
 import shutil
 import subprocess
+import sys
 import threading
 import webbrowser
 from pathlib import Path
@@ -57,6 +59,11 @@ def main() -> None:
     sub.add_parser("seed", help="reset the workspace database to the demo roadmap (erases everything)")
     sub.add_parser("backup", help="write a backup of the workspace database now")
     sub.add_parser("where", help="print the workspace folder")
+    sub.add_parser("roadmap", help="daily study roadmap: plan and progress (`dsc roadmap --help`)")
+    if len(sys.argv) > 1 and sys.argv[1] == "roadmap":
+        from .roadmap.cli import main as roadmap_main
+        roadmap_main(sys.argv[2:])
+        return
     args = p.parse_args()
 
     if args.cmd == "where":

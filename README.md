@@ -28,6 +28,28 @@ The first run creates the Python environment, builds the frontend, starts the ap
 opens your browser. You choose between starting your own goal and exploring the demo. Your data lives in `~/DeepStudy`
 (override with `DSC_WORKSPACE`) and is backed up daily to `~/DeepStudy/backups`.
 
+## Daily roadmap (terminal)
+
+A fixed 6-12 month plan to become an ML/AI engineer, a little every day. It works without the web app:
+
+- Coding interviews from day 1: 155 LeetCode problems in pattern order, with spaced reviews.
+- Topic tracks: ML and LLM fundamentals, ML system design, ML for Earth and climate, LLM agents and
+  agent collaboration, and public output.
+- A weekly post about what you studied that week.
+
+Every unit has a goal, free resources, an exercise and a "done when" check.
+
+```bash
+dsc roadmap init --start 2026-11-12   # writes ~/DeepStudy/roadmap/config.toml: edit it
+dsc roadmap plan --days 7             # preview the first week
+dsc roadmap                           # today's plan
+dsc roadmap done dsa-two-sum          # log progress (kept in ~/DeepStudy, never in the repo)
+```
+
+Without the app: `python -m dsc.roadmap` from `backend/`. You personalize it with data, not by
+editing prose: your config sets the time budget, study days, tracks on or off with weights, the
+units you already know, and the post weekday. See [docs/ROADMAP.md](docs/ROADMAP.md).
+
 ## Status
 
 **Milestone 6** (current): daily-use readiness.
@@ -127,6 +149,8 @@ backend/dsc/
   library.py            shared card library, full-text search, Anki export
   planner.py            weekly plan across goals and its calendar (.ics) export
   backup.py             daily workspace backups
+  roadmap/              daily roadmap: planner, CLI, link check, config.example.toml,
+                        data/ (curriculum and resources as TOML)
   providers.py          agent-CLI adapters (claude -p, codex exec, Cursor CLI), routing and fallback
   prompts/              one prompt per job
   seed/demo.json        demo roadmap

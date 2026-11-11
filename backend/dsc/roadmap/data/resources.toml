@@ -1,0 +1,643 @@
+# Resource catalog for the daily roadmap. Units refer to a resource by its key, optionally with a
+# pointer: "mml-book: chapter 2". Prefer free, canonical sources. `dsc roadmap check-links` checks
+# every URL in this file and every LeetCode problem in dsa.toml.
+
+# --- Coding interviews ---------------------------------------------------------------------
+[neetcode-roadmap]
+title = "NeetCode roadmap (free video explanation per problem)"
+url = "https://neetcode.io/roadmap"
+
+[tih-cheatsheet]
+title = "Tech Interview Handbook: algorithms study cheatsheet"
+url = "https://www.techinterviewhandbook.org/algorithms/study-cheatsheet/"
+
+[tih-array]
+title = "Tech Interview Handbook: array (two pointers, sliding window)"
+url = "https://www.techinterviewhandbook.org/algorithms/array/"
+
+[tih-hash-table]
+title = "Tech Interview Handbook: hash table"
+url = "https://www.techinterviewhandbook.org/algorithms/hash-table/"
+
+[tih-string]
+title = "Tech Interview Handbook: string"
+url = "https://www.techinterviewhandbook.org/algorithms/string/"
+
+[tih-stack]
+title = "Tech Interview Handbook: stack"
+url = "https://www.techinterviewhandbook.org/algorithms/stack/"
+
+[tih-search]
+title = "Tech Interview Handbook: sorting and searching (binary search)"
+url = "https://www.techinterviewhandbook.org/algorithms/sorting-searching/"
+
+[tih-linked-list]
+title = "Tech Interview Handbook: linked list"
+url = "https://www.techinterviewhandbook.org/algorithms/linked-list/"
+
+[tih-tree]
+title = "Tech Interview Handbook: tree"
+url = "https://www.techinterviewhandbook.org/algorithms/tree/"
+
+[tih-trie]
+title = "Tech Interview Handbook: trie"
+url = "https://www.techinterviewhandbook.org/algorithms/trie/"
+
+[tih-heap]
+title = "Tech Interview Handbook: heap"
+url = "https://www.techinterviewhandbook.org/algorithms/heap/"
+
+[tih-graph]
+title = "Tech Interview Handbook: graph"
+url = "https://www.techinterviewhandbook.org/algorithms/graph/"
+
+[tih-recursion]
+title = "Tech Interview Handbook: recursion (backtracking)"
+url = "https://www.techinterviewhandbook.org/algorithms/recursion/"
+
+[tih-dp]
+title = "Tech Interview Handbook: dynamic programming"
+url = "https://www.techinterviewhandbook.org/algorithms/dynamic-programming/"
+
+[tih-interval]
+title = "Tech Interview Handbook: interval"
+url = "https://www.techinterviewhandbook.org/algorithms/interval/"
+
+[tih-matrix]
+title = "Tech Interview Handbook: matrix"
+url = "https://www.techinterviewhandbook.org/algorithms/matrix/"
+
+[tih-math]
+title = "Tech Interview Handbook: math"
+url = "https://www.techinterviewhandbook.org/algorithms/math/"
+
+[tih-binary]
+title = "Tech Interview Handbook: binary (bit manipulation)"
+url = "https://www.techinterviewhandbook.org/algorithms/binary/"
+
+[cp-algorithms-dijkstra]
+title = "cp-algorithms: Dijkstra"
+url = "https://cp-algorithms.com/graph/dijkstra.html"
+
+[bigo-cheatsheet]
+title = "Big-O cheat sheet"
+url = "https://www.bigocheatsheet.com/"
+
+# --- Math -----------------------------------------------------------------------------------
+[mml-book]
+title = "Mathematics for Machine Learning (Deisenroth, Faisal, Ong), free PDF"
+url = "https://mml-book.github.io/"
+
+[3b1b-linalg]
+title = "3Blue1Brown: Essence of linear algebra"
+url = "https://www.3blue1brown.com/topics/linear-algebra"
+
+[3b1b-calculus]
+title = "3Blue1Brown: Essence of calculus"
+url = "https://www.3blue1brown.com/topics/calculus"
+
+[3b1b-nn]
+title = "3Blue1Brown: Neural networks (includes attention and transformers)"
+url = "https://www.3blue1brown.com/topics/neural-networks"
+
+[d2l-prob]
+title = "d2l.ai: Probability and statistics"
+url = "https://d2l.ai/chapter_preliminaries/probability.html"
+
+[d2l-mle]
+title = "d2l.ai: Maximum likelihood"
+url = "https://d2l.ai/chapter_appendix-mathematics-for-deep-learning/maximum-likelihood.html"
+
+[d2l]
+title = "Dive into Deep Learning (d2l.ai), free book with code"
+url = "https://d2l.ai/"
+
+[d2l-optim]
+title = "d2l.ai: Optimization algorithms chapter"
+url = "https://d2l.ai/chapter_optimization/index.html"
+
+[d2l-info]
+title = "d2l.ai: Information theory appendix"
+url = "https://d2l.ai/chapter_appendix-mathematics-for-deep-learning/information-theory.html"
+
+# --- Classic ML -----------------------------------------------------------------------------
+[islp]
+title = "An Introduction to Statistical Learning, with Python (ISLP), free PDF"
+url = "https://www.statlearning.com/"
+
+[cs229-notes]
+title = "Stanford CS229 main lecture notes (Ng, Ma)"
+url = "https://cs229.stanford.edu/main_notes.pdf"
+
+[sklearn-guide]
+title = "scikit-learn user guide"
+url = "https://scikit-learn.org/stable/user_guide.html"
+
+[sklearn-cv]
+title = "scikit-learn: cross-validation"
+url = "https://scikit-learn.org/stable/modules/cross_validation.html"
+
+[sklearn-metrics]
+title = "scikit-learn: model evaluation metrics"
+url = "https://scikit-learn.org/stable/modules/model_evaluation.html"
+
+[sklearn-calibration]
+title = "scikit-learn: probability calibration"
+url = "https://scikit-learn.org/stable/modules/calibration.html"
+
+[sklearn-pitfalls]
+title = "scikit-learn: common pitfalls (data leakage)"
+url = "https://scikit-learn.org/stable/common_pitfalls.html"
+
+[google-mlcc]
+title = "Google Machine Learning Crash Course"
+url = "https://developers.google.com/machine-learning/crash-course"
+
+[xgboost-intro]
+title = "XGBoost: introduction to boosted trees"
+url = "https://xgboost.readthedocs.io/en/stable/tutorials/model.html"
+
+# --- Deep learning --------------------------------------------------------------------------
+[zero-to-hero]
+title = "Karpathy: Neural Networks: Zero to Hero (videos, notebooks)"
+url = "https://karpathy.ai/zero-to-hero.html"
+
+[micrograd]
+title = "karpathy/micrograd"
+url = "https://github.com/karpathy/micrograd"
+
+[makemore]
+title = "karpathy/makemore"
+url = "https://github.com/karpathy/makemore"
+
+[udl-book]
+title = "Understanding Deep Learning (Prince), free PDF and notebooks"
+url = "https://udlbook.github.io/udlbook/"
+
+[pytorch-basics]
+title = "PyTorch: Learn the basics tutorial"
+url = "https://docs.pytorch.org/tutorials/beginner/basics/intro.html"
+
+[karpathy-recipe]
+title = "Karpathy: A recipe for training neural networks"
+url = "https://karpathy.github.io/2019/04/25/recipe/"
+
+[uv-docs]
+title = "uv: Python package and project manager"
+url = "https://docs.astral.sh/uv/"
+
+[colab]
+title = "Google Colab (free GPU notebooks)"
+url = "https://colab.research.google.com/"
+
+# --- Transformers and LLMs ------------------------------------------------------------------
+[attention-paper]
+title = "Vaswani et al. 2017: Attention Is All You Need"
+url = "https://arxiv.org/abs/1706.03762"
+
+[illustrated-transformer]
+title = "Jay Alammar: The Illustrated Transformer"
+url = "https://jalammar.github.io/illustrated-transformer/"
+
+[annotated-transformer]
+title = "Harvard NLP: The Annotated Transformer"
+url = "https://nlp.seas.harvard.edu/annotated-transformer/"
+
+[nanogpt]
+title = "karpathy/nanoGPT"
+url = "https://github.com/karpathy/nanoGPT"
+
+[build-nanogpt]
+title = "karpathy/build-nanogpt (code for 'Let's reproduce GPT-2')"
+url = "https://github.com/karpathy/build-nanogpt"
+
+[minbpe]
+title = "karpathy/minbpe (BPE tokenizer)"
+url = "https://github.com/karpathy/minbpe"
+
+[roformer]
+title = "Su et al. 2021: RoFormer (rotary position embedding)"
+url = "https://arxiv.org/abs/2104.09864"
+
+[gqa-paper]
+title = "Ainslie et al. 2023: GQA, grouped-query attention"
+url = "https://arxiv.org/abs/2305.13245"
+
+[mixtral-paper]
+title = "Jiang et al. 2024: Mixtral of Experts"
+url = "https://arxiv.org/abs/2401.04088"
+
+[llama2-paper]
+title = "Touvron et al. 2023: Llama 2"
+url = "https://arxiv.org/abs/2307.09288"
+
+[kaplan-scaling]
+title = "Kaplan et al. 2020: Scaling laws for neural language models"
+url = "https://arxiv.org/abs/2001.08361"
+
+[chinchilla]
+title = "Hoffmann et al. 2022: Training compute-optimal LLMs (Chinchilla)"
+url = "https://arxiv.org/abs/2203.15556"
+
+[fineweb]
+title = "Penedo et al. 2024: The FineWeb datasets"
+url = "https://arxiv.org/abs/2406.17557"
+
+[instructgpt]
+title = "Ouyang et al. 2022: Training language models to follow instructions (InstructGPT)"
+url = "https://arxiv.org/abs/2203.02155"
+
+[dpo-paper]
+title = "Rafailov et al. 2023: Direct Preference Optimization"
+url = "https://arxiv.org/abs/2305.18290"
+
+[hf-llm-course]
+title = "Hugging Face LLM course"
+url = "https://huggingface.co/learn/llm-course/chapter1/1"
+
+[trl-docs]
+title = "Hugging Face TRL documentation (SFT, DPO trainers)"
+url = "https://huggingface.co/docs/trl/index"
+
+[lora-paper]
+title = "Hu et al. 2021: LoRA, low-rank adaptation"
+url = "https://arxiv.org/abs/2106.09685"
+
+[qlora-paper]
+title = "Dettmers et al. 2023: QLoRA"
+url = "https://arxiv.org/abs/2305.14314"
+
+[peft-docs]
+title = "Hugging Face PEFT documentation"
+url = "https://huggingface.co/docs/peft/index"
+
+# --- Evaluation -----------------------------------------------------------------------------
+[hf-eval-guidebook]
+title = "Hugging Face: LLM evaluation guidebook"
+url = "https://github.com/huggingface/evaluation-guidebook"
+
+[lm-eval-harness]
+title = "EleutherAI lm-evaluation-harness"
+url = "https://github.com/EleutherAI/lm-evaluation-harness"
+
+[hamel-evals]
+title = "Hamel Husain: Your AI product needs evals"
+url = "https://hamel.dev/blog/posts/evals/"
+
+[llm-judge-paper]
+title = "Zheng et al. 2023: Judging LLM-as-a-judge with MT-Bench"
+url = "https://arxiv.org/abs/2306.05685"
+
+# --- Inference and serving ------------------------------------------------------------------
+[inference-arithmetic]
+title = "kipply: Transformer inference arithmetic"
+url = "https://kipp.ly/transformer-inference-arithmetic/"
+
+[scaling-book]
+title = "How to Scale Your Model (Google DeepMind, free book)"
+url = "https://jax-ml.github.io/scaling-book/"
+
+[flashattention]
+title = "Dao et al. 2022: FlashAttention"
+url = "https://arxiv.org/abs/2205.14135"
+
+[pagedattention]
+title = "Kwon et al. 2023: PagedAttention (vLLM)"
+url = "https://arxiv.org/abs/2309.06180"
+
+[vllm-docs]
+title = "vLLM documentation"
+url = "https://docs.vllm.ai/"
+
+[llm-int8]
+title = "Dettmers et al. 2022: LLM.int8()"
+url = "https://arxiv.org/abs/2208.07339"
+
+[gptq]
+title = "Frantar et al. 2022: GPTQ"
+url = "https://arxiv.org/abs/2210.17323"
+
+[hf-quantization]
+title = "Hugging Face Transformers: quantization overview"
+url = "https://huggingface.co/docs/transformers/main/en/quantization/overview"
+
+[speculative-decoding]
+title = "Leviathan et al. 2022: Fast inference via speculative decoding"
+url = "https://arxiv.org/abs/2211.17192"
+
+[prompt-caching-docs]
+title = "Claude docs: prompt caching"
+url = "https://docs.claude.com/en/docs/build-with-claude/prompt-caching"
+
+# --- RAG ------------------------------------------------------------------------------------
+[rag-paper]
+title = "Lewis et al. 2020: Retrieval-augmented generation"
+url = "https://arxiv.org/abs/2005.11401"
+
+[sbert]
+title = "Sentence Transformers documentation"
+url = "https://sbert.net/"
+
+[bm25]
+title = "Okapi BM25 (ranking function overview)"
+url = "https://en.wikipedia.org/wiki/Okapi_BM25"
+
+[contextual-retrieval]
+title = "Anthropic: Contextual retrieval"
+url = "https://www.anthropic.com/news/contextual-retrieval"
+
+[faiss]
+title = "facebookresearch/faiss"
+url = "https://github.com/facebookresearch/faiss"
+
+[ragas]
+title = "Ragas documentation (RAG evaluation)"
+url = "https://docs.ragas.io/"
+
+# --- Agents ---------------------------------------------------------------------------------
+[building-effective-agents]
+title = "Anthropic: Building effective agents"
+url = "https://www.anthropic.com/engineering/building-effective-agents"
+
+[tool-use-docs]
+title = "Claude docs: tool use overview"
+url = "https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview"
+
+[react-paper]
+title = "Yao et al. 2022: ReAct"
+url = "https://arxiv.org/abs/2210.03629"
+
+[weng-agents]
+title = "Lilian Weng: LLM powered autonomous agents"
+url = "https://lilianweng.github.io/posts/2023-06-23-agent/"
+
+[mcp]
+title = "Model Context Protocol documentation"
+url = "https://modelcontextprotocol.io/"
+
+[a2a]
+title = "Agent2Agent (A2A) protocol"
+url = "https://a2a-protocol.org/"
+
+[anthropic-multi-agent]
+title = "Anthropic: How we built our multi-agent research system"
+url = "https://www.anthropic.com/engineering/multi-agent-research-system"
+
+[context-engineering]
+title = "Anthropic: Effective context engineering for AI agents"
+url = "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents"
+
+[ollama]
+title = "Ollama (run small open models locally, free)"
+url = "https://ollama.com/"
+
+[swe-bench]
+title = "Jimenez et al. 2023: SWE-bench"
+url = "https://arxiv.org/abs/2310.06770"
+
+[tau-bench]
+title = "Yao et al. 2024: tau-bench"
+url = "https://arxiv.org/abs/2406.12045"
+
+[openai-agents-handoffs]
+title = "OpenAI Agents SDK: handoffs"
+url = "https://openai.github.io/openai-agents-python/handoffs/"
+
+[ma-survey]
+title = "Guo et al. 2024: LLM-based multi-agents, a survey"
+url = "https://arxiv.org/abs/2402.01680"
+
+[camel]
+title = "Li et al. 2023: CAMEL, communicative agents"
+url = "https://arxiv.org/abs/2303.17760"
+
+[autogen]
+title = "Wu et al. 2023: AutoGen"
+url = "https://arxiv.org/abs/2308.08155"
+
+[metagpt]
+title = "Hong et al. 2023: MetaGPT"
+url = "https://arxiv.org/abs/2308.00352"
+
+[chatdev]
+title = "Qian et al. 2023: ChatDev"
+url = "https://arxiv.org/abs/2307.07924"
+
+[ma-debate]
+title = "Du et al. 2023: Improving factuality and reasoning through multiagent debate"
+url = "https://arxiv.org/abs/2305.14325"
+
+[moa]
+title = "Wang et al. 2024: Mixture-of-Agents"
+url = "https://arxiv.org/abs/2406.04692"
+
+[mast]
+title = "Cemri et al. 2025: Why do multi-agent LLM systems fail?"
+url = "https://arxiv.org/abs/2503.13657"
+
+[frugalgpt]
+title = "Chen et al. 2023: FrugalGPT (LLM cascades)"
+url = "https://arxiv.org/abs/2305.05176"
+
+[routellm]
+title = "Ong et al. 2024: RouteLLM"
+url = "https://arxiv.org/abs/2406.18665"
+
+[prompt-cache-paper]
+title = "Gim et al. 2023: Prompt Cache, modular attention reuse"
+url = "https://arxiv.org/abs/2311.04934"
+
+[cacheblend]
+title = "Yao et al. 2024: CacheBlend"
+url = "https://arxiv.org/abs/2405.16444"
+
+[droidspeak]
+title = "Liu et al. 2024: DroidSpeak, KV cache sharing across LLMs"
+url = "https://arxiv.org/abs/2411.02820"
+
+[cache-to-cache]
+title = "Fu et al. 2025: Cache-to-Cache, direct semantic communication between LLMs"
+url = "https://arxiv.org/abs/2510.03215"
+
+[cipher]
+title = "Pham et al. 2023: Let models speak ciphers (embedding communication)"
+url = "https://arxiv.org/abs/2310.06272"
+
+# --- ML system design -----------------------------------------------------------------------
+[ml-interviews-book]
+title = "Chip Huyen: Introduction to Machine Learning Interviews (free book)"
+url = "https://huyenchip.com/ml-interviews-book/"
+
+[evidently-ml-design]
+title = "Evidently AI: ML system design, 650 case studies"
+url = "https://www.evidentlyai.com/ml-system-design"
+
+[rules-of-ml]
+title = "Google: Rules of machine learning"
+url = "https://developers.google.com/machine-learning/guides/rules-of-ml"
+
+[made-with-ml]
+title = "Made With ML (MLOps course, free)"
+url = "https://madewithml.com/"
+
+[hidden-tech-debt]
+title = "Sculley et al. 2015: Hidden technical debt in ML systems"
+url = "https://papers.nips.cc/paper/5656-hidden-technical-debt-in-machine-learning-systems"
+
+[ab-testing-miller]
+title = "Evan Miller: How not to run an A/B test"
+url = "https://www.evanmiller.org/how-not-to-run-an-ab-test.html"
+
+[youtube-dnn]
+title = "Covington et al. 2016: Deep neural networks for YouTube recommendations"
+url = "https://research.google/pubs/deep-neural-networks-for-youtube-recommendations/"
+
+[eugeneyan-discovery]
+title = "Eugene Yan: System design for recommendations and search"
+url = "https://eugeneyan.com/writing/system-design-for-discovery/"
+
+[eugeneyan-llm-patterns]
+title = "Eugene Yan: Patterns for building LLM-based systems"
+url = "https://eugeneyan.com/writing/llm-patterns/"
+
+[fb-ads-ctr]
+title = "He et al. 2014: Practical lessons from predicting clicks on ads at Facebook"
+url = "https://research.facebook.com/publications/practical-lessons-from-predicting-clicks-on-ads-at-facebook/"
+
+[evidently-drift]
+title = "Evidently AI: what is data drift"
+url = "https://www.evidentlyai.com/ml-in-production/data-drift"
+
+# --- ML for Earth and climate ---------------------------------------------------------------
+[tackling-climate]
+title = "Rolnick et al. 2019: Tackling climate change with machine learning"
+url = "https://arxiv.org/abs/1906.05433"
+
+[ccai]
+title = "Climate Change AI (tutorials, summer school, community)"
+url = "https://www.climatechange.ai/"
+
+[xarray-tutorial]
+title = "xarray tutorial"
+url = "https://tutorial.xarray.dev/"
+
+[arco-era5]
+title = "google-research/arco-era5 (analysis-ready ERA5 on cloud storage)"
+url = "https://github.com/google-research/arco-era5"
+
+[era5-cds]
+title = "Copernicus CDS: ERA5 single levels"
+url = "https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels"
+
+[weatherbench2]
+title = "Rasp et al. 2023: WeatherBench 2"
+url = "https://arxiv.org/abs/2308.15560"
+
+[weatherbench2-site]
+title = "WeatherBench 2 site and scorecards"
+url = "https://sites.research.google/weatherbench/"
+
+[weatherbench1]
+title = "Rasp et al. 2020: WeatherBench"
+url = "https://arxiv.org/abs/2002.00469"
+
+[fourcastnet]
+title = "Pathak et al. 2022: FourCastNet"
+url = "https://arxiv.org/abs/2202.11214"
+
+[graphcast]
+title = "Lam et al. 2022: GraphCast"
+url = "https://arxiv.org/abs/2212.12794"
+
+[pangu-weather]
+title = "Bi et al. 2022: Pangu-Weather"
+url = "https://arxiv.org/abs/2211.02556"
+
+[gencast]
+title = "Price et al. 2023: GenCast"
+url = "https://arxiv.org/abs/2312.15796"
+
+[neuralgcm]
+title = "Kochkov et al. 2023: NeuralGCM"
+url = "https://arxiv.org/abs/2311.07222"
+
+[climax]
+title = "Nguyen et al. 2023: ClimaX"
+url = "https://arxiv.org/abs/2301.10343"
+
+[aurora]
+title = "Bodnar et al. 2024: Aurora"
+url = "https://arxiv.org/abs/2405.13063"
+
+[aifs]
+title = "Lang et al. 2024: AIFS, ECMWF's data-driven forecasting system"
+url = "https://arxiv.org/abs/2406.01465"
+
+[corrdiff]
+title = "Mardani et al. 2023: CorrDiff, generative downscaling"
+url = "https://arxiv.org/abs/2309.15214"
+
+[earth2studio]
+title = "NVIDIA/earth2studio (run AI weather models)"
+url = "https://github.com/NVIDIA/earth2studio"
+
+[gneiting-scoring]
+title = "Gneiting and Raftery 2007: Strictly proper scoring rules (CRPS)"
+url = "https://sites.stat.washington.edu/raftery/Research/PDF/Gneiting2007jasa.pdf"
+
+[piml-review]
+title = "Karniadakis et al. 2021: Physics-informed machine learning (review)"
+url = "https://www.nature.com/articles/s42254-021-00314-5"
+
+[planetary-computer]
+title = "Microsoft Planetary Computer (STAC catalog of Sentinel-2, Landsat)"
+url = "https://planetarycomputer.microsoft.com/"
+
+[stac-intro]
+title = "STAC specification overview"
+url = "https://stacspec.org/en"
+
+[torchgeo]
+title = "TorchGeo documentation"
+url = "https://torchgeo.readthedocs.io/"
+
+[eurosat]
+title = "Helber et al. 2017: EuroSAT"
+url = "https://arxiv.org/abs/1709.00029"
+
+[satmae]
+title = "Cong et al. 2022: SatMAE"
+url = "https://arxiv.org/abs/2207.08051"
+
+[prithvi]
+title = "Jakubik et al. 2023: Prithvi, geospatial foundation model"
+url = "https://arxiv.org/abs/2310.18660"
+
+[prithvi-hf]
+title = "IBM-NASA geospatial models on Hugging Face"
+url = "https://huggingface.co/ibm-nasa-geospatial"
+
+[alphaearth]
+title = "Brown et al. 2025: AlphaEarth Foundations"
+url = "https://arxiv.org/abs/2507.22291"
+
+[gee]
+title = "Google Earth Engine (free for research and non-commercial use)"
+url = "https://developers.google.com/earth-engine"
+
+# --- Public output --------------------------------------------------------------------------
+[github-pages]
+title = "GitHub Pages quickstart"
+url = "https://docs.github.com/en/pages/quickstart"
+
+[hf-blog-community]
+title = "Hugging Face community articles"
+url = "https://huggingface.co/blog/community"
+
+[karpathy-blog]
+title = "Example: Andrej Karpathy's blog"
+url = "https://karpathy.github.io/"
+
+[profile-readme]
+title = "GitHub docs: managing your profile README"
+url = "https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-github-profile/customizing-your-profile/managing-your-profile-readme"

@@ -1,0 +1,166 @@
+# ML system design for interviews. Each design unit ends with a written 45-minute answer:
+# requirements, metrics, data, features, model, serving, evaluation, monitoring, trade-offs.
+
+[track]
+id = "sysdesign"
+title = "ML system design"
+
+[[unit]]
+id = "sd-framework"
+title = "A framework for ML system design interviews"
+minutes = 60
+requires = ["ml-metrics"]
+goal = "Have one answer structure you use in every ML design interview."
+resources = ["ml-interviews-book: chapter on ML system design", "evidently-ml-design"]
+exercise = "Write a one-page template: clarify the goal, business and ML metrics, data and labels, features, baseline and model, offline evaluation, serving, online evaluation, monitoring. Add one question to ask at each step."
+done_when = "Your template fits on one page and you can recite the steps in under one minute."
+
+[[unit]]
+id = "sd-rules"
+title = "Practical rules of ML engineering"
+minutes = 45
+requires = ["sd-framework"]
+goal = "Learn the habits that interviewers at large companies expect."
+resources = ["rules-of-ml", "hidden-tech-debt"]
+exercise = "Pick 10 rules of ML and 3 kinds of technical debt. For each, write one example from your PhD or work where it applied or would have helped."
+done_when = "13 examples are written down in your own words."
+
+[[unit]]
+id = "sd-data"
+title = "Data: labels, features, training-serving skew"
+minutes = 60
+requires = ["sd-framework"]
+goal = "Design the data side: label sources, feature pipelines, freshness and skew."
+resources = ["made-with-ml: data and MLOps lessons", "hidden-tech-debt"]
+exercise = "For a 'predict delivery time' system, list label sources, 10 features with their freshness (batch or real time), and two ways training-serving skew can appear."
+done_when = "Your feature table has freshness for every feature and a mitigation for each skew."
+
+[[unit]]
+id = "sd-experiments"
+title = "Offline metrics, online metrics and A/B tests"
+minutes = 60
+requires = ["sd-framework"]
+goal = "Connect offline model metrics to an online experiment that decides launch."
+resources = ["ab-testing-miller", "rules-of-ml: section on metrics"]
+exercise = "Design an A/B test for a new ranking model: the primary metric, guardrail metrics, sample size estimate, duration and the peeking problem."
+done_when = "Your design names a sample size with its assumptions and says how you avoid peeking."
+
+[[unit]]
+id = "sd-recsys"
+title = "Design: a recommendation system"
+minutes = 75
+requires = ["sd-experiments"]
+goal = "Answer the most common ML design question: candidate generation plus ranking."
+resources = ["youtube-dnn", "eugeneyan-discovery"]
+exercise = "Write a 45-minute answer for 'Design YouTube video recommendations'. Cover two-tower retrieval, a ranking model, features, cold start, feedback loops and metrics."
+done_when = "Your written answer covers all template steps and fits in two pages."
+
+[[unit]]
+id = "sd-search"
+title = "Design: search ranking"
+minutes = 75
+requires = ["sd-recsys", "rag-retrieval"]
+goal = "Design a search system with retrieval, learning to rank and query understanding."
+resources = ["eugeneyan-discovery", "bm25"]
+exercise = "Write a 45-minute answer for 'Design search for an online marketplace'. Include the index, lexical and semantic retrieval, a ranking model, labels from clicks and position bias."
+done_when = "Your answer explains how you correct position bias in click labels."
+
+[[unit]]
+id = "sd-ads"
+title = "Design: ad click prediction"
+minutes = 60
+requires = ["sd-recsys"]
+goal = "Design a large-scale, calibrated click-through-rate model."
+resources = ["fb-ads-ctr"]
+exercise = "Write a 45-minute answer for 'Design ad click prediction'. Cover feature crosses, model choice, calibration, data freshness and the delayed-feedback problem."
+done_when = "Your answer says why calibration matters for ads and how you measure it."
+
+[[unit]]
+id = "sd-fraud"
+title = "Design: fraud or anomaly detection"
+minutes = 60
+requires = ["sd-framework"]
+goal = "Handle rare positives, adversaries and delayed labels."
+resources = ["sklearn-metrics: precision-recall", "evidently-ml-design: fraud case studies"]
+exercise = "Write a 45-minute answer for 'Design payment fraud detection'. Cover label delay, class imbalance, rules plus model, thresholds by cost, and adversarial drift."
+done_when = "Your answer sets the threshold from a cost table, not from a default 0.5."
+
+[[unit]]
+id = "sd-serving-monitoring"
+title = "Serving, monitoring and drift"
+minutes = 60
+requires = ["sd-framework"]
+goal = "Design deployment, latency budgets, monitoring and retraining."
+resources = ["made-with-ml: serving and monitoring lessons", "evidently-drift"]
+exercise = "For your recommendation design, add the serving path with a 100 ms latency budget, caching, a shadow deployment, drift monitors and a retraining trigger."
+done_when = "Your latency budget is split across components and every monitor has an alert condition."
+
+[[unit]]
+id = "sd-llm-patterns"
+title = "Patterns for LLM systems"
+minutes = 60
+requires = ["rag-pipeline"]
+goal = "Know the standard building blocks of LLM products."
+resources = ["eugeneyan-llm-patterns", "building-effective-agents"]
+exercise = "Make a one-page cheat sheet of LLM patterns (evals, RAG, fine-tuning, caching, guardrails, defensive UX, feedback collection), each with when to use it and its main risk."
+done_when = "Every pattern on your sheet has a use case and a risk."
+
+[[unit]]
+id = "sd-llm-assistant"
+title = "Design: a RAG support assistant"
+minutes = 75
+requires = ["sd-llm-patterns", "eval-llm-judge"]
+goal = "Design an LLM assistant that answers from company documents with citations."
+resources = ["eugeneyan-llm-patterns", "contextual-retrieval", "hamel-evals"]
+exercise = "Write a 45-minute answer for 'Design a customer support assistant over 1M documents'. Cover ingestion, chunking, retrieval, generation with citations, evals, guardrails, cost and the human handoff."
+done_when = "Your answer has an evaluation plan with offline and online metrics and a cost per conversation."
+
+[[unit]]
+id = "sd-llm-serving"
+title = "Design: an LLM inference platform"
+minutes = 75
+requires = ["inf-cost", "inf-serving"]
+goal = "Design multi-tenant LLM serving with latency and cost targets."
+resources = ["pagedattention", "scaling-book: inference chapter", "prompt-caching-docs"]
+exercise = "Write a 45-minute answer for 'Design an LLM serving platform for 10k requests per second'. Cover GPU sizing, continuous batching, KV-cache memory, prefix caching, autoscaling, routing between model sizes and SLOs."
+done_when = "Your answer includes a GPU count estimate with the arithmetic."
+
+[[unit]]
+id = "sd-agent-platform"
+title = "Design: a coding or research agent"
+minutes = 75
+requires = ["sd-llm-patterns", "ag-eval"]
+goal = "Design an agent system with tools, sandboxing, evaluation and cost control."
+resources = ["anthropic-multi-agent", "swe-bench", "context-engineering"]
+exercise = "Write a 45-minute answer for 'Design an agent that fixes bugs in a repository'. Cover tools, sandbox, context management, multi-agent split, evaluation and failure recovery."
+done_when = "Your answer has a clear evaluation method and a budget limit per task."
+
+[[unit]]
+id = "sd-weather-service"
+title = "Design: an AI weather forecasting service"
+minutes = 75
+requires = ["sd-serving-monitoring", "ea-probabilistic"]
+goal = "Use your niche in a design interview: an ML forecasting product end to end."
+resources = ["weatherbench2", "aifs", "earth2studio"]
+exercise = "Write a 45-minute answer for 'Design a global 10-day forecasting service with an ML model'. Cover data assimilation inputs, model choice, ensembles, verification metrics, compute schedule and serving to users."
+done_when = "Your answer names verification metrics (RMSE, ACC, CRPS) and when each is used."
+
+[[unit]]
+id = "sd-mock-1"
+title = "Mock interview 1"
+minutes = 60
+requires = ["sd-recsys", "sd-fraud"]
+goal = "Practice speaking a design answer under time pressure."
+resources = ["ml-interviews-book", "evidently-ml-design"]
+exercise = "Pick a case study you have not studied. Answer it aloud in 45 minutes with a peer or a recording. Score yourself against your template."
+done_when = "You have the recording or peer notes and a list of three things to fix."
+
+[[unit]]
+id = "sd-mock-2"
+title = "Mock interview 2 (LLM system)"
+minutes = 60
+requires = ["sd-mock-1", "sd-llm-assistant"]
+goal = "Practice an LLM-focused design question under time pressure."
+resources = ["eugeneyan-llm-patterns", "evidently-ml-design"]
+exercise = "Answer 'Design an LLM feature for a product you use' aloud in 45 minutes. Check the three fixes from mock 1."
+done_when = "The three fixes from mock 1 are done, and you wrote three new ones."

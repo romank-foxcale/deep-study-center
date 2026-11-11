@@ -1,0 +1,192 @@
+# Niche track A: ML for Earth and climate. Weather and climate foundation models, satellite and
+# geospatial ML. It starts with the data stack (your strength) and gates model units on the deep
+# learning units they need.
+
+[track]
+id = "earth"
+title = "ML for Earth and climate"
+
+[[unit]]
+id = "ea-landscape"
+title = "The landscape of ML for climate and Earth"
+minutes = 60
+goal = "Map where ML helps in climate and Earth science, and where your PhD fits."
+resources = ["tackling-climate: read the summary table and two sections near your field", "ccai"]
+exercise = "Write a one-page map: 5 problem areas, the ML methods used, the data, and one thing your PhD experience adds to each."
+done_when = "Your map exists and names the 2 areas you want to be known for."
+
+[[unit]]
+id = "ea-xarray"
+title = "Gridded data with xarray, Zarr and dask"
+minutes = 75
+goal = "Work with large labeled N-D climate arrays without loading everything into memory."
+resources = ["xarray-tutorial: fundamentals and intermediate", "arco-era5"]
+exercise = "Open the ARCO-ERA5 Zarr store lazily. Select 2 m temperature over Japan for 10 years. Compute a daily climatology and anomalies with groupby, and plot one anomaly map."
+done_when = "Your notebook computes the anomaly with lazy dask arrays and shows the map."
+
+[[unit]]
+id = "ea-weatherbench"
+title = "Benchmarks for data-driven weather: WeatherBench 2"
+minutes = 60
+goal = "Know the standard dataset, variables, resolutions and metrics for ML weather models."
+resources = ["weatherbench2", "weatherbench2-site", "weatherbench1"]
+exercise = "Read WeatherBench 2 sections 1-4. List the headline variables (z500, t850, t2m, ...), the metrics (RMSE, ACC, CRPS, SEEPS) and the baselines. Open the online scorecards and compare 3 models at 5-day lead."
+done_when = "Your table shows the 3 models' z500 RMSE at day 5 with the source."
+
+[[unit]]
+id = "ea-baselines"
+title = "Baselines and verification metrics"
+minutes = 75
+goal = "Compute persistence and climatology baselines with latitude-weighted metrics."
+resources = ["weatherbench2: metrics section", "xarray-tutorial"]
+exercise = "On a coarse ERA5 grid, compute latitude-weighted RMSE and ACC of persistence and climatology for z500 at 1, 3 and 5 days."
+done_when = "Your numbers are close to the published WeatherBench baselines, and you can explain latitude weighting."
+
+[[unit]]
+id = "ea-cnn-forecast"
+title = "Train a first ML weather model"
+minutes = 120
+requires = ["dl-cnn", "ea-baselines"]
+goal = "Train a small neural forecaster and beat persistence."
+resources = ["weatherbench1", "d2l: chapter 7"]
+exercise = "Train a U-Net or ResNet on 5.625-degree ERA5 to predict z500 and t850 3 days ahead. Compare with your baselines. Try one autoregressive rollout."
+done_when = "Your model beats persistence RMSE at 3 days, and you plot error against lead time for the rollout."
+
+[[unit]]
+id = "ea-fourcastnet"
+title = "FourCastNet: Fourier neural operators for weather"
+minutes = 60
+requires = ["tf-attention"]
+goal = "Understand the first high-resolution ML weather model and the AFNO idea."
+resources = ["fourcastnet"]
+exercise = "Read the paper. Write half a page: what AFNO mixes in Fourier space, why that suits global fields, and the main limits the authors report."
+done_when = "Your summary has the architecture, the training data and one limit."
+
+[[unit]]
+id = "ea-graphcast"
+title = "GraphCast: graph networks on a mesh"
+minutes = 90
+requires = ["ea-fourcastnet"]
+goal = "Understand the encoder-processor-decoder graph design that set the state of the art in 2023."
+resources = ["graphcast", "earth2studio"]
+exercise = "Read the paper. Draw the grid-to-mesh encoder, the multi-mesh processor and the decoder. Note the loss weighting by variable and level. If you have GPU time, run one forecast with earth2studio."
+done_when = "Your diagram shows the three stages and you can explain why a multi-mesh helps long-range messages."
+
+[[unit]]
+id = "ea-pangu"
+title = "Pangu-Weather: 3D Earth-specific transformers"
+minutes = 60
+requires = ["ea-graphcast"]
+goal = "Compare a transformer approach with the graph approach."
+resources = ["pangu-weather"]
+exercise = "Read the paper. Make a comparison table of Pangu, FourCastNet and GraphCast: inputs, architecture, resolution, lead-time strategy, training cost and reported skill."
+done_when = "The table is complete for all three models."
+
+[[unit]]
+id = "ea-probabilistic"
+title = "Probabilistic forecasts, ensembles and CRPS"
+minutes = 90
+requires = ["ea-pangu"]
+goal = "Evaluate and produce uncertainty, not only a single forecast."
+resources = ["gencast", "gneiting-scoring: section on CRPS"]
+exercise = "Implement CRPS for an ensemble. Make a cheap ensemble from your CNN model with perturbed inputs. Compare its CRPS with the deterministic forecast's MAE (CRPS of one member)."
+done_when = "Your CRPS function matches a library (properscoring or xskillscore) and you report both numbers."
+
+[[unit]]
+id = "ea-hybrid-physics"
+title = "Hybrid physics-ML models"
+minutes = 60
+requires = ["ea-probabilistic"]
+goal = "Know when to put physics into the model and how NeuralGCM does it."
+resources = ["neuralgcm", "piml-review"]
+exercise = "Read NeuralGCM. Write half a page on what the dynamical core solves, what the network learns, and why this helps for climate runs compared with pure ML."
+done_when = "Your note answers all three points with references to sections."
+
+[[unit]]
+id = "ea-foundation-models"
+title = "Weather and climate foundation models"
+minutes = 75
+requires = ["ea-hybrid-physics"]
+goal = "Understand pretraining on many datasets and fine-tuning for many tasks."
+resources = ["climax", "aurora"]
+exercise = "Compare ClimaX and Aurora: pretraining data, objective, architecture, fine-tuning tasks and results. Name one downstream task in your field where you would fine-tune one of them."
+done_when = "Your comparison table and one concrete fine-tuning plan are written."
+
+[[unit]]
+id = "ea-operational"
+title = "Operational ML forecasting at ECMWF"
+minutes = 45
+requires = ["ea-foundation-models"]
+goal = "See what it takes to run an ML model in an operational weather center."
+resources = ["aifs"]
+exercise = "Read the AIFS paper. List the engineering steps between a research model and daily operations (data feeds, verification, scheduling, ensembles)."
+done_when = "Your list has at least 6 steps, each with why it matters."
+
+[[unit]]
+id = "ea-downscaling"
+title = "Downscaling with generative models"
+minutes = 60
+requires = ["ea-probabilistic"]
+goal = "Understand km-scale downscaling with diffusion models."
+resources = ["corrdiff", "earth2studio"]
+exercise = "Read CorrDiff. Explain the regression-plus-diffusion split. Write how you would evaluate downscaled precipitation over Japan."
+done_when = "Your evaluation plan names data, metrics and one extreme-event check."
+
+[[unit]]
+id = "ea-remote-sensing"
+title = "Remote sensing data: Sentinel-2, STAC and spectral indices"
+minutes = 75
+goal = "Search and load satellite imagery from a STAC catalog and compute indices."
+resources = ["planetary-computer", "stac-intro"]
+exercise = "Query the Planetary Computer STAC API for cloud-free Sentinel-2 scenes over a place in Japan for one year. Compute an NDVI time series and plot it."
+done_when = "Your NDVI curve shows a clear seasonal cycle, and the cloud filter is documented."
+
+[[unit]]
+id = "ea-landcover"
+title = "Land-cover classification with TorchGeo"
+minutes = 90
+requires = ["dl-cnn", "ea-remote-sensing"]
+goal = "Train a satellite image classifier with geospatial tooling."
+resources = ["torchgeo", "eurosat"]
+exercise = "Fine-tune a pretrained ResNet on EuroSAT with TorchGeo. Compare RGB-only with all 13 bands."
+done_when = "Test accuracy is above 95 percent, and you report the RGB vs multispectral difference."
+
+[[unit]]
+id = "ea-geo-foundation"
+title = "Geospatial foundation models"
+minutes = 90
+requires = ["ea-landcover"]
+goal = "Use a pretrained geospatial foundation model for a downstream task."
+resources = ["satmae", "prithvi", "prithvi-hf"]
+exercise = "Read SatMAE and Prithvi. Fine-tune or probe a Prithvi model (for example on its flood or burn-scar task). Compare with your EuroSAT ResNet approach."
+done_when = "You report a downstream metric and explain what masked autoencoding learns from satellite data."
+
+[[unit]]
+id = "ea-embedding-fields"
+title = "Embedding fields: AlphaEarth Foundations"
+minutes = 60
+requires = ["ea-geo-foundation"]
+goal = "Use global precomputed embeddings for mapping with few labels."
+resources = ["alphaearth", "gee"]
+exercise = "Read the paper. In Earth Engine, use the satellite embedding dataset to classify one land-cover type in a region you know with fewer than 100 labels."
+done_when = "You have a map and an accuracy number from held-out labels."
+
+[[unit]]
+id = "ea-capstone-plan"
+title = "Capstone plan: your own Earth ML project"
+minutes = 60
+requires = ["ea-foundation-models", "ea-geo-foundation"]
+goal = "Choose a portfolio project that joins your PhD domain with modern ML."
+resources = ["ccai", "weatherbench2"]
+exercise = "Write a one-page proposal: problem, data, baseline, model, metric, compute budget, what is new, and the post or paper it becomes."
+done_when = "The proposal fits on one page, and the baseline can run in under one day of work."
+
+[[unit]]
+id = "ea-capstone-baseline"
+title = "Capstone: reproducible baseline"
+minutes = 120
+requires = ["ea-capstone-plan"]
+goal = "Publish a clean, reproducible baseline repository."
+resources = ["made-with-ml: reproducibility lessons", "uv-docs"]
+exercise = "Create a public repo with data loading, the baseline, the metric and a README with results. Anyone must be able to run it with one command."
+done_when = "A fresh clone runs end to end with one command and reproduces your number."
