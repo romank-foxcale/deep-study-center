@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from . import engine, providers, runner
-from .db import DB, loads
+from .db import DB, loads, workspace
 
 
 def active_goal(db: DB) -> str | None:
@@ -134,13 +134,15 @@ def snapshot(db: DB) -> dict:
     from . import library
     base = {"playbook": pb, "providers": providers.status(), "routes": routes(db), "jobs": jobs(db),
             "library": library.listing(db),
-            "runner": {"setUp": runner.is_set_up(), "packages": list(runner.PACKAGES)},
+            "runner": runner_status(db),
+            "backups": {"folder": str(workspace() / "backups"), "last": db.meta("last_backup"), "items": _backups()[:5]},
+            "firstRun": db.meta("first_run") == "1" and not db.one("SELECT 1 FROM goals LIMIT 1"),
             "ankiExport": db.meta("last_anki_export"),
             "goals": [{"id": g["id"], "title": g["title"]} for g in db.q("SELECT id, title FROM goals ORDER BY created_at")]}
     if not gid:
         return {**base, "goal": None, "tracks": [], "modules": [], "concepts": [], "cards": [], "renditions": [],
                 "feedback": [], "notes": [], "diffs": [], "chats": {}, "answers": {}, "reviews": [], "gradings": {},
-                "placement": None, "reflections": reflections(db), "settings": settings(db), "cardProposals": []}
+                "placement": None, "reflections": reflections(db), "settings": settings(db), "cardProposals": [], "shareSuggestions": []}
 
     g = db.one("SELECT * FROM goals WHERE id=?", (gid,))
     tracks = db.q("SELECT * FROM tracks WHERE goal_id=? ORDER BY ord", (gid,))
@@ -186,6 +188,7 @@ def snapshot(db: DB) -> dict:
         "reflections": reflections(db),
         "settings": settings(db),
         "cardProposals": card_proposals(db, ids),
+        "shareSuggestions": share_suggestions(db),
         "reviews": [{"conceptId": r["concept_id"], "due": r["due"], "isDue": r["due"] <= now}
                     for r in db.q(f"SELECT * FROM reviews WHERE concept_id IN {in_goal} ORDER BY due", ids)],
     }
@@ -197,6 +200,31 @@ def _chats(db: DB, ids: list[str]) -> dict:
         return out
     for m in db.q(f"SELECT * FROM chats WHERE concept_id IN ({','.join('?' * len(ids))}) ORDER BY id", ids):
         out.setdefault(m["concept_id"], []).append({"role": m["role"], "text": m["text"]})
+    return out
+
+
+def runner_status(db: DB) -> dict:
+    return {"setUp": runner.is_set_up(), "packages": list(runner.PACKAGES), "mode": runner.mode(db),
+            "dockerReady": runner.mode(db) == "docker" and runner.docker_ready()}
+
+
+def _backups() -> list[dict]:
+    from . import backup
+    return backup.listing()
+
+
+def share_suggestions(db: DB) -> list[str]:
+    """Cards worth sharing: fact-checked, about concepts the learner has actually learned, not shared yet."""
+    gid = active_goal(db)
+    if not gid:
+        return []
+    concepts, states = concept_states(db, gid)
+    shared = {r["source_concept"] for r in db.q("SELECT source_concept FROM library")}
+    out = []
+    for c in concepts:
+        card = latest_card(db, c["id"])
+        if card and card["factCheck"] == "passed" and states[c["id"]].state in ("learned", "mastered") and c["id"] not in shared:
+            out.append(c["id"])
     return out
 
 

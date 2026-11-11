@@ -11,10 +11,22 @@ export default function Home() {
   useEffect(() => { getPlan().then(setPlan, () => setPlan(null)) }, [s])
   if (!s.goal) {
     return (
-      <div className="page">
-        <h1>Welcome</h1>
-        <p className="lead">Start with a goal. A short conversation, then agents research it and build your roadmap.</p>
-        <Link className="btn btn-primary" to="/goal/new">Set a goal</Link>
+      <div className="page page-narrow">
+        <h1>Welcome to Deep Study Center</h1>
+        <p className="lead">Tell it what you want to master. After a short conversation, agents research the field, keep the best
+          sources, and build a roadmap of small lessons, each written for you and adapted as you give feedback.</p>
+        <div className="grid-2">
+          <Link className="card card-link card-accent" to="/goal/new">
+            <h2>Start my goal</h2>
+            <p className="muted">A 5-question interview, then research on your Claude plan (a few minutes for the roadmap).</p>
+          </Link>
+          {s.firstRun && (
+            <button className="card card-link welcome-demo" onClick={() => dispatch({ type: 'loadDemo' })}>
+              <h2>Explore the demo first</h2>
+              <p className="muted">A ready-made "AI researcher & engineer" roadmap with two lessons. Remove it later in Settings.</p>
+            </button>
+          )}
+        </div>
       </div>
     )
   }

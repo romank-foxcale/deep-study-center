@@ -1,0 +1,303 @@
+# Coding-interview track: about 150 LeetCode problems grouped by pattern, patterns first.
+# The planner makes one intro unit per pattern, one unit per problem, and spaced reviews of
+# every problem you solved (intervals are in your config). Each row: [slug, title, difficulty].
+# All problems are free (not premium). `dsc roadmap check-links` verifies titles and difficulty.
+
+[[pattern]]
+id = "arrays-hashing"
+title = "Arrays and hashing"
+idea = "Trade memory for time: a set or dict turns a repeated O(n) scan into an O(1) lookup."
+resources = ["tih-hash-table", "tih-array", "bigo-cheatsheet", "tih-cheatsheet"]
+problems = [
+  ["contains-duplicate", "Contains Duplicate", "easy"],
+  ["valid-anagram", "Valid Anagram", "easy"],
+  ["two-sum", "Two Sum", "easy"],
+  ["majority-element", "Majority Element", "easy"],
+  ["group-anagrams", "Group Anagrams", "medium"],
+  ["top-k-frequent-elements", "Top K Frequent Elements", "medium"],
+  ["product-of-array-except-self", "Product of Array Except Self", "medium"],
+  ["valid-sudoku", "Valid Sudoku", "medium"],
+  ["longest-consecutive-sequence", "Longest Consecutive Sequence", "medium"],
+  ["sort-colors", "Sort Colors", "medium"],
+]
+
+[[pattern]]
+id = "two-pointers"
+title = "Two pointers"
+idea = "Move two indices toward each other (or in step) over a sorted or symmetric sequence to drop a nested loop."
+resources = ["tih-array", "tih-string"]
+problems = [
+  ["valid-palindrome", "Valid Palindrome", "easy"],
+  ["merge-sorted-array", "Merge Sorted Array", "easy"],
+  ["move-zeroes", "Move Zeroes", "easy"],
+  ["two-sum-ii-input-array-is-sorted", "Two Sum II - Input Array Is Sorted", "medium"],
+  ["3sum", "3Sum", "medium"],
+  ["container-with-most-water", "Container With Most Water", "medium"],
+  ["trapping-rain-water", "Trapping Rain Water", "hard"],
+]
+
+[[pattern]]
+id = "sliding-window"
+title = "Sliding window"
+idea = "Keep a window [left, right] and its summary (counts, sum); grow right, shrink left while the window is invalid."
+resources = ["tih-array", "tih-string"]
+problems = [
+  ["best-time-to-buy-and-sell-stock", "Best Time to Buy and Sell Stock", "easy"],
+  ["longest-substring-without-repeating-characters", "Longest Substring Without Repeating Characters", "medium"],
+  ["longest-repeating-character-replacement", "Longest Repeating Character Replacement", "medium"],
+  ["permutation-in-string", "Permutation in String", "medium"],
+  ["minimum-size-subarray-sum", "Minimum Size Subarray Sum", "medium"],
+  ["minimum-window-substring", "Minimum Window Substring", "hard"],
+  ["sliding-window-maximum", "Sliding Window Maximum", "hard"],
+]
+
+[[pattern]]
+id = "stack"
+title = "Stack and monotonic stack"
+idea = "A stack remembers what is still open; a monotonic stack finds the next greater or smaller element in O(n)."
+resources = ["tih-stack"]
+problems = [
+  ["valid-parentheses", "Valid Parentheses", "easy"],
+  ["implement-queue-using-stacks", "Implement Queue using Stacks", "easy"],
+  ["min-stack", "Min Stack", "medium"],
+  ["evaluate-reverse-polish-notation", "Evaluate Reverse Polish Notation", "medium"],
+  ["daily-temperatures", "Daily Temperatures", "medium"],
+  ["car-fleet", "Car Fleet", "medium"],
+  ["asteroid-collision", "Asteroid Collision", "medium"],
+  ["largest-rectangle-in-histogram", "Largest Rectangle in Histogram", "hard"],
+]
+
+[[pattern]]
+id = "binary-search"
+title = "Binary search"
+idea = "Search a monotonic predicate, not only a sorted array: find the first index (or answer value) where it turns true."
+resources = ["tih-search"]
+problems = [
+  ["binary-search", "Binary Search", "easy"],
+  ["search-insert-position", "Search Insert Position", "easy"],
+  ["search-a-2d-matrix", "Search a 2D Matrix", "medium"],
+  ["koko-eating-bananas", "Koko Eating Bananas", "medium"],
+  ["find-minimum-in-rotated-sorted-array", "Find Minimum in Rotated Sorted Array", "medium"],
+  ["search-in-rotated-sorted-array", "Search in Rotated Sorted Array", "medium"],
+  ["time-based-key-value-store", "Time Based Key-Value Store", "medium"],
+  ["median-of-two-sorted-arrays", "Median of Two Sorted Arrays", "hard"],
+]
+
+[[pattern]]
+id = "linked-list"
+title = "Linked list"
+idea = "Use a dummy head, fast and slow pointers, and in-place reversal; draw the pointers before you code."
+resources = ["tih-linked-list"]
+problems = [
+  ["reverse-linked-list", "Reverse Linked List", "easy"],
+  ["merge-two-sorted-lists", "Merge Two Sorted Lists", "easy"],
+  ["linked-list-cycle", "Linked List Cycle", "easy"],
+  ["middle-of-the-linked-list", "Middle of the Linked List", "easy"],
+  ["reorder-list", "Reorder List", "medium"],
+  ["remove-nth-node-from-end-of-list", "Remove Nth Node From End of List", "medium"],
+  ["copy-list-with-random-pointer", "Copy List with Random Pointer", "medium"],
+  ["add-two-numbers", "Add Two Numbers", "medium"],
+  ["find-the-duplicate-number", "Find the Duplicate Number", "medium"],
+  ["lru-cache", "LRU Cache", "medium"],
+  ["merge-k-sorted-lists", "Merge k Sorted Lists", "hard"],
+  ["reverse-nodes-in-k-group", "Reverse Nodes in k-Group", "hard"],
+]
+
+[[pattern]]
+id = "trees"
+title = "Trees (DFS and BFS)"
+idea = "Most tree problems are one recursive function that returns a value up to the parent; BFS with a queue gives levels."
+resources = ["tih-tree"]
+problems = [
+  ["invert-binary-tree", "Invert Binary Tree", "easy"],
+  ["maximum-depth-of-binary-tree", "Maximum Depth of Binary Tree", "easy"],
+  ["diameter-of-binary-tree", "Diameter of Binary Tree", "easy"],
+  ["balanced-binary-tree", "Balanced Binary Tree", "easy"],
+  ["same-tree", "Same Tree", "easy"],
+  ["subtree-of-another-tree", "Subtree of Another Tree", "easy"],
+  ["lowest-common-ancestor-of-a-binary-search-tree", "Lowest Common Ancestor of a Binary Search Tree", "medium"],
+  ["binary-tree-level-order-traversal", "Binary Tree Level Order Traversal", "medium"],
+  ["binary-tree-right-side-view", "Binary Tree Right Side View", "medium"],
+  ["count-good-nodes-in-binary-tree", "Count Good Nodes in Binary Tree", "medium"],
+  ["validate-binary-search-tree", "Validate Binary Search Tree", "medium"],
+  ["kth-smallest-element-in-a-bst", "Kth Smallest Element in a BST", "medium"],
+  ["construct-binary-tree-from-preorder-and-inorder-traversal", "Construct Binary Tree from Preorder and Inorder Traversal", "medium"],
+  ["lowest-common-ancestor-of-a-binary-tree", "Lowest Common Ancestor of a Binary Tree", "medium"],
+  ["binary-tree-maximum-path-sum", "Binary Tree Maximum Path Sum", "hard"],
+  ["serialize-and-deserialize-binary-tree", "Serialize and Deserialize Binary Tree", "hard"],
+]
+
+[[pattern]]
+id = "tries"
+title = "Tries"
+idea = "A tree of characters shares prefixes; each node holds children and an end-of-word flag."
+resources = ["tih-trie"]
+problems = [
+  ["implement-trie-prefix-tree", "Implement Trie (Prefix Tree)", "medium"],
+  ["design-add-and-search-words-data-structure", "Design Add and Search Words Data Structure", "medium"],
+  ["word-search-ii", "Word Search II", "hard"],
+]
+
+[[pattern]]
+id = "heaps"
+title = "Heaps and priority queues"
+idea = "A heap gives the min (or max) in O(log n); keep a heap of size k for top-k, or two heaps for a running median."
+resources = ["tih-heap"]
+problems = [
+  ["kth-largest-element-in-a-stream", "Kth Largest Element in a Stream", "easy"],
+  ["last-stone-weight", "Last Stone Weight", "easy"],
+  ["k-closest-points-to-origin", "K Closest Points to Origin", "medium"],
+  ["kth-largest-element-in-an-array", "Kth Largest Element in an Array", "medium"],
+  ["task-scheduler", "Task Scheduler", "medium"],
+  ["design-twitter", "Design Twitter", "medium"],
+  ["find-median-from-data-stream", "Find Median from Data Stream", "hard"],
+]
+
+[[pattern]]
+id = "graphs"
+title = "Graphs (BFS, DFS, topological sort, union-find)"
+idea = "Model the input as nodes and edges first; then pick BFS (shortest steps), DFS (reachability), topo sort (order) or union-find (components)."
+resources = ["tih-graph"]
+problems = [
+  ["flood-fill", "Flood Fill", "easy"],
+  ["number-of-islands", "Number of Islands", "medium"],
+  ["max-area-of-island", "Max Area of Island", "medium"],
+  ["clone-graph", "Clone Graph", "medium"],
+  ["rotting-oranges", "Rotting Oranges", "medium"],
+  ["pacific-atlantic-water-flow", "Pacific Atlantic Water Flow", "medium"],
+  ["surrounded-regions", "Surrounded Regions", "medium"],
+  ["course-schedule", "Course Schedule", "medium"],
+  ["course-schedule-ii", "Course Schedule II", "medium"],
+  ["redundant-connection", "Redundant Connection", "medium"],
+  ["keys-and-rooms", "Keys and Rooms", "medium"],
+  ["accounts-merge", "Accounts Merge", "medium"],
+  ["word-ladder", "Word Ladder", "hard"],
+]
+
+[[pattern]]
+id = "advanced-graphs"
+title = "Advanced graphs (Dijkstra, MST)"
+idea = "Weighted shortest paths use Dijkstra with a heap; a minimum spanning tree uses Prim or Kruskal."
+resources = ["tih-graph", "cp-algorithms-dijkstra"]
+problems = [
+  ["network-delay-time", "Network Delay Time", "medium"],
+  ["path-with-minimum-effort", "Path With Minimum Effort", "medium"],
+  ["min-cost-to-connect-all-points", "Min Cost to Connect All Points", "medium"],
+  ["cheapest-flights-within-k-stops", "Cheapest Flights Within K Stops", "medium"],
+  ["swim-in-rising-water", "Swim in Rising Water", "hard"],
+  ["reconstruct-itinerary", "Reconstruct Itinerary", "hard"],
+]
+
+[[pattern]]
+id = "backtracking"
+title = "Backtracking"
+idea = "Choose, recurse, un-choose. Draw the decision tree and prune branches that cannot succeed."
+resources = ["tih-recursion"]
+problems = [
+  ["subsets", "Subsets", "medium"],
+  ["combination-sum", "Combination Sum", "medium"],
+  ["permutations", "Permutations", "medium"],
+  ["subsets-ii", "Subsets II", "medium"],
+  ["combination-sum-ii", "Combination Sum II", "medium"],
+  ["generate-parentheses", "Generate Parentheses", "medium"],
+  ["word-search", "Word Search", "medium"],
+  ["palindrome-partitioning", "Palindrome Partitioning", "medium"],
+  ["letter-combinations-of-a-phone-number", "Letter Combinations of a Phone Number", "medium"],
+  ["n-queens", "N-Queens", "hard"],
+]
+
+[[pattern]]
+id = "dp-1d"
+title = "1-D dynamic programming"
+idea = "Define dp[i] in words, write the recurrence, fix the base cases, then shrink memory if only the last values are used."
+resources = ["tih-dp"]
+problems = [
+  ["climbing-stairs", "Climbing Stairs", "easy"],
+  ["min-cost-climbing-stairs", "Min Cost Climbing Stairs", "easy"],
+  ["house-robber", "House Robber", "medium"],
+  ["house-robber-ii", "House Robber II", "medium"],
+  ["longest-palindromic-substring", "Longest Palindromic Substring", "medium"],
+  ["palindromic-substrings", "Palindromic Substrings", "medium"],
+  ["decode-ways", "Decode Ways", "medium"],
+  ["coin-change", "Coin Change", "medium"],
+  ["maximum-product-subarray", "Maximum Product Subarray", "medium"],
+  ["word-break", "Word Break", "medium"],
+  ["longest-increasing-subsequence", "Longest Increasing Subsequence", "medium"],
+  ["partition-equal-subset-sum", "Partition Equal Subset Sum", "medium"],
+]
+
+[[pattern]]
+id = "dp-2d"
+title = "2-D dynamic programming"
+idea = "Two indices (two strings, grid cells, item and capacity): fill a table in an order where every dependency is ready."
+resources = ["tih-dp"]
+problems = [
+  ["unique-paths", "Unique Paths", "medium"],
+  ["longest-common-subsequence", "Longest Common Subsequence", "medium"],
+  ["best-time-to-buy-and-sell-stock-with-cooldown", "Best Time to Buy and Sell Stock with Cooldown", "medium"],
+  ["coin-change-ii", "Coin Change II", "medium"],
+  ["target-sum", "Target Sum", "medium"],
+  ["interleaving-string", "Interleaving String", "medium"],
+  ["edit-distance", "Edit Distance", "medium"],
+  ["longest-increasing-path-in-a-matrix", "Longest Increasing Path in a Matrix", "hard"],
+  ["distinct-subsequences", "Distinct Subsequences", "hard"],
+  ["regular-expression-matching", "Regular Expression Matching", "hard"],
+]
+
+[[pattern]]
+id = "greedy"
+title = "Greedy"
+idea = "Make the locally best choice and prove (to yourself, in one sentence) that it never blocks a better answer."
+resources = ["tih-array"]
+problems = [
+  ["maximum-subarray", "Maximum Subarray", "medium"],
+  ["jump-game", "Jump Game", "medium"],
+  ["jump-game-ii", "Jump Game II", "medium"],
+  ["gas-station", "Gas Station", "medium"],
+  ["hand-of-straights", "Hand of Straights", "medium"],
+  ["merge-triplets-to-form-target-triplet", "Merge Triplets to Form Target Triplet", "medium"],
+  ["partition-labels", "Partition Labels", "medium"],
+  ["valid-parenthesis-string", "Valid Parenthesis String", "medium"],
+]
+
+[[pattern]]
+id = "intervals"
+title = "Intervals"
+idea = "Sort by start (or end), then sweep once and merge or count overlaps."
+resources = ["tih-interval"]
+problems = [
+  ["insert-interval", "Insert Interval", "medium"],
+  ["merge-intervals", "Merge Intervals", "medium"],
+  ["non-overlapping-intervals", "Non-overlapping Intervals", "medium"],
+  ["minimum-number-of-arrows-to-burst-balloons", "Minimum Number of Arrows to Burst Balloons", "medium"],
+  ["interval-list-intersections", "Interval List Intersections", "medium"],
+  ["minimum-interval-to-include-each-query", "Minimum Interval to Include Each Query", "hard"],
+]
+
+[[pattern]]
+id = "math-matrix"
+title = "Math and matrix"
+idea = "Work the index arithmetic on a small example by hand; most matrix problems are careful boundary handling."
+resources = ["tih-matrix", "tih-math"]
+problems = [
+  ["happy-number", "Happy Number", "easy"],
+  ["plus-one", "Plus One", "easy"],
+  ["rotate-image", "Rotate Image", "medium"],
+  ["spiral-matrix", "Spiral Matrix", "medium"],
+  ["set-matrix-zeroes", "Set Matrix Zeroes", "medium"],
+  ["powx-n", "Pow(x, n)", "medium"],
+]
+
+[[pattern]]
+id = "bits"
+title = "Bit manipulation"
+idea = "XOR cancels pairs, x & (x - 1) drops the lowest set bit, and shifts walk the bits."
+resources = ["tih-binary"]
+problems = [
+  ["single-number", "Single Number", "easy"],
+  ["number-of-1-bits", "Number of 1 Bits", "easy"],
+  ["counting-bits", "Counting Bits", "easy"],
+  ["reverse-bits", "Reverse Bits", "easy"],
+  ["missing-number", "Missing Number", "easy"],
+  ["sum-of-two-integers", "Sum of Two Integers", "medium"],
+]

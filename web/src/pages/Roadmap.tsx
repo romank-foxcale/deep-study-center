@@ -83,7 +83,15 @@ export default function Roadmap() {
                           <button className="btn btn-small" onClick={() => dispatch({ type: 'researchModule', moduleId: m.id })}>Research now</button>
                         </div>
                       )}
-                      {m.research === 'researching' && <p className="muted module-empty">Researching: several perspectives, then only the best sources are kept. This can take a few minutes.</p>}
+                      {m.research === 'researching' && (
+                        <p className="muted module-empty">Researching: several perspectives, then only the best sources are kept. This can take a few minutes.
+                          {(() => {
+                            const job = s.jobs.find(j => j.kind === 'research_module' && j.input.module_id === m.id && (j.status === 'running' || j.status === 'queued'))
+                            const last = job?.progress.slice(-1)[0]
+                            return last ? <><br /><span className="small">Now: {last}</span></> : null
+                          })()}
+                        </p>
+                      )}
                     </>
                   )}
                 </div>

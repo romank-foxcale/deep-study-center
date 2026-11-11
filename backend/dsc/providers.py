@@ -14,8 +14,10 @@ import json
 import os
 import shutil
 import subprocess
+import threading
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 
 class ProviderError(RuntimeError):
@@ -35,6 +37,7 @@ class Call:
     tools: tuple[str, ...] = ()       # e.g. ("WebSearch", "WebFetch") for research jobs
     timeout: int = 600
     max_turns: int | None = None
+    on_event: Callable[[str], None] | None = None  # live progress (web searches/fetches), where supported
 
 
 class Provider:
@@ -52,8 +55,9 @@ class ClaudeCLI(Provider):
     name, binary = "claude", "claude"
 
     def command(self, call: Call) -> list[str]:
+        fmt = ["stream-json", "--verbose"] if call.on_event else ["json"]
         cmd = [shutil.which(self.binary) or self.binary, "-p",
-               "--output-format", "json", "--model", call.model,
+               "--output-format", *fmt, "--model", call.model,
                "--tools", ",".join(call.tools),
                "--strict-mcp-config", "--setting-sources", "user",
                "--no-session-persistence", "--permission-prompts", "none"]
@@ -72,12 +76,64 @@ class ClaudeCLI(Provider):
             raise ProviderUnavailable("claude CLI not found on PATH")
         cwd.mkdir(parents=True, exist_ok=True)
         env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}  # use the subscription login
+        if call.on_event:
+            return self._run_streaming(call, cwd, env)
         try:
             proc = subprocess.run(self.command(call), input=call.prompt, capture_output=True, text=True,
                                   encoding="utf-8", cwd=cwd, timeout=call.timeout, env=env)
         except subprocess.TimeoutExpired as e:
             raise ProviderError(f"claude timed out after {call.timeout}s") from e
         return parse_claude_output(proc.stdout, proc.stderr, proc.returncode, structured=call.schema is not None)
+
+    def _run_streaming(self, call: Call, cwd: Path, env: dict) -> dict | str:
+        """stream-json: report each web search / page fetch as it happens, then parse the `result` event."""
+        proc = subprocess.Popen(self.command(call), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, encoding="utf-8", errors="replace", cwd=cwd, env=env)
+        killed = threading.Event()
+        timer = threading.Timer(call.timeout, lambda: (killed.set(), proc.kill()))
+        timer.start()
+        last, stderr = "", ""
+        try:
+            proc.stdin.write(call.prompt)
+            proc.stdin.close()
+            for line in proc.stdout:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    if json.loads(line).get("type") == "result":
+                        last = line  # other events (e.g. task_summary) can follow the result
+                except (json.JSONDecodeError, AttributeError):
+                    continue
+                for msg in describe_event(line):
+                    call.on_event(msg)
+            stderr = proc.stderr.read()
+            proc.wait()
+        finally:
+            timer.cancel()
+        if killed.is_set():
+            raise ProviderError(f"claude timed out after {call.timeout}s")
+        return parse_claude_output(last, stderr, proc.returncode or 0, structured=call.schema is not None)
+
+
+def describe_event(line: str) -> list[str]:
+    """Human-readable progress from one stream-json line (web searches and fetches only)."""
+    try:
+        d = json.loads(line)
+    except json.JSONDecodeError:
+        return []
+    if d.get("type") != "assistant":
+        return []
+    out = []
+    for c in (d.get("message") or {}).get("content") or []:
+        if c.get("type") != "tool_use":
+            continue
+        inp = c.get("input") or {}
+        if c.get("name") == "WebSearch" and inp.get("query"):
+            out.append(f'searching: {inp["query"]}'[:160])
+        elif c.get("name") == "WebFetch" and inp.get("url"):
+            out.append(f'reading: {inp["url"]}'[:160])
+    return out
 
 
 def parse_claude_output(stdout: str, stderr: str, code: int, structured: bool) -> dict | str:

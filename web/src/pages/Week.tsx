@@ -46,12 +46,16 @@ export default function Week() {
       </div>
 
       {error && <p className="error">{error}</p>}
-      {plan && plan.goals.length > 1 && (
+      {plan && (
         <div className="card">
           <div className="eyebrow">Time per goal this week</div>
           {plan.goals.map(g => (
             <div key={g.id} className="goal-share">
-              <span className="goal-share-title">{g.title}</span>
+              <span className="goal-share-title">{g.title}
+                <input className="input input-small goal-hours" type="number" min={0.5} max={80} step={0.5} defaultValue={g.hours}
+                  key={g.hours} aria-label={`Hours per week for ${g.title}`}
+                  onBlur={e => dispatch({ type: 'setPlanSettings', goalId: g.id, hours: Number(e.target.value) })} /> h/week
+              </span>
               <span className="meter"><span style={{ width: `${Math.min(100, (g.plannedMinutes / Math.max(1, g.targetMinutes)) * 100)}%` }} /></span>
               <span className="muted small">{Math.round(g.plannedMinutes / 6) / 10} of {Math.round(g.targetMinutes / 6) / 10} h · {Math.round(g.share * 100)}%</span>
             </div>
@@ -67,6 +71,7 @@ export default function Week() {
                 <strong>{di === 0 ? 'Today' : d.weekday}</strong>
                 <span className="muted small">{new Date(d.date + 'T00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
                 {d.study && <span className="muted small">{d.minutes}/{d.budget} min</span>}
+                {di === 0 && d.actualMinutes > 0 && <span className="pill pill-ok" title="Time actually spent in lessons today">{d.actualMinutes} min done</span>}
               </div>
               {!d.study && <p className="muted small">Rest day</p>}
               {d.study && d.items.length === 0 && <p className="muted small">Nothing ready to plan.</p>}
@@ -81,6 +86,22 @@ export default function Week() {
               </ul>
             </section>
           ))}
+        </div>
+      )}
+
+      {plan && plan.actualLast7.length > 0 && (
+        <div className="card">
+          <div className="eyebrow">Last 7 days: time actually spent</div>
+          <div className="actual-bars">
+            {plan.actualLast7.map(a => (
+              <div key={a.date} className="actual-bar" title={`${a.date}: ${a.minutes} min`}>
+                <span style={{ height: `${Math.min(100, (a.minutes / Math.max(1, plan.days[0].budget)) * 100)}%` }} />
+                <small>{new Date(a.date + 'T00:00').toLocaleDateString(undefined, { weekday: 'short' })}</small>
+              </div>
+            ))}
+          </div>
+          <p className="muted small">{plan.actualLast7.reduce((n, a) => n + a.minutes, 0)} min in total, against a plan of
+            {' '}{Math.round(plan.settings.weekly_hours * 60)} min a week. Counted while a lesson is open and you're active.</p>
         </div>
       )}
 

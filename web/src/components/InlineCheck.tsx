@@ -7,10 +7,12 @@ interface Props {
   previous?: Answer
   /** Graded on the server; the key arrives with `previous` once answered. */
   onAnswer: (choice: number) => void
+  /** Undo a mis-click: the answer is voided and the question can be answered again. */
+  onUndo?: () => void
   label?: string
 }
 
-export default function InlineCheck({ check, previous, onAnswer, label = 'Check yourself' }: Props) {
+export default function InlineCheck({ check, previous, onAnswer, onUndo, label = 'Check yourself' }: Props) {
   const [choice, setChoice] = useState<number | null>(previous?.choice ?? null)
   const done = previous !== undefined
   return (
@@ -39,6 +41,7 @@ export default function InlineCheck({ check, previous, onAnswer, label = 'Check 
         <div className={previous.correct ? 'check-result ok' : 'check-result bad'}>
           <strong>{previous.correct ? 'Correct.' : 'Not quite.'}</strong>{' '}
           {previous.explanation && <Markdown inline>{previous.explanation}</Markdown>}
+          {onUndo && <div><button className="link small" onClick={() => { setChoice(null); onUndo() }}>Undo this answer</button></div>}
         </div>
       )}
     </div>

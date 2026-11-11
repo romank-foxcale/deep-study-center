@@ -183,3 +183,26 @@ authentication, so exposing it on a network needs its own design (pairing token,
   research job runs.
 - The diff the learner sees is field-level (objective, core, formal, why, misconceptions, sources added/removed,
   sections added/removed/changed, with defaults filled in so normalisation alone isn't a change).
+
+
+## 10. Milestone 6 notes (2026-10-14)
+Scope chosen: daily-use readiness, small planner and library items, and the Docker runner option.
+- **Launch**: `dsc start` rebuilds `web/dist` when any source file is newer, serves it from FastAPI, and opens the
+  browser. `start.ps1` and `start.sh` also create the backend venv on first run.
+- **First run**: an empty workspace gets job routes only (`first_run` meta). The demo can be loaded only into a
+  workspace without goals, because loading it resets everything, the playbook included.
+- **Goal removal**: deletes the goal and all per-concept rows; the playbook (signals) stays. A backup is written first.
+- **Backups**: SQLite online backup API to `backups/study-<timestamp>.db`, at most once per 24 h on state reads,
+  plus on demand; the newest 14 are kept.
+- **Undo**: voids the latest practice evidence for an item (and its grading); if the concept is no longer learned,
+  its review is removed. Replay recomputes everything else.
+- **Live progress**: research and refresh calls use `--output-format stream-json --verbose`; tool_use events for
+  WebSearch/WebFetch become job progress lines (the last 60 are kept). The `result` event is found by type, since
+  other events can follow it.
+- **Time tracking**: the lesson page sends a 30 s heartbeat while visible and with input in the last 2 minutes;
+  `activity(day, concept_id, seconds)`. The week page shows today's actual minutes and the last 7 days.
+- **Share suggestions**: fact-checked cards for learned or mastered concepts that aren't shared yet.
+- **Docker runner**: `runner_mode` local | docker. Image `deep-study-center-runner:1` (python:3.12-slim, CPU
+  PyTorch, unprivileged user). Runs with `--network none --read-only --tmpfs /tmp --memory 2g --cpus 2
+  --pids-limit 256 --cap-drop ALL --security-opt no-new-privileges` and the code mounted read-only. Test approval
+  and the static check still apply. Untested here: Docker isn't installed.

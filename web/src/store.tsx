@@ -34,6 +34,13 @@ export type Action =
   | { type: 'setPlanSettings'; weeklyHours?: number; studyDays?: number[]; startTime?: string; goalId?: string; hours?: number }
   | { type: 'promoteCard'; conceptId: string }
   | { type: 'setupRunner' }
+  | { type: 'undoAnswer'; conceptId: string; itemId: string }
+  | { type: 'loadDemo' }
+  | { type: 'deleteGoal'; id: string }
+  | { type: 'backupNow' }
+  | { type: 'promoteSuggested' }
+  | { type: 'setRunnerMode'; mode: 'local' | 'docker' }
+  | { type: 'setupRunnerDocker' }
   | { type: 'reset' }
 
 export const FEEDBACK_TAGS = [
@@ -57,6 +64,8 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const getLesson = (id: string) => api<LessonView>(`/api/lesson/${encodeURIComponent(id)}`)
+export const postActivity = (conceptId: string, seconds: number) =>
+  api<{ ok: boolean }>('/api/activity', { method: 'POST', body: JSON.stringify({ conceptId, seconds }) })
 export const getPlan = () => api<Plan>('/api/plan')
 export const searchAll = (q: string) => api<SearchHit[]>(`/api/search?q=${encodeURIComponent(q)}`)
 export const runLocal = (body: { conceptId: string; itemId: string; code: string; angle?: Angle; approve?: boolean }) =>

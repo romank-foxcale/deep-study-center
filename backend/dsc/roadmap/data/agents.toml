@@ -1,0 +1,221 @@
+# Niche track B: LLM agents and agent collaboration. Fundamentals first (tool use, agent loops,
+# MCP, evaluation), then multi-agent systems, handoff between agents and models, routing, and
+# communication below the text level (KV cache, embeddings). Exercises can use a local model via
+# Ollama (free) or any API you have.
+
+[track]
+id = "agents"
+title = "LLM agents and agent collaboration"
+
+# --- Agent fundamentals ---------------------------------------------------------------------
+[[unit]]
+id = "ag-patterns"
+title = "Workflows and agents: the basic patterns"
+minutes = 60
+goal = "Know the standard agent patterns and when a simple workflow is enough."
+resources = ["building-effective-agents", "weng-agents"]
+exercise = "List the patterns (prompt chaining, routing, parallelization, orchestrator-workers, evaluator-optimizer, autonomous agent). For each, write one use case from your field."
+done_when = "Each pattern has one use case and one reason not to use it."
+
+[[unit]]
+id = "ag-tool-use"
+title = "Tool use: a function-calling loop from scratch"
+minutes = 75
+requires = ["ag-patterns"]
+goal = "Write the agent loop yourself, with no framework."
+resources = ["tool-use-docs", "ollama"]
+exercise = "Write a Python loop where a model can call two tools: `get_weather(lat, lon)` (use a free weather API or a stub) and `calculator(expr)`. Log every message and tool call to a JSON trace."
+done_when = "The agent answers a question that needs both tools, and the trace file shows every step."
+
+[[unit]]
+id = "ag-react"
+title = "ReAct: reasoning and acting"
+minutes = 60
+requires = ["ag-tool-use"]
+goal = "Understand interleaved reasoning and tool calls, and where the loop fails."
+resources = ["react-paper"]
+exercise = "Add a search tool (local document search is fine) to your loop. Run 10 multi-hop questions. Classify each failure: wrong tool, bad argument, loop, early stop, hallucinated result."
+done_when = "Your failure table covers all 10 runs."
+
+[[unit]]
+id = "ag-mcp"
+title = "Model Context Protocol"
+minutes = 60
+requires = ["ag-tool-use"]
+goal = "Expose your own tools and data to any MCP client."
+resources = ["mcp"]
+exercise = "Write an MCP server that exposes one dataset from your field (for example a station time series) as a resource and one analysis function as a tool. Connect it to an MCP client."
+done_when = "A client lists your tool and calls it successfully."
+
+[[unit]]
+id = "ag-context"
+title = "Context engineering for long-running agents"
+minutes = 60
+requires = ["ag-react"]
+goal = "Manage what the model sees: compaction, notes, sub-agents."
+resources = ["context-engineering", "anthropic-multi-agent"]
+exercise = "Give your agent a task that overflows a small context window. Implement two strategies: summarize old turns, and keep a structured notes file. Compare task success on 5 runs."
+done_when = "You report success counts for both strategies."
+
+[[unit]]
+id = "ag-eval"
+title = "Evaluating agents"
+minutes = 75
+requires = ["ag-react", "eval-product"]
+goal = "Measure agent success, cost and reliability, not only single answers."
+resources = ["tau-bench", "swe-bench", "hamel-evals"]
+exercise = "Build an eval harness for your agent: 20 tasks with checkers, pass@1 and pass^3 (all 3 runs pass), tokens and cost per task."
+done_when = "The harness prints success, consistency and cost per task."
+
+# --- Multi-agent systems --------------------------------------------------------------------
+[[unit]]
+id = "ac-survey"
+title = "Multi-agent LLM systems: a survey"
+minutes = 60
+requires = ["ag-patterns"]
+goal = "Know the design space: roles, communication, structure, and the main applications."
+resources = ["ma-survey"]
+exercise = "Read the survey. Build a table of 8 systems with columns: agent roles, communication pattern, who decides the next speaker, and the task."
+done_when = "Your table has 8 rows and you mark which designs exchange only text."
+
+[[unit]]
+id = "ac-role-play"
+title = "Role-playing agents: CAMEL"
+minutes = 60
+requires = ["ac-survey", "ag-tool-use"]
+goal = "See how two agents with roles cooperate and where they derail."
+resources = ["camel"]
+exercise = "Run a two-agent role play (user agent and assistant agent) on 5 tasks with your loop. Count role flipping, repeated messages and infinite loops."
+done_when = "You report the three failure counts over 5 tasks."
+
+[[unit]]
+id = "ac-conversation-frameworks"
+title = "Conversation programming: AutoGen"
+minutes = 60
+requires = ["ac-role-play"]
+goal = "Understand conversable agents and group chat managers."
+resources = ["autogen"]
+exercise = "Rebuild one AutoGen example (for example coder plus executor) with your own small code. Write what the framework hides and what you had to make explicit."
+done_when = "Your version works on one task, and your note lists 3 hidden decisions."
+
+[[unit]]
+id = "ac-sop"
+title = "Structured teams: MetaGPT and ChatDev"
+minutes = 60
+requires = ["ac-conversation-frameworks"]
+goal = "See how standard operating procedures and structured artifacts reduce chaos between agents."
+resources = ["metagpt", "chatdev"]
+exercise = "Compare MetaGPT and ChatDev: the roles, the artifacts passed between them, and the reported results. Say which structure you would copy for a research assistant team."
+done_when = "Your comparison names the artifact each role hands to the next."
+
+[[unit]]
+id = "ac-debate"
+title = "Multi-agent debate"
+minutes = 75
+requires = ["ac-role-play"]
+goal = "Test whether several agents arguing improves accuracy."
+resources = ["ma-debate"]
+exercise = "On 30 GSM8K questions with a small model, compare single answer, self-consistency (3 samples, majority vote) and 3-agent debate for 2 rounds. Keep the token count for each."
+done_when = "A table shows accuracy and tokens for the 3 methods."
+
+[[unit]]
+id = "ac-mixture"
+title = "Mixture-of-Agents"
+minutes = 45
+requires = ["ac-debate"]
+goal = "Understand layered aggregation of several models' answers."
+resources = ["moa"]
+exercise = "Read the paper. Add a one-layer MoA (3 proposers, 1 aggregator) to your debate experiment and compare at equal token budget."
+done_when = "You report MoA accuracy at the same budget as debate."
+
+[[unit]]
+id = "ac-failures"
+title = "Why multi-agent systems fail"
+minutes = 60
+requires = ["ac-debate"]
+goal = "Use a failure taxonomy to analyze your own multi-agent traces."
+resources = ["mast"]
+exercise = "Label 20 traces from your experiments with the MAST failure categories. Note which failures come from information lost between agents."
+done_when = "Your labeled table exists, and you count failures caused by lost context."
+
+# --- Handoff, routing and model swapping ----------------------------------------------------
+[[unit]]
+id = "ac-handoffs"
+title = "Agent handoffs in practice"
+minutes = 60
+requires = ["ac-failures", "ag-context"]
+goal = "Know how current frameworks transfer control and context between agents."
+resources = ["openai-agents-handoffs", "a2a"]
+exercise = "Implement a handoff between a triage agent and a specialist agent in your own code. Compare three context transfers: full transcript, summary, and a structured handoff object."
+done_when = "On 10 tasks you report success and tokens for each transfer method."
+
+[[unit]]
+id = "ac-routing"
+title = "Routing and cascades between models"
+minutes = 75
+requires = ["ac-handoffs"]
+goal = "Send each request to the cheapest model that can do it."
+resources = ["frugalgpt", "routellm"]
+exercise = "Build a two-model cascade: a small model answers, a confidence check decides, and a large model takes over when needed. Plot quality against cost for 3 thresholds."
+done_when = "Your quality-cost plot has 3 points plus small-only and large-only."
+
+[[unit]]
+id = "ac-trajectory-swap"
+title = "Experiment: switch models in the middle of an agent trajectory"
+minutes = 120
+requires = ["ac-routing", "inf-speculative", "ag-eval"]
+goal = "Measure what happens when model B continues a trajectory that model A started."
+resources = ["speculative-decoding", "context-engineering", "mast"]
+exercise = "With your eval harness, run tasks where model A does the first k steps and model B finishes (k = 0, 2, 4, all). Compare success, cost and failure types with each model alone. Keep all traces."
+done_when = "Your results table covers every k, and you have written 3 hypotheses for what you saw."
+
+# --- Communication below text: KV cache and embeddings --------------------------------------
+[[unit]]
+id = "ac-prompt-caching"
+title = "KV-cache reuse: prompt caching and cache blending"
+minutes = 60
+requires = ["inf-kv-cache"]
+goal = "Understand how serving systems reuse the KV cache across requests."
+resources = ["prompt-cache-paper", "cacheblend", "prompt-caching-docs"]
+exercise = "Read Prompt Cache and CacheBlend. With your GPT's KV cache, reuse the cache of a shared prefix across 2 prompts and verify identical outputs. Explain why a non-prefix chunk is harder."
+done_when = "Your prefix-reuse test passes, and your note explains the cross-attention problem CacheBlend solves."
+
+[[unit]]
+id = "ac-kv-communication"
+title = "KV-cache communication between models"
+minutes = 90
+requires = ["ac-prompt-caching", "ac-handoffs"]
+goal = "Know the research on passing KV caches instead of text between LLMs."
+resources = ["droidspeak", "cache-to-cache"]
+exercise = "Read DroidSpeak and Cache-to-Cache. For each: which models can share, what is transferred, how it is aligned, and the speed and quality reported. Relate both to your trajectory-swap results."
+done_when = "Your comparison has these 4 points for both papers and one open question for your own research."
+
+[[unit]]
+id = "ac-embedding-communication"
+title = "Communication through embeddings"
+minutes = 60
+requires = ["ac-kv-communication"]
+goal = "Compare text, embedding and KV-cache channels between agents."
+resources = ["cipher", "cache-to-cache"]
+exercise = "Read CIPHER. Make a table of 3 channels (text, embeddings, KV cache): bandwidth, requirements on the models, interpretability and reported gains."
+done_when = "Your table is complete and states which channel fits a handoff between different model families."
+
+[[unit]]
+id = "ac-research-setup"
+title = "Set up your agent-collaboration research repo"
+minutes = 90
+requires = ["ac-trajectory-swap"]
+goal = "Turn your experiments into a reproducible public research repository."
+resources = ["made-with-ml: reproducibility lessons", "lm-eval-harness"]
+exercise = "Create a public repo with the eval harness, the trajectory-swap experiment, configs, fixed seeds, and a results table generated by a script."
+done_when = "A fresh clone reproduces your main table with one command."
+
+[[unit]]
+id = "ac-writeup"
+title = "Write up your findings"
+minutes = 120
+requires = ["ac-research-setup", "ac-embedding-communication"]
+goal = "Publish a short, honest research note on agent handoff."
+resources = ["karpathy-blog", "hf-blog-community"]
+exercise = "Write a 4-page workshop-style note or a long blog post: question, related work, setup, results, limits. Ask one person to review it before you publish."
+done_when = "The note is published, and it links to the repo."

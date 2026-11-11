@@ -1,0 +1,473 @@
+# ML and LLM fundamentals: math refresh, classic ML, deep learning, transformers from scratch,
+# LLM training, fine-tuning, evaluation, inference and serving cost, RAG.
+# Agents and multi-agent systems are in agents.toml. Units run in file order inside a track.
+# `basic = true` units are skipped when the track has `skip_basics = true` in your config.
+
+[track]
+id = "ml"
+title = "ML and LLM fundamentals"
+
+# --- Setup and math refresh -----------------------------------------------------------------
+[[unit]]
+id = "ml-env"
+title = "Set up your ML workspace"
+minutes = 45
+basic = true
+goal = "Have one reproducible Python environment for every exercise in this roadmap."
+resources = ["uv-docs: Getting started", "pytorch-basics: Quickstart", "colab"]
+exercise = "Create a `study` project with uv. Add numpy, pandas, matplotlib, scikit-learn, torch and jupyter. Run a 1000x1000 matmul in torch and print the device. Open the same notebook in Colab with a GPU runtime."
+done_when = "`uv run python -c \"import torch; print(torch.__version__)\"` works locally, and a Colab notebook shows a GPU device."
+
+[[unit]]
+id = "ml-linalg"
+title = "Linear algebra: vectors, matrices, matrix multiplication"
+minutes = 60
+basic = true
+goal = "See a matrix as a linear map and matrix multiplication as composition of maps."
+resources = ["3b1b-linalg: chapters 1-4", "mml-book: chapter 2"]
+exercise = "Write matmul with plain Python loops. Check it against numpy on random 50x30 and 30x20 matrices. Then show with one 2x2 example that AB != BA."
+done_when = "Your matmul matches `A @ B` to 1e-9, and you can explain in two sentences why the shapes must agree."
+
+[[unit]]
+id = "ml-eigen-svd"
+title = "Eigenvectors, SVD and PCA"
+minutes = 60
+basic = true
+goal = "Use SVD to do PCA and explain what the singular values mean."
+resources = ["3b1b-linalg: eigenvectors and eigenvalues", "mml-book: chapters 4 and 10"]
+exercise = "Implement PCA with `np.linalg.svd` on a dataset you know from your PhD (or the sklearn iris set). Plot explained variance. Compare with `sklearn.decomposition.PCA`."
+done_when = "Your components match sklearn up to sign, and you can say what fraction of variance the first two components keep."
+
+[[unit]]
+id = "ml-calculus"
+title = "Calculus for ML: gradients and the chain rule"
+minutes = 45
+basic = true
+goal = "Compute gradients of vector functions and check them numerically."
+resources = ["3b1b-calculus: chapters 1-4", "mml-book: chapter 5"]
+exercise = "Derive the gradient of f(w) = ||Xw - y||^2 by hand. Implement it and compare with a central finite-difference gradient."
+done_when = "The relative error between analytic and numeric gradients is below 1e-6."
+
+[[unit]]
+id = "ml-probability"
+title = "Probability and maximum likelihood"
+minutes = 60
+basic = true
+goal = "Write a likelihood for a model and maximize it."
+resources = ["d2l-prob", "d2l-mle", "mml-book: chapter 6 and section 8.3"]
+exercise = "Derive the MLE for a Gaussian (mean, variance) and for a Poisson rate. Check both on simulated data with scipy.optimize.minimize on the negative log-likelihood."
+done_when = "Closed-form and numeric estimates agree to 3 decimals, and you can say why we minimize the negative log-likelihood."
+
+[[unit]]
+id = "ml-optimization"
+title = "Optimization: gradient descent, momentum, Adam"
+minutes = 60
+goal = "Understand why the optimizer and learning rate decide whether training works."
+resources = ["d2l-optim: sections on GD, SGD, momentum, Adam"]
+exercise = "Implement GD, momentum and Adam in numpy. Minimize the Rosenbrock function from (-1.5, 2). Plot the paths for three learning rates each."
+done_when = "One plot shows all optimizers, and you can explain one case where Adam beats plain GD and why."
+
+[[unit]]
+id = "ml-information"
+title = "Entropy, cross-entropy and KL divergence"
+minutes = 45
+goal = "Connect cross-entropy loss to likelihood and KL divergence."
+resources = ["d2l-info"]
+exercise = "For a 3-class softmax classifier, show numerically that mean cross-entropy equals the mean negative log-likelihood, and that CE = H(p) + KL(p||q)."
+done_when = "Your notebook prints equal values (to 1e-9) for both identities."
+
+# --- Classic ML -----------------------------------------------------------------------------
+[[unit]]
+id = "ml-linear-regression"
+title = "Linear regression and regularization"
+minutes = 60
+basic = true
+goal = "Fit linear models three ways and know what ridge and lasso change."
+resources = ["islp: chapters 3 and 6", "cs229-notes: chapter 1"]
+exercise = "Fit one regression with the normal equation, with gradient descent and with sklearn. Then sweep ridge alpha and plot coefficients against alpha."
+done_when = "All three fits agree, and the coefficient plot shows shrinkage toward zero."
+
+[[unit]]
+id = "ml-logistic-regression"
+title = "Logistic and softmax regression from scratch"
+minutes = 60
+goal = "Implement a classifier end to end: model, loss, gradient, training loop."
+resources = ["cs229-notes: chapter 2", "islp: chapter 4"]
+exercise = "Implement binary logistic regression in numpy with batch gradient descent. Train on sklearn's breast cancer data. Compare accuracy and log loss with sklearn's LogisticRegression."
+done_when = "Your test accuracy is within 2 points of sklearn, and the training loss decreases every epoch."
+
+[[unit]]
+id = "ml-generalization"
+title = "Bias, variance and cross-validation"
+minutes = 60
+goal = "Diagnose under- and overfitting with learning curves and honest validation."
+resources = ["islp: chapter 5", "sklearn-cv", "google-mlcc: overfitting module"]
+exercise = "Fit polynomial regressions of degree 1-15 on noisy data. Plot train and 5-fold CV error against degree. Then plot a learning curve for the best degree."
+done_when = "You can point to the degree where variance starts to dominate and justify it from the plot."
+
+[[unit]]
+id = "ml-data-leakage"
+title = "Pipelines, leakage and time-aware splits"
+minutes = 45
+goal = "Avoid the leakage mistakes that ruin real projects, especially with time series."
+resources = ["sklearn-pitfalls", "sklearn-cv: TimeSeriesSplit"]
+exercise = "Take a time series you know (e.g. daily temperature). Build a sklearn Pipeline with scaling and a model. Compare a shuffled KFold score with a TimeSeriesSplit score."
+done_when = "You can explain why the shuffled score is too optimistic, with the two numbers side by side."
+
+[[unit]]
+id = "ml-trees"
+title = "Decision trees, random forests, gradient boosting"
+minutes = 60
+goal = "Know when tree ensembles beat neural networks on tabular data and how boosting works."
+resources = ["islp: chapter 8", "xgboost-intro"]
+exercise = "Train a decision tree, a random forest and a gradient-boosted model on a tabular dataset. Compare CV scores and training times. Compare impurity importance with permutation importance."
+done_when = "A small table shows the three models, and you can name one way impurity importance misleads."
+
+[[unit]]
+id = "ml-metrics"
+title = "Metrics, calibration and imbalanced data"
+minutes = 60
+goal = "Pick the metric that matches the decision, not the default one."
+resources = ["sklearn-metrics", "sklearn-calibration", "google-mlcc: classification module"]
+exercise = "On an imbalanced dataset (positives under 5 percent), compare accuracy, ROC AUC, PR AUC and F1. Draw a calibration curve and fix it with isotonic calibration."
+done_when = "You can say which metric you would report to a product manager for this case, and why."
+
+[[unit]]
+id = "ml-unsupervised"
+title = "Clustering and mixture models"
+minutes = 45
+goal = "Use k-means and Gaussian mixtures and know their assumptions."
+resources = ["islp: chapter 12", "sklearn-guide: clustering and mixture models"]
+exercise = "Cluster a dataset from your field (or sklearn blobs with unequal variance). Compare k-means and GMM. Choose k with silhouette score and BIC."
+done_when = "You have one plot per method and a one-paragraph note on why they disagree."
+
+# --- Deep learning --------------------------------------------------------------------------
+[[unit]]
+id = "dl-micrograd"
+title = "Backpropagation from scratch (micrograd)"
+minutes = 90
+goal = "Build an autograd engine and understand backprop as the chain rule on a graph."
+resources = ["zero-to-hero: Building micrograd", "micrograd"]
+exercise = "Follow the lecture and write your own Value class with +, *, tanh and backward(). Train a tiny MLP on a toy dataset. Check one gradient against PyTorch."
+done_when = "Your gradients match PyTorch for the same expression, and the MLP loss goes down."
+
+[[unit]]
+id = "dl-makemore-1"
+title = "Language modeling: bigrams and a first neural net"
+minutes = 90
+goal = "Frame language modeling as predicting the next token and measure it with NLL."
+resources = ["zero-to-hero: Building makemore (part 1, bigrams)", "makemore"]
+exercise = "Build the counting bigram model and the one-layer neural bigram model on a names list. Sample 10 names from each."
+done_when = "Both models reach about the same NLL, and you can explain why."
+
+[[unit]]
+id = "dl-makemore-2"
+title = "MLP language model, train/dev/test splits"
+minutes = 90
+goal = "Train an MLP with embeddings and tune it with a proper validation split."
+resources = ["zero-to-hero: Building makemore Part 2: MLP"]
+exercise = "Build the MLP with character embeddings. Find a good learning rate with a sweep. Report train and dev loss."
+done_when = "Dev loss is below the bigram model's loss, and you logged the learning-rate sweep."
+
+[[unit]]
+id = "dl-init-batchnorm"
+title = "Activations, initialization and batch normalization"
+minutes = 90
+goal = "Read activation and gradient statistics to diagnose a sick network."
+resources = ["zero-to-hero: Building makemore Part 3: Activations & Gradients, BatchNorm", "d2l: batch normalization section"]
+exercise = "Add the activation and gradient histograms from the lecture to your MLP. Break the initialization on purpose, then fix it with proper scaling and with batch norm."
+done_when = "You have before and after histograms and can say what saturated tanh units look like."
+
+[[unit]]
+id = "dl-backprop-ninja"
+title = "Manual backprop through a whole network"
+minutes = 90
+goal = "Derive and code the backward pass of cross-entropy, batch norm and linear layers by hand."
+resources = ["zero-to-hero: Building makemore Part 4: Becoming a Backprop Ninja"]
+exercise = "Do the lecture exercises: write every gradient by hand and compare with PyTorch autograd."
+done_when = "All your manual gradients match autograd (max abs diff below 1e-6)."
+
+[[unit]]
+id = "dl-pytorch"
+title = "PyTorch training loop, Dataset and DataLoader"
+minutes = 60
+goal = "Write a clean, standard PyTorch training loop you can reuse."
+resources = ["pytorch-basics: all pages"]
+exercise = "Write a `train.py` with a Dataset, DataLoader, nn.Module, optimizer, train and eval loops, checkpoint saving, and a fixed seed. Train on FashionMNIST."
+done_when = "Two runs with the same seed give the same final loss, and test accuracy is above 85 percent."
+
+[[unit]]
+id = "dl-training-recipe"
+title = "The recipe for training neural networks"
+minutes = 60
+goal = "Debug training in a fixed order: data, overfit one batch, regularize, tune."
+resources = ["karpathy-recipe", "udl-book: chapter 9 (regularization)"]
+exercise = "Apply the recipe to your FashionMNIST script: inspect the data, overfit a single batch, then add dropout and weight decay and compare curves."
+done_when = "Your notes list each recipe step with what you saw, and a single batch reaches near-zero loss."
+
+[[unit]]
+id = "dl-cnn"
+title = "Convolutional networks and ResNets"
+minutes = 90
+goal = "Understand convolutions, pooling and residual connections, and train a CNN on images."
+resources = ["d2l: chapters 7 and 8", "udl-book: chapters 10 and 11"]
+exercise = "Train a small ResNet on CIFAR-10 in Colab. Report accuracy after 10 epochs and the effect of data augmentation."
+done_when = "Test accuracy is above 80 percent, and you can explain why residual connections help deep networks train."
+
+[[unit]]
+id = "dl-wavenet"
+title = "Hierarchical sequence models (WaveNet-style)"
+minutes = 75
+goal = "Build deeper sequence models and organize code like torch.nn."
+resources = ["zero-to-hero: Building makemore Part 5: Building a WaveNet"]
+exercise = "Restructure your makemore code into layer classes and implement the dilated, hierarchical model from the lecture."
+done_when = "Dev loss improves on your MLP, and your code has Linear, BatchNorm and Sequential classes."
+
+# --- Transformers from scratch --------------------------------------------------------------
+[[unit]]
+id = "tf-attention"
+title = "Attention and the transformer architecture"
+minutes = 75
+goal = "Explain self-attention with queries, keys and values, and the full transformer block."
+resources = ["illustrated-transformer", "3b1b-nn: attention chapter", "attention-paper"]
+exercise = "Implement scaled dot-product attention with a causal mask in PyTorch. Test that output shapes are right and that position t never sees t+1."
+done_when = "A unit test proves the causal mask works, and you can draw one transformer block from memory."
+
+[[unit]]
+id = "tf-gpt-from-scratch"
+title = "Build a GPT from scratch"
+minutes = 120
+goal = "Write a decoder-only transformer language model yourself."
+resources = ["zero-to-hero: Let's build GPT", "nanogpt"]
+exercise = "Follow the lecture to build the character-level GPT. Train it on a text corpus you like, for example abstracts from your field."
+done_when = "The model generates text with the corpus style, and validation loss is clearly below the bigram baseline."
+
+[[unit]]
+id = "tf-annotated"
+title = "Read the original transformer with code"
+minutes = 60
+goal = "Connect the paper's encoder-decoder design to the decoder-only GPT you built."
+resources = ["annotated-transformer", "attention-paper"]
+exercise = "Read The Annotated Transformer. Write a table of each component (embeddings, positional encoding, multi-head attention, FFN, layer norm, residuals) and where it is in your GPT."
+done_when = "Your table covers all components and marks what the decoder-only model drops."
+
+[[unit]]
+id = "tf-tokenizer"
+title = "Tokenization with byte-pair encoding"
+minutes = 90
+goal = "Implement BPE and understand how tokenization causes odd LLM behavior."
+resources = ["zero-to-hero: Let's build the GPT Tokenizer", "minbpe"]
+exercise = "Implement BPE training, encode and decode. Train a 512-token vocabulary on a text sample and check that decode(encode(x)) == x."
+done_when = "Round-trip tests pass, and you can explain two LLM failures caused by tokenization."
+
+[[unit]]
+id = "tf-gpt2-reproduce"
+title = "Reproduce GPT-2 (124M): model and weights"
+minutes = 120
+goal = "Match the GPT-2 architecture exactly and load the official weights."
+resources = ["build-nanogpt: video 'Let's reproduce GPT-2 (124M)', first half", "build-nanogpt"]
+exercise = "Write the GPT-2 model class, load the Hugging Face weights into it, and generate text. Then start training from scratch on a small shard."
+done_when = "Your model with loaded weights generates the same tokens as the Hugging Face model for the same prompt and greedy decoding."
+
+[[unit]]
+id = "tf-gpt2-speed"
+title = "Make training fast: mixed precision, FlashAttention, torch.compile"
+minutes = 90
+goal = "Measure and improve training throughput on a GPU."
+resources = ["build-nanogpt: video 'Let's reproduce GPT-2 (124M)', second half", "flashattention"]
+exercise = "Measure tokens per second for your GPT-2 training step. Add TF32 or bf16, torch.compile and scaled_dot_product_attention one at a time on Colab."
+done_when = "A table shows tokens per second after each change."
+
+[[unit]]
+id = "tf-rope"
+title = "Rotary position embeddings"
+minutes = 60
+goal = "Understand and implement RoPE, the position scheme in most modern LLMs."
+resources = ["roformer"]
+exercise = "Implement RoPE for queries and keys. Test that the attention score between two positions depends only on their distance."
+done_when = "Your test passes for several position pairs with the same offset."
+
+[[unit]]
+id = "tf-modern-architecture"
+title = "Modern LLM blocks: RMSNorm, SwiGLU, GQA, mixture of experts"
+minutes = 75
+goal = "Know what changed between GPT-2 and current open models, and why."
+resources = ["llama2-paper: section 2", "gqa-paper", "mixtral-paper"]
+exercise = "Implement grouped-query attention as a change to your GPT. Compute the KV-cache memory saved for 8 query heads and 2 KV heads."
+done_when = "Your GQA layer runs, and you can state the memory saving as a ratio."
+
+# --- LLM training ---------------------------------------------------------------------------
+[[unit]]
+id = "llm-scaling"
+title = "Scaling laws and compute-optimal training"
+minutes = 60
+goal = "Estimate model size and token count for a compute budget."
+resources = ["kaplan-scaling", "chinchilla", "scaling-book: chapter 1"]
+exercise = "Use C = 6ND to find the Chinchilla-optimal model size and token count for 1e21 and 1e23 FLOPs. Plot both."
+done_when = "Your numbers are within a factor of 2 of the Chinchilla rule of about 20 tokens per parameter."
+
+[[unit]]
+id = "llm-pretraining-data"
+title = "Pretraining data: filtering and deduplication"
+minutes = 60
+goal = "Know how web text becomes training data and why data quality beats quantity."
+resources = ["fineweb"]
+exercise = "Take 10,000 web documents (for example a FineWeb sample). Apply exact dedup, MinHash near-dedup and two quality heuristics. Report how many documents survive each step."
+done_when = "A funnel table shows the counts, and you can name one risk of each filter."
+
+[[unit]]
+id = "llm-post-training"
+title = "Post-training: SFT and RLHF"
+minutes = 60
+goal = "Explain how a base model becomes an assistant."
+resources = ["instructgpt", "hf-llm-course: fine-tuning chapters"]
+exercise = "Draw the InstructGPT pipeline (SFT, reward model, PPO). For each stage, write the data it needs and the loss it uses."
+done_when = "Your diagram has the data and loss of each stage, and you can say what can go wrong in each."
+
+[[unit]]
+id = "llm-dpo"
+title = "Preference optimization with DPO"
+minutes = 90
+goal = "Run preference tuning without a separate reward model."
+resources = ["dpo-paper", "trl-docs: DPO trainer"]
+exercise = "Run DPO with TRL on a small model (for example Qwen2.5-0.5B-Instruct) and a small preference dataset in Colab. Compare 5 answers before and after."
+done_when = "Training finishes, the chosen-vs-rejected reward margin increases, and you saved the 5 comparisons."
+
+# --- Fine-tuning ----------------------------------------------------------------------------
+[[unit]]
+id = "ft-lora-scratch"
+title = "LoRA from scratch"
+minutes = 75
+goal = "Understand low-rank adaptation by implementing it."
+resources = ["lora-paper"]
+exercise = "Write a LoRALinear module that wraps nn.Linear with rank r and scale alpha. Apply it to your GPT's attention projections and count trainable parameters."
+done_when = "Trainable parameters fall below 1 percent of the total, and fine-tuning still lowers loss on a new text."
+
+[[unit]]
+id = "ft-qlora-practice"
+title = "Fine-tune an open model with QLoRA"
+minutes = 120
+goal = "Fine-tune a real open model on your own domain data on a free GPU."
+resources = ["qlora-paper", "peft-docs", "trl-docs: SFT trainer", "colab"]
+exercise = "Build 200-500 instruction pairs from your domain (for example questions and answers from climate reports). Fine-tune a 0.5B-3B model with 4-bit QLoRA. Compare base and tuned answers on 20 held-out questions."
+done_when = "You have a side-by-side table for 20 questions and an honest note on where tuning helped and where it hurt."
+
+[[unit]]
+id = "ft-when-to-tune"
+title = "Prompting, RAG or fine-tuning: how to choose"
+minutes = 45
+goal = "Choose the cheapest method that meets the requirement."
+resources = ["hf-llm-course", "eugeneyan-llm-patterns"]
+exercise = "Write a one-page decision guide with three real use cases from your field. For each, pick prompting, RAG or fine-tuning, and give the cost and the main risk."
+done_when = "Each use case has a choice, a cost estimate and a risk."
+
+# --- Evaluation -----------------------------------------------------------------------------
+[[unit]]
+id = "eval-benchmarks"
+title = "LLM benchmarks and their limits"
+minutes = 60
+goal = "Run a standard benchmark and know about contamination and prompt sensitivity."
+resources = ["hf-eval-guidebook", "lm-eval-harness"]
+exercise = "Run lm-evaluation-harness on a small model for one task (for example hellaswag with a sample limit). Then change the few-shot count and compare."
+done_when = "You report both scores and explain the difference."
+
+[[unit]]
+id = "eval-product"
+title = "Evals for an LLM product: error analysis first"
+minutes = 60
+goal = "Build a task-specific eval set from real failures."
+resources = ["hamel-evals"]
+exercise = "Pick a small LLM feature (for example summarizing a paper abstract). Collect 30 outputs, label failure types, and write 20 assertion-style tests in a script."
+done_when = "The script runs and prints a pass rate per failure type."
+
+[[unit]]
+id = "eval-llm-judge"
+title = "LLM-as-a-judge and its biases"
+minutes = 60
+goal = "Use an LLM judge and measure how much to trust it."
+resources = ["llm-judge-paper"]
+exercise = "Write a judge prompt for your feature. Label 30 outputs yourself, then compute agreement (accuracy or Cohen's kappa) between you and the judge. Swap answer order to test position bias."
+done_when = "You report agreement and the position-bias rate."
+
+# --- Inference and serving ------------------------------------------------------------------
+[[unit]]
+id = "inf-arithmetic"
+title = "Inference arithmetic: memory, FLOPs, latency"
+minutes = 60
+goal = "Estimate the memory and latency of serving an LLM before you run it."
+resources = ["inference-arithmetic", "scaling-book: inference chapter"]
+exercise = "For a 7B model in bf16: compute weight memory, KV-cache size per token, and the memory-bound time per token on an A100. Then do it for batch size 32."
+done_when = "Your numbers are written down with formulas, and you can say why decoding is memory-bound at batch 1."
+
+[[unit]]
+id = "inf-kv-cache"
+title = "Implement a KV cache"
+minutes = 75
+goal = "Make generation fast by caching keys and values."
+resources = ["inference-arithmetic", "nanogpt"]
+exercise = "Add a KV cache to your GPT's generate(). Check the output is identical to the no-cache version with greedy decoding. Time both for 500 tokens."
+done_when = "Outputs match exactly, and you report the speedup."
+
+[[unit]]
+id = "inf-serving"
+title = "Serving engines: FlashAttention, PagedAttention, batching"
+minutes = 90
+goal = "Know how vLLM-style engines reach high throughput."
+resources = ["pagedattention", "flashattention", "vllm-docs"]
+exercise = "Serve a small model with vLLM in Colab. Measure throughput (tokens/s) and latency for 1, 8 and 32 parallel requests."
+done_when = "A table shows how throughput and latency change with concurrency, and you can explain continuous batching."
+
+[[unit]]
+id = "inf-quantization"
+title = "Quantization"
+minutes = 60
+goal = "Trade precision for memory and speed and measure the quality cost."
+resources = ["hf-quantization", "llm-int8", "gptq"]
+exercise = "Load one small model in bf16, 8-bit and 4-bit. Compare memory use and perplexity on a fixed text."
+done_when = "A table shows memory and perplexity for each precision."
+
+[[unit]]
+id = "inf-speculative"
+title = "Speculative decoding"
+minutes = 90
+goal = "Speed up generation with a draft model and keep the target model's distribution."
+resources = ["speculative-decoding"]
+exercise = "Implement greedy speculative decoding with GPT-2 small as draft and GPT-2 medium as target. Report the acceptance rate and speedup for k = 2, 4, 8."
+done_when = "Outputs equal plain greedy decoding of the target model, and you report acceptance rates."
+
+[[unit]]
+id = "inf-cost"
+title = "The cost of serving: API or self-hosted"
+minutes = 60
+goal = "Estimate cost per million tokens and pick a serving option."
+resources = ["prompt-caching-docs", "inference-arithmetic"]
+exercise = "Build a small cost model (spreadsheet or script) for 1M requests per day of 2k input and 300 output tokens: one hosted API with and without prompt caching, and one self-hosted GPU option."
+done_when = "Your model gives cost per day for each option and states its assumptions."
+
+# --- Retrieval-augmented generation ---------------------------------------------------------
+[[unit]]
+id = "rag-embeddings"
+title = "Embeddings and vector search"
+minutes = 60
+goal = "Build semantic search over your own documents."
+resources = ["sbert", "faiss"]
+exercise = "Embed 200 or more paragraphs from papers in your field with a sentence-transformers model. Index them with FAISS. Write 15 questions and check whether the right paragraph is in the top 5."
+done_when = "You report recall@5 on your 15 questions."
+
+[[unit]]
+id = "rag-retrieval"
+title = "Hybrid retrieval and reranking"
+minutes = 60
+goal = "Combine lexical and dense retrieval and rerank the results."
+resources = ["bm25", "contextual-retrieval", "sbert: cross-encoders"]
+exercise = "Add BM25 (rank_bm25) and a cross-encoder reranker to your search. Compare recall@5 for BM25, dense, hybrid and hybrid plus rerank."
+done_when = "A table shows the four recall values."
+
+[[unit]]
+id = "rag-pipeline"
+title = "An end-to-end RAG system with citations"
+minutes = 90
+goal = "Answer questions from your documents with cited sources, and evaluate it."
+resources = ["rag-paper", "ragas", "ollama"]
+exercise = "Connect your retriever to an LLM (local with Ollama or an API). Make every answer cite paragraph ids. Evaluate faithfulness and answer relevance on 20 questions."
+done_when = "20 answers have citations, and you report both scores with one failure example."

@@ -136,12 +136,19 @@ def plan_week(db: DB, start: date | None = None) -> dict:
         if m:
             upcoming.append({"goalId": g["id"], "moduleId": m["id"], "title": m["title"], "research": m["research"]})
 
+    actual = {r["day"]: r["s"] for r in db.q("SELECT day, SUM(seconds) AS s FROM activity WHERE day >= ? GROUP BY day",
+                                                (start.isoformat(),))}
+    week_ago = (start - timedelta(days=6)).isoformat()
+    past = db.q("SELECT day, SUM(seconds) AS s FROM activity WHERE day >= ? AND day <= ? GROUP BY day ORDER BY day",
+                (week_ago, start.isoformat()))
+
     return {
         "start": start.isoformat(), "settings": cfg, "upcomingResearch": upcoming,
+        "actualLast7": [{"date": r["day"], "minutes": int(r["s"] / 60 + 0.5)} for r in past],
         "days": [{"date": d.date.isoformat(), "weekday": d.date.strftime("%a"), "study": d in study, "budget": d.budget,
-                  "minutes": d.used, "items": [{"kind": i.kind, "goalId": i.goal_id, "conceptId": i.concept_id, "title": i.title,
+                  "minutes": d.used, "actualMinutes": int(actual.get(d.date.isoformat(), 0) / 60 + 0.5), "items": [{"kind": i.kind, "goalId": i.goal_id, "conceptId": i.concept_id, "title": i.title,
                                                 "minutes": i.minutes, "note": i.note} for i in d.items]} for d in days],
-        "goals": [{"id": g["id"], "title": g["title"], "share": round(share[g["id"]], 3),
+        "goals": [{"id": g["id"], "title": g["title"], "hours": g["hours"], "share": round(share[g["id"]], 3),
                    "plannedMinutes": used[g["id"]], "targetMinutes": int(share[g["id"]] * week_minutes)} for g in goals],
     }
 

@@ -8,7 +8,7 @@ import re
 from . import engine, lesson, library, progress, state
 from .db import DB, dumps, now
 from .jobs import Jobs
-from .seed import seed_demo
+from .seed import delete_goal as _delete_goal, seed_demo
 
 
 class ActionError(ValueError):
@@ -426,6 +426,59 @@ def set_plan_settings(db: DB, jobs: Jobs, a: dict) -> None:
         db.x("UPDATE goals SET hours=? WHERE id=?", (h, a["goalId"]))
 
 
+def undo_answer(db: DB, jobs: Jobs, a: dict) -> None:
+    """Undo the latest answer to an item (mis-click, or a grade you disagree with): void its evidence,
+    so the item can be answered again. Mastery is recomputed from what remains."""
+    cid, item_id = a["conceptId"], a["itemId"]
+    row = db.one("""SELECT id FROM evidence WHERE concept_id=? AND item_id=? AND kind='practice' AND voided=0
+                    ORDER BY id DESC LIMIT 1""", (cid, item_id))
+    if not row:
+        raise ActionError("nothing to undo")
+    db.x("UPDATE evidence SET voided=1 WHERE id=?", (row["id"],))
+    db.x("UPDATE gradings SET status='voided' WHERE id = (SELECT MAX(id) FROM gradings WHERE concept_id=? AND item_id=?)", (cid, item_id))
+    _, states = state.concept_states(db, state.active_goal(db))
+    if cid in states and not states[cid].learned_at:
+        db.x("DELETE FROM reviews WHERE concept_id=?", (cid,))  # no longer learned: no confirmation review
+
+
+def load_demo(db: DB, jobs: Jobs, a: dict) -> None:
+    if db.one("SELECT 1 FROM goals LIMIT 1"):
+        raise ActionError("the demo can only be loaded into an empty workspace")
+    seed_demo(db)
+
+
+def delete_goal(db: DB, jobs: Jobs, a: dict) -> None:
+    if not db.one("SELECT 1 FROM goals WHERE id=?", (a["id"],)):
+        raise ActionError("unknown goal")
+    from . import backup
+    backup.backup_now(db)  # always keep a copy before deleting
+    _delete_goal(db, a["id"])
+
+
+def backup_now(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import backup
+    backup.backup_now(db)
+
+
+def promote_suggested(db: DB, jobs: Jobs, a: dict) -> None:
+    for cid in state.share_suggestions(db):
+        library.promote(db, cid)
+
+
+def set_runner_mode(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import runner
+    if a["mode"] not in ("local", "docker"):
+        raise ActionError("mode must be local or docker")
+    if a["mode"] == "docker" and not runner.docker_available():
+        raise ActionError("Docker isn't available: install Docker Desktop and start it first")
+    db.set_meta("runner_mode", a["mode"])
+
+
+def setup_runner_docker(db: DB, jobs: Jobs, a: dict) -> None:
+    if not jobs.active("runner_docker_setup"):
+        jobs.enqueue("runner_docker_setup", "Build the exercise container", {})
+
+
 def reset(db: DB, jobs: Jobs, a: dict) -> None:
     seed_demo(db)
 
@@ -435,7 +488,9 @@ ACTIONS = {
     "startPlacement": start_placement, "placementAnswer": placement_answer, "finishPlacement": finish_placement, "resetPlacement": reset_placement,
     "reflect": reflect, "decideProposal": decide_proposal, "setSetting": set_setting,
     "promoteCard": promote_card, "setupRunner": setup_runner,
-    "refreshCard": refresh_card, "decideCardProposal": decide_card_proposal, "setPlanSettings": set_plan_settings, "feedback": feedback, "explainDifferently": explain_differently,
+    "refreshCard": refresh_card, "decideCardProposal": decide_card_proposal, "setPlanSettings": set_plan_settings,
+    "undoAnswer": undo_answer, "loadDemo": load_demo, "deleteGoal": delete_goal, "backupNow": backup_now,
+    "promoteSuggested": promote_suggested, "setRunnerMode": set_runner_mode, "setupRunnerDocker": setup_runner_docker, "feedback": feedback, "explainDifferently": explain_differently,
     "refresh": refresh, "markStudied": mark_studied, "addNote": add_note, "deleteNote": delete_note,
     "chat": chat, "decideDiff": decide_diff, "researchModule": research_module, "createGoal": create_goal,
     "setGoal": set_goal, "correctEntry": correct_entry, "adjust": adjust, "route": route, "reset": reset,
