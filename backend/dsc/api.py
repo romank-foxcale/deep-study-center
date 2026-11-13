@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from fastapi.responses import Response
 
-from . import actions, backup, lesson, library, planner, progress, providers, runner, state
+from . import actions, backup, lesson, library, planner, progress, providers, runner, state, versions
 from .db import DB, workspace
 from .jobs import Jobs
 from .seed import ensure_routes, init_empty
@@ -40,6 +40,15 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
         except actions.ActionError as e:
             raise HTTPException(400, str(e)) from e
         return state.snapshot(db)
+
+    @app.get("/api/lesson/{cid}/diff")
+    def lesson_diff(cid: str, a: int, b: int) -> dict:
+        """Compare two versions of a lesson: a word-level diff per section with each change's reason."""
+        _require_concept(db, cid)
+        try:
+            return versions.diff(db, cid, a, b)
+        except ValueError as e:
+            raise HTTPException(404, str(e)) from e
 
     @app.get("/api/lesson/{cid}")
     def get_lesson(cid: str) -> dict:
@@ -124,7 +133,7 @@ def maybe_reflect(db: DB, jobs: Jobs) -> None:
     last = db.meta("last_reflection")
     if last and datetime.now(timezone.utc) - datetime.fromisoformat(last) < REFLECT_EVERY:
         return
-    since = db.one("SELECT COUNT(*) AS n FROM feedback WHERE ts > ?", (last or "",))["n"]
+    since = db.one("SELECT COUNT(*) AS n FROM feedback WHERE deleted = 0 AND ts > ?", (last or "",))["n"]
     if since >= REFLECT_MIN_FEEDBACK and not jobs.active("reflect"):
         jobs.enqueue("reflect", "Weekly reflection", {})
 

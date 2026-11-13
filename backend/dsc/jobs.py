@@ -14,7 +14,8 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import engine, library, progress, providers, runner, state, viz
+from . import engine, library, progress, providers, runner, state, versions, viz
+from . import feedback as fb
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
 
@@ -135,6 +136,9 @@ def run_render(jobs: Jobs, jid: int, d: dict) -> dict:
                  (d["concept_id"], d["card_version"], s["id"], want[s["id"]], d["style"], s["body"].strip(), "llm", now()))
             written += 1
     jobs.progress(jid, f"rendered {written} section(s)")
+    v = versions.sync(db, d["concept_id"])
+    if v:
+        jobs.progress(jid, f"saved as lesson version v{v}")
     return {"written": written}
 
 
@@ -429,16 +433,17 @@ REFLECT_SCHEMA = {"type": "object", "required": ["summary", "proposals"], "prope
 
 
 def _reflection_inputs(db: DB) -> dict:
-    fb = db.q("SELECT f.*, c.title FROM feedback f JOIN concepts c ON c.id = f.concept_id ORDER BY f.id DESC LIMIT 40")
+    items = db.q("SELECT f.*, c.title FROM feedback f JOIN concepts c ON c.id = f.concept_id WHERE f.deleted = 0 ORDER BY f.id DESC LIMIT 40")
     outcomes = db.q("""SELECT angle, COUNT(*) AS n, AVG(COALESCE(score, correct)) AS avg FROM evidence
                        WHERE angle IS NOT NULL AND voided = 0 GROUP BY angle""")
     return {
-        "feedback": "\n".join(f'- [{f["title"]}] {", ".join(loads(f["tags"]))}' + (f': "{f["text"]}"' if f["text"] else "")
-                              for f in fb) or "(no feedback yet)",
+        "feedback": "\n".join(f'- [{f["title"]}] ({f["kind"]}) {", ".join(loads(f["tags"]))}' + (f': "{f["text"]}"' if f["text"] else "")
+                              for f in items) or "(no feedback yet)",
         "outcomes": "\n".join(f'- {o["angle"]}: {o["n"]} answers, {o["avg"] * 100:.0f}% correct' for o in outcomes) or "(none yet)",
+        "reverts": versions.reverts_text(db),
         "notes": db.one("SELECT COUNT(*) AS n FROM notes")["n"],
         "studied": db.one("SELECT COUNT(*) AS n FROM renditions WHERE studied = 1")["n"],
-        "fb_count": len(fb), "outcome_rows": outcomes,
+        "fb_count": len(items), "outcome_rows": outcomes,
     }
 
 
@@ -447,7 +452,8 @@ def run_reflect(jobs: Jobs, jid: int, d: dict) -> dict:
     x = _reflection_inputs(db)
     out = jobs.call(jid, "Reflection", Call(
         prompt=prompt("reflect", goal=_goal(db)["title"], playbook=state.playbook_text(state.playbook(db)),
-                      feedback=x["feedback"], outcomes=x["outcomes"], notes=x["notes"], studied=x["studied"]),
+                      feedback=x["feedback"], outcomes=x["outcomes"], notes=x["notes"], studied=x["studied"],
+                      reverts=x["reverts"]),
         schema=REFLECT_SCHEMA, model="opus", timeout=600))
     proposals = [{**p, "status": "pending"} for p in out["proposals"]
                  if (p["dimension"] in engine.ADJUST_KEYS and p.get("delta")) or p.get("verdict")]
@@ -486,7 +492,7 @@ def run_refresh_card(jobs: Jobs, jid: int, d: dict) -> dict:
     body = {k: v for k, v in card.items() if k not in ("conceptId", "version", "factCheck", "checkedAt", "factIssues")}
     out = jobs.call(jid, "Card refresh", Call(
         prompt=prompt("refresh_card", card=json.dumps(body, ensure_ascii=False, indent=1), written=card["checkedAt"],
-                      today=now()[:10]),
+                      today=now()[:10], claims="\n".join(f"- {c}" for c in d.get("claims") or []) or "(none)"),
         schema=REFRESH_SCHEMA, model="opus", tools=("WebSearch", "WebFetch"), timeout=1200, max_turns=40))
     db.x("UPDATE cards SET refreshed_at=? WHERE concept_id=? AND version=?", (now(), cid, card["version"]))
     if not out.get("changed") or not out.get("card"):
@@ -512,6 +518,164 @@ def run_refresh_card(jobs: Jobs, jid: int, d: dict) -> dict:
     return {"changed": True}
 
 
+
+# ---------------------------------------------------------------- feedback: sort and apply (SPEC §11)
+
+CLASSIFY_SCHEMA = {"type": "object", "required": ["kind", "why"], "properties": {
+    "kind": {"enum": list(fb.KINDS)}, "why": {"type": "string"}}}
+
+
+def run_classify_feedback(jobs: Jobs, jid: int, d: dict) -> dict:
+    """The agent's proposal for an item's kind. Never overrides the learner's own choice."""
+    db = jobs.db
+    f = db.one("SELECT * FROM feedback WHERE id=?", (d["feedback_id"],))
+    if not f or f["deleted"] or f["kind_source"] == "learner":
+        return {"skipped": True}
+    c = db.one("SELECT title FROM concepts WHERE id=?", (f["concept_id"],))
+    card = state.latest_card(db, f["concept_id"]) or {}
+    heading = next((s["heading"] for s in card.get("sections", []) if s["id"] == f["section_id"]), None)
+    out = jobs.call(jid, "Feedback", Call(
+        prompt=prompt("classify_feedback", concept=c["title"] if c else f["concept_id"],
+                      target=f'section "{heading}"' if heading else "the whole lesson",
+                      tags=", ".join(loads(f["tags"], [])) or "(none)", text=f["text"] or "(none)"),
+        schema=CLASSIFY_SCHEMA, model="haiku", timeout=120))
+    f = db.one("SELECT * FROM feedback WHERE id=?", (d["feedback_id"],))  # the learner may have edited it meanwhile
+    if f and not f["deleted"] and f["kind_source"] != "learner" and out["kind"] != f["kind"]:
+        fb.resignal(db, f["id"], kind=out["kind"], kind_source="agent")
+        jobs.progress(jid, f'kind: {out["kind"]} ({out["why"]})'[:300])
+    elif f and f["kind_source"] == "auto":
+        db.x("UPDATE feedback SET kind_source='agent' WHERE id=?", (f["id"],))
+    return {"kind": out["kind"]}
+
+
+APPLY_SCHEMA = {"type": "object", "required": ["items", "sections", "changes", "summary"], "properties": {
+    "items": {"type": "array", "items": {"type": "object", "required": ["id", "kind", "why"], "properties": {
+        "id": {"type": "integer"}, "kind": {"enum": list(fb.KINDS)}, "why": {"type": "string"}}}},
+    "sections": {"type": "array", "items": {"type": "object", "required": ["id", "body"], "properties": {
+        "id": {"type": "string"}, "body": {"type": "string"}}}},
+    "changes": {"type": "array", "items": {"type": "object", "required": ["section_id", "feedback_ids", "why", "how", "technique"],
+                "properties": {"section_id": {"type": "string"}, "feedback_ids": {"type": "array", "items": {"type": "integer"}},
+                               "why": {"type": "string"}, "how": {"type": "string"}, "technique": {"type": "string"}}}},
+    "summary": {"type": "string"}}}
+
+
+def _apply_inputs(db: DB, d: dict) -> tuple[dict, dict, list[dict], dict]:
+    cid = d["concept_id"]
+    base = versions.get(db, cid, d["base_version"])
+    card = state.latest_card(db, cid)
+    if not base or not card:
+        raise ValueError("the lesson version to revise no longer exists")
+    ids = d["feedback_ids"]
+    rows = db.q(f"SELECT * FROM feedback WHERE deleted=0 AND id IN ({','.join('?' * len(ids))}) ORDER BY id", ids)
+    return base, card, rows, {s["id"]: s for s in card["sections"]}
+
+
+def _save_applied(jobs: Jobs, jid: int, d: dict, base: dict, sections: dict[str, str], angles: dict[str, str],
+                  changes: list[dict], summary: str, source: str) -> int:
+    db, cid = jobs.db, d["concept_id"]
+    applied = sorted({i for c in changes for i in c["feedbackIds"]})
+    pb = state.playbook(db)
+    v = versions.create(db, cid, parent=base["version"], card_version=base["card_version"],
+                        playbook_version=pb["version"], style=base["style"], angles=angles,
+                        sections={**base["sections"], **sections}, source="apply", summary=summary,
+                        feedback_ids=applied, changes=changes, chosen=True)
+    # The applied version already answers the current playbook ("me" feedback included): not stale.
+    db.x("UPDATE renditions SET card_version=?, playbook_version=?, style=?, section_angles=? WHERE concept_id=?",
+         (base["card_version"], pb["version"], base["style"], dumps(angles), cid))
+    left = [i for i in d["feedback_ids"] if i not in applied]
+    jobs.progress(jid, f"lesson version v{v}: {len(changes)} change(s)" + (f"; not applied: #{', #'.join(map(str, left))}" if left else ""))
+    return v
+
+
+def run_apply_feedback(jobs: Jobs, jid: int, d: dict) -> dict:
+    """One agent call revises the lesson for the selected feedback. The fact guard keeps it to prose."""
+    db, cid = jobs.db, d["concept_id"]
+    base, card, rows, secs = _apply_inputs(db, d)
+    if not rows:
+        return {"version": None}
+    pb, g = state.playbook(db), _goal(db)
+    lesson_text = "\n\n".join(
+        f'## {sid} "{secs[sid]["heading"]}" (angle: {base["angles"].get(sid)})\n{body}'
+        for sid, body in base["sections"].items() if sid in secs)
+    fb_text = "\n".join(
+        f'- #{f["id"]} kind={f["kind"]} target={f["section_id"] or "whole lesson"} tags={", ".join(loads(f["tags"], [])) or "-"}'
+        f' words={json.dumps(f["text"] or "", ensure_ascii=False)}' for f in rows)
+    out = jobs.call(jid, "Feedback", Call(
+        prompt=prompt("apply_feedback", card=_card_text(card), goal=g["title"], profile=g["profile"],
+                      playbook=state.playbook_text(pb), reverts=versions.reverts_text(db), base=base["version"],
+                      lesson=lesson_text, feedback=fb_text, **pb["adjust"]),
+        schema=APPLY_SCHEMA, model="sonnet", timeout=420))
+    by_id = {f["id"]: f for f in rows}
+    # Items the agent sees as fact claims go to the card check, unless the learner said otherwise.
+    facts = [by_id[i["id"]] for i in out.get("items", []) if i["kind"] == "fact" and i["id"] in by_id
+             and by_id[i["id"]]["kind_source"] != "learner"]
+    for f in facts:
+        fb.resignal(db, f["id"], kind="fact", kind_source="agent")
+    if facts:
+        from .actions import route_facts
+        route_facts(db, jobs, cid, [db.one("SELECT * FROM feedback WHERE id=?", (f["id"],)) for f in facts])
+        jobs.progress(jid, f"sent to the card check: #{', #'.join(str(f['id']) for f in facts)}")
+    fact_ids = {f["id"] for f in facts}
+    for i in out.get("items", []):  # the agent's view of the other kinds, as a proposal
+        f = by_id.get(i["id"])
+        if f and i["id"] not in fact_ids and f["kind_source"] == "auto" and i["kind"] != f["kind"]:
+            fb.resignal(db, f["id"], kind=i["kind"], kind_source="agent")
+    accepted, rejected = versions.fact_guard(card, base["sections"], out.get("sections", []))
+    for r in rejected:
+        jobs.progress(jid, f'fact guard rejected {r["sectionId"]}: {r["reason"]}')
+    allowed = set(by_id) - fact_ids
+    changes = []
+    for c in out.get("changes", []):
+        ids = [i for i in c.get("feedback_ids", []) if i in allowed]
+        if c.get("section_id") in accepted and ids:
+            changes.append({"sectionId": c["section_id"], "feedbackIds": ids, "why": c.get("why", ""),
+                            "how": c.get("how", ""), "technique": (c.get("technique") or "").strip()[:60]})
+    for sid in accepted:  # every accepted section needs an explanation, or it is not taken
+        if not any(c["sectionId"] == sid for c in changes):
+            jobs.progress(jid, f"dropped {sid}: no reason given for the change")
+    sections = {sid: body for sid, body in accepted.items() if any(c["sectionId"] == sid for c in changes)}
+    if not sections:
+        jobs.progress(jid, "no change was made to the lesson")
+        return {"version": None, "rejected": rejected}
+    v = _save_applied(jobs, jid, d, base, sections, dict(base["angles"]), changes, out.get("summary") or "Applied your feedback", "apply")
+    return {"version": v, "rejected": rejected}
+
+
+def fallback_apply_feedback(jobs: Jobs, jid: int, d: dict) -> None:
+    """Offline: no model can rewrite prose, but an already-written angle can replace the one that missed.
+    Each targeted section switches to the next angle that has cached prose for the same card and style."""
+    db, cid = jobs.db, d["concept_id"]
+    try:
+        base, card, rows, secs = _apply_inputs(db, d)
+    except ValueError:
+        return
+    ranking = engine.angle_ranking(state.playbook(db))
+    angles, sections, changes = dict(base["angles"]), {}, []
+    for f in rows:
+        if f["kind"] == "fact":
+            continue
+        for sid in ([f["section_id"]] if f["section_id"] in secs else list(secs)):
+            if sid in sections:
+                continue
+            cur = angles.get(sid)
+            avail = secs[sid].get("angles") or list(engine.ANGLES)
+            for a in [x for x in ranking if x in avail and x != cur]:
+                row = db.one("SELECT body FROM prose WHERE concept_id=? AND card_version=? AND section_id=? AND angle=? AND style=?",
+                             (cid, base["card_version"], sid, a, base["style"]))
+                if row:
+                    angles[sid], sections[sid] = a, row["body"]
+                    changes.append({"sectionId": sid, "feedbackIds": [f["id"]], "why": "Your feedback on this section",
+                                    "how": f"Switched from the {cur} to the {a} angle (offline: no model was available, "
+                                           "so an already-written explanation was used)", "technique": f"{a} angle"})
+                    break
+    if not sections:
+        jobs.progress(jid, "offline: no other written explanation to switch to; try again when a model is available")
+        return
+    pinned = {**(state.rendition_row(db, cid) or {}).get("pinned", {}), **{sid: angles[sid] for sid in sections}}
+    db.x("UPDATE renditions SET pinned=? WHERE concept_id=?", (dumps(pinned), cid))
+    _save_applied(jobs, jid, d, base, sections, angles, changes, "Switched angles (offline)", "apply")
+
+
 HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "render": (run_render, None),
     "tutor": (run_tutor, fallback_tutor),
@@ -524,5 +688,7 @@ HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "reflect": (run_reflect, fallback_reflect),
     "runner_setup": (lambda jobs, jid, d: runner.setup(lambda msg: jobs.progress(jid, msg)), None),
     "refresh_card": (run_refresh_card, None),
+    "classify_feedback": (run_classify_feedback, None),
+    "apply_feedback": (run_apply_feedback, fallback_apply_feedback),
     "runner_docker_setup": (lambda jobs, jid, d: runner.setup_docker(lambda msg: jobs.progress(jid, msg)), None),
 }

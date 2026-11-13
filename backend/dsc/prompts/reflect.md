@@ -15,6 +15,9 @@ Current playbook:
 Practice results by teaching angle (recent):
 {outcomes}
 
+Lesson revisions the learner reverted (the way their feedback was applied did not work):
+{reverts}
+
 Notes written: {notes}. Lessons studied: {studied}.
 
 Write:

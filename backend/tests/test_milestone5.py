@@ -140,8 +140,9 @@ def test_auto_refresh_picks_old_cards_a_few_per_day(env):
     db, jobs, runner = env
     runner.responses["Card refresh"] = {"changed": False, "summary": "ok", "changes": []}
     db.set_meta("auto_refresh", "1")
+    db.x("UPDATE cards SET checked_at=?", (datetime.now(timezone.utc).isoformat(),))  # the seed's date ages; pin it to now
     maybe_refresh_cards(db, jobs)
-    assert not [r for r, _ in runner.calls if r == "Card refresh"]  # seed cards are fresh
+    assert not [r for r, _ in runner.calls if r == "Card refresh"]  # fresh cards are not refreshed
     old = (datetime.now(timezone.utc) - timedelta(days=45)).isoformat()
     db.x("UPDATE cards SET checked_at=?", (old,))
     for _ in range(5):

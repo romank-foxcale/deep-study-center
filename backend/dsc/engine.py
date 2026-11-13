@@ -52,9 +52,11 @@ def replay_playbook(signals: list[dict]) -> dict:
     adjust = {k: 0 for k in ADJUST_KEYS}
     version = 1
     for s in signals:
-        if s.get("voided"):
-            continue
+        # A voided signal still counts toward the version: the version only ever goes up, so
+        # "rendition built from an older playbook" stays a correct staleness test after an edit or delete.
         version += 1 if s.get("bumps", 1) else 0
+        if s.get("voided") or s["kind"] == "void":  # void = marker that some feedback's signals were withdrawn
+            continue
         kind, key = s["kind"], f'{s["dimension"]}:{s["value"]}'
         if kind in ("adjust", "adjust_set"):
             cur = adjust.get(s["dimension"], 0)

@@ -104,6 +104,21 @@ CREATE TABLE IF NOT EXISTS card_proposals (
 CREATE TABLE IF NOT EXISTS activity (
   day TEXT NOT NULL, concept_id TEXT NOT NULL, seconds INTEGER NOT NULL, PRIMARY KEY (day, concept_id));
 
+-- Lesson versions: immutable snapshots of one lesson's prose. The head is the version the page shows;
+-- revert moves the head and loses nothing. fingerprint = (card_version, style, angles) it was written for.
+CREATE TABLE IF NOT EXISTS lesson_versions (
+  concept_id TEXT NOT NULL, version INTEGER NOT NULL, ts TEXT NOT NULL, parent INTEGER,
+  card_version INTEGER NOT NULL, playbook_version INTEGER NOT NULL, style TEXT NOT NULL, angles TEXT NOT NULL,
+  sections TEXT NOT NULL, source TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '', feedback_ids TEXT NOT NULL DEFAULT '[]',
+  changes TEXT NOT NULL DEFAULT '[]', PRIMARY KEY (concept_id, version));
+-- chosen = the learner applied feedback or restored a version: never re-rendered silently on open.
+CREATE TABLE IF NOT EXISTS lesson_heads (
+  concept_id TEXT PRIMARY KEY, version INTEGER NOT NULL, chosen INTEGER NOT NULL DEFAULT 0);
+-- A revert away from applied feedback: "the way this feedback was applied did not work".
+CREATE TABLE IF NOT EXISTS lesson_reverts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, concept_id TEXT NOT NULL, from_version INTEGER NOT NULL,
+  to_version INTEGER NOT NULL, feedback_ids TEXT NOT NULL, changes TEXT NOT NULL);
+
 CREATE TABLE IF NOT EXISTS routes (
   role TEXT PRIMARY KEY, ord INTEGER NOT NULL, description TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS jobs (
@@ -116,6 +131,14 @@ MIGRATIONS = [
     ("evidence", "score", "REAL"),                         # soft evidence (0..1), e.g. graded explain-back
     ("modules", "known", "INTEGER NOT NULL DEFAULT 0"),    # placement showed the learner knows it
     ("cards", "refreshed_at", "TEXT"),                     # last time a refresh job reviewed this version
+    ("feedback", "kind", "TEXT NOT NULL DEFAULT 'me'"),    # lesson | me | fact (SPEC §11)
+    ("feedback", "kind_source", "TEXT NOT NULL DEFAULT 'auto'"),  # auto (rules) | agent | learner
+    ("feedback", "signal_ids", "TEXT NOT NULL DEFAULT '[]'"),     # playbook signals this item added (voided on edit/delete)
+    ("feedback", "updated_at", "TEXT"),                    # last edit
+    ("feedback", "deleted", "INTEGER NOT NULL DEFAULT 0"),
+    ("feedback", "done_note", "TEXT"),                     # handled at once (e.g. section switched), nothing to apply
+    ("feedback", "routed_at", "TEXT"),
+    ("feedback", "angle", "TEXT"),                         # the section's angle when the feedback was given                     # a fact claim sent to the card check
 ]
 
 
