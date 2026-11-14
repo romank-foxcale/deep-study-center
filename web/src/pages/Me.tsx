@@ -1,6 +1,7 @@
 import { jobActive, useStore } from '../store'
 import Markdown from '../components/Markdown'
-import { FeedbackList } from '../components/SidePanel'
+import { Link } from 'react-router-dom'
+import FeedbackItems from '../components/FeedbackItems'
 import type { Playbook } from '../types'
 
 const ADJUST: { key: keyof Playbook['adjust']; label: string; low: string; high: string }[] = [
@@ -98,8 +99,17 @@ export default function Me() {
 
       <div className="card">
         <h2>Feedback log</h2>
-        <p className="muted small">Every piece of feedback, and what it changed. A weekly reflection reads this to spot patterns.</p>
-        {s.feedback.length ? <FeedbackList items={s.feedback} /> : <p className="muted">Nothing yet.</p>}
+        <p className="muted small">Every piece of feedback, grouped by lesson. Select items and apply them to their lesson: you get a
+          new lesson version, can see what changed and why, and can go back. Edit or delete any item; the playbook is replayed.
+          “About me” items change the playbook; “about this lesson” items change only that lesson. A weekly reflection reads
+          this log to spot patterns.</p>
+        {s.feedback.length === 0 && <p className="muted">Nothing yet. Give feedback from any lesson.</p>}
+        {[...new Set(s.feedback.map(f => f.conceptId))].map(cid => (
+          <div key={cid} className="fb-group">
+            <h3><Link to={`/lesson/${cid}`}>{s.concepts.find(c => c.id === cid)?.title ?? cid}</Link></h3>
+            <FeedbackItems items={s.feedback.filter(f => f.conceptId === cid)} conceptId={cid} />
+          </div>
+        ))}
       </div>
 
       <div className="card">

@@ -4,11 +4,13 @@ Rules (docs/SPEC.md §2.3):
 - Opening a not-yet-studied lesson re-renders it if the playbook or card changed since.
 - A studied lesson is never rewritten silently; the UI offers "Refresh for current me".
 - Feedback while reading changes only the targeted section (a pin), never the whole page.
+- The page shows the head lesson version (see ``versions``). A lesson the learner shaped (applied feedback
+  or restored a version) is treated like a studied one: never rewritten silently.
 """
 
 from __future__ import annotations
 
-from . import engine, progress, state, viz
+from . import engine, progress, state, versions, viz
 from .db import DB, dumps
 from .jobs import Jobs
 
@@ -21,6 +23,11 @@ def _studied(db: DB, cid: str, r: dict | None) -> bool:
     gid = state.active_goal(db)
     _, states = state.concept_states(db, gid)
     return cid in states and states[cid].state in DONE
+
+
+def _chosen(db: DB, cid: str) -> bool:
+    h = db.one("SELECT chosen FROM lesson_heads WHERE concept_id=?", (cid,))
+    return bool(h and h["chosen"])
 
 
 def ensure_rendition(db: DB, cid: str) -> dict | None:
@@ -37,10 +44,12 @@ def ensure_rendition(db: DB, cid: str) -> dict | None:
     return r
 
 
-def refresh(db: DB, jobs: Jobs, cid: str) -> None:
+def refresh(db: DB, jobs: Jobs, cid: str, by_learner: bool = False) -> None:
     card, pb, r = state.latest_card(db, cid), state.playbook(db), state.rendition_row(db, cid)
     if not card or not r:
         return
+    if by_learner:  # "Refresh for current me": the learner hands the lesson back to the playbook
+        db.x("UPDATE lesson_heads SET chosen=0 WHERE concept_id=?", (cid,))
     angles = engine.choose_angles(card["sections"], pb, r["pinned"])
     db.x("UPDATE renditions SET card_version=?, playbook_version=?, style=?, section_angles=? WHERE concept_id=?",
          (card["version"], pb["version"], engine.style_key(pb["adjust"]), dumps(angles), cid))
@@ -50,7 +59,8 @@ def refresh(db: DB, jobs: Jobs, cid: str) -> None:
 def open_lesson(db: DB, jobs: Jobs, cid: str) -> dict:
     r = ensure_rendition(db, cid)
     refreshed = False
-    if r and state.is_stale(r, state.latest_card(db, cid), state.playbook(db)) and not _studied(db, cid, r):
+    if r and state.is_stale(r, state.latest_card(db, cid), state.playbook(db)) and not _studied(db, cid, r) \
+            and not _chosen(db, cid):
         refresh(db, jobs, cid)
         refreshed = True
     elif r:
@@ -65,19 +75,24 @@ def ensure_prose(db: DB, jobs: Jobs, cid: str) -> None:
     r = state.rendition_row(db, cid)
     if not r:
         return
+    h = versions.head(db, cid)
     missing = [{"id": sid, "angle": a} for sid, a in r["section_angles"].items()
-               if not db.one("SELECT 1 FROM prose WHERE concept_id=? AND card_version=? AND section_id=? AND angle=? AND style=?",
-                             (cid, r["card_version"], sid, a, r["style"]))]
+               if versions.section_from_head(h, r, sid) is None
+               and not db.one("SELECT 1 FROM prose WHERE concept_id=? AND card_version=? AND section_id=? AND angle=? AND style=?",
+                              (cid, r["card_version"], sid, a, r["style"]))]
     if missing and not jobs.active("render", concept_id=cid, style=r["style"]):
         jobs.enqueue("render", "Render lesson", {"concept_id": cid, "card_version": r["card_version"],
                                                  "style": r["style"], "sections": missing})
 
 
 def view(db: DB, cid: str) -> dict:
-    """Lesson as the page shows it. Missing prose falls back to the same angle in another style
-    (marked approximate) while a render job runs."""
+    """Lesson as the page shows it: the head version's text where it fits the rendition, else cached prose.
+    Missing prose falls back to the same angle in another style (marked approximate) while a render job runs.
+    Complete new prose is snapshotted as the next lesson version first."""
+    versions.sync(db, cid)
     card = state.latest_card(db, cid)
     r = state.rendition_row(db, cid)
+    h = versions.head(db, cid)
     pb = state.playbook(db)
     rendering = any(j["status"] in ("queued", "running") and j["input"].get("concept_id") == cid and j["kind"] == "render"
                     for j in state.jobs(db))
@@ -86,8 +101,10 @@ def view(db: DB, cid: str) -> dict:
     sections = []
     for s in (card or {}).get("sections", []):
         angle = (r or {}).get("section_angles", {}).get(s["id"]) or (s.get("angles") or ["geometric"])[0]
-        exact = r and db.one("SELECT body FROM prose WHERE concept_id=? AND card_version=? AND section_id=? AND angle=? AND style=?",
-                             (cid, r["card_version"], s["id"], angle, r["style"]))
+        kept = versions.section_from_head(h, r, s["id"]) if r else None
+        exact = {"body": kept} if kept is not None else r and db.one(
+            "SELECT body FROM prose WHERE concept_id=? AND card_version=? AND section_id=? AND angle=? AND style=?",
+            (cid, r["card_version"], s["id"], angle, r["style"]))
         approx = None if exact else db.one(
             "SELECT body FROM prose WHERE concept_id=? AND section_id=? AND angle=? ORDER BY card_version DESC, created_at DESC LIMIT 1",
             (cid, s["id"], angle))
@@ -103,5 +120,10 @@ def view(db: DB, cid: str) -> dict:
         "conceptId": cid, "card": state.public_card(card) if card else None, "sections": sections,
         "rendering": rendering, "renderError": failed if not rendering else None,
         "rendition": r and {"cardVersion": r["card_version"], "playbookVersion": r["playbook_version"],
-                            "studied": _studied(db, cid, r), "stale": state.is_stale(r, card, pb)},
+                            "studied": _studied(db, cid, r), "stale": state.is_stale(r, card, pb),
+                            "shaped": bool(h and h["chosen"])},
+        "head": h["version"] if h else None,
+        "versions": [versions.summary(v) for v in versions.all_versions(db, cid)][::-1],
+        "applying": any(j["status"] in ("queued", "running") and j["kind"] == "apply_feedback"
+                        and j["input"].get("concept_id") == cid for j in state.jobs(db)),
     }

@@ -268,3 +268,48 @@ a.concept:hover { background: var(--surface-2); text-decoration: none; }
 .explain-answer p { margin: 2px 0; white-space: pre-wrap; }
 .reflection { display: flex; flex-direction: column; gap: 10px; }
 .proposal { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; }
+
+/* feedback log with apply (SPEC §11) */
+.row-inline { display: inline-flex; gap: 4px; align-items: center; }
+.pill-button { cursor: pointer; font: inherit; font-size: 0.74rem; }
+.pill-button:disabled { cursor: default; }
+.pill-button:not(:disabled):hover { border-color: var(--accent); color: var(--accent); }
+.pill-accent { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.banner-ok { background: var(--ok-soft); }
+.fb-apply { border: 1px dashed var(--border); border-radius: 8px; padding: 8px 12px; background: var(--surface-2); }
+.fb-apply p { margin: 4px 0 0; }
+.fb-selected { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.fb-head { display: flex; align-items: flex-start; gap: 8px; }
+.fb-head input[type="checkbox"] { margin-top: 5px; }
+.fb-title { flex: 1; min-width: 0; }
+.fb-tools { margin: 4px 0; flex-wrap: wrap; }
+.fb-kind { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.fb-edit { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.fb-group { margin-top: 14px; }
+.fb-group h3 { margin-bottom: 6px; }
+.effects-box summary { cursor: pointer; }
+.kind-picker { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.88rem; }
+.kind-picker label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+
+/* lesson versions and the prose diff: deleted red, inserted green, in both themes */
+.modal-wide { width: min(1100px, 100%); max-height: calc(100vh - 32px); overflow: auto; }
+.history { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 800px) { .history { grid-template-columns: 1fr; } }
+.version-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.version { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; }
+.version-head { border-color: var(--ok); }
+.version-b { box-shadow: inset 3px 0 0 var(--accent); }
+.diff-pane { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.diff-pick { flex-wrap: wrap; }
+.pd-legend { display: flex; gap: 8px; }
+.pd-section { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.pd-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 6px 12px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+.pd-text { padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.92rem; line-height: 1.65; }
+.pd-del { background: var(--bad-soft); color: var(--bad); text-decoration: line-through; text-decoration-thickness: 1px; border-radius: 3px; }
+.pd-ins { background: var(--ok-soft); color: var(--ok); text-decoration: none; border-radius: 3px; }
+.pd-legend .pd-del, .pd-legend .pd-ins { padding: 0 6px; }
+.pd-count-ins { color: var(--ok); font-weight: 600; }
+.pd-count-del { color: var(--bad); font-weight: 600; }
+.pd-notes { margin: 0; padding: 8px 12px 10px 30px; border-top: 1px dashed var(--border); font-size: 0.86rem; display: flex; flex-direction: column; gap: 6px; }
+.pd-undone { opacity: 0.75; }
+.pd-same .pd-text { color: var(--muted); }

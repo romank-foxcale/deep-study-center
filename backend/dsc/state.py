@@ -174,9 +174,7 @@ def snapshot(db: DB) -> dict:
                       "mastery": states[c["id"]].mastery} for c in concepts],
         "cards": [public_card(c) for c in cards],
         "renditions": rends,
-        "feedback": [{"id": f["id"], "ts": f["ts"], "conceptId": f["concept_id"], "sectionId": f["section_id"],
-                      "tags": loads(f["tags"]), "text": f["text"], "effects": loads(f["effects"])}
-                     for f in db.q(f"SELECT * FROM feedback WHERE concept_id IN {in_goal} ORDER BY id DESC", ids)],
+        "feedback": feedback_items(db, ids),
         "notes": [{"id": n["id"], "ts": n["ts"], "conceptId": n["concept_id"], "quote": n["quote"], "text": n["text"]}
                   for n in db.q(f"SELECT * FROM notes WHERE concept_id IN {in_goal} ORDER BY id DESC", ids)],
         "diffs": [{"id": d["id"], "ts": d["ts"], "reason": d["reason"], "changes": loads(d["changes"]), "status": d["status"]}
@@ -192,6 +190,19 @@ def snapshot(db: DB) -> dict:
         "reviews": [{"conceptId": r["concept_id"], "due": r["due"], "isDue": r["due"] <= now}
                     for r in db.q(f"SELECT * FROM reviews WHERE concept_id IN {in_goal} ORDER BY due", ids)],
     }
+
+
+def feedback_items(db: DB, ids: list[str]) -> list[dict]:
+    """The feedback log with each item's kind and status (pending, applied in vN, reverted, ...)."""
+    if not ids:
+        return []
+    from . import versions
+    rows = db.q(f"SELECT * FROM feedback WHERE deleted=0 AND concept_id IN ({','.join('?' * len(ids))}) ORDER BY id DESC", ids)
+    status = versions.feedback_status(db, rows)
+    return [{"id": f["id"], "ts": f["ts"], "conceptId": f["concept_id"], "sectionId": f["section_id"],
+             "tags": loads(f["tags"]), "text": f["text"], "effects": loads(f["effects"]), "kind": f["kind"],
+             "kindSource": f["kind_source"], "angle": f["angle"], "updatedAt": f["updated_at"], "status": status[f["id"]]}
+            for f in rows]
 
 
 def _chats(db: DB, ids: list[str]) -> dict:

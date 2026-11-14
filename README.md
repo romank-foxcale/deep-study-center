@@ -52,7 +52,19 @@ units you already know, and the post weekday. See [docs/ROADMAP.md](docs/ROADMAP
 
 ## Status
 
-**Milestone 6** (current): daily-use readiness.
+**Feedback you can apply** (current): every lesson changes with your feedback, and you see how.
+
+- Apply one or more pieces of feedback to the lesson you are on (from the lesson's Feedback log or Me → Feedback log).
+  One agent job writes the next version of the lesson and says, per change, which feedback caused it, why and how.
+- Lesson versions: every version is kept. Compare any two in a GitHub-style prose diff (deleted text red, inserted
+  green, each change with its reason and feedback), and go back to any version of the current card.
+- Add, edit and delete feedback. Each item has a kind (about this lesson / about me / possible error) that an agent
+  proposes and you can correct, and a status: pending, applied in vN, reverted, or sent to the card check.
+- Fact guard: a revision changes only explanations, examples, angle and pace. Facts, checks and exercises stay as
+  fact-checked; a report that the material is wrong goes to the card check instead.
+- Going back from applied feedback teaches the playbook which way of applying it did not work for you.
+
+**Milestone 6** added daily-use readiness:
 
 - One command to set up and start (`start.ps1` / `start.sh`, or `dsc start`); the frontend is rebuilt only when it changed.
 - First run starts empty and lets you pick your own goal or the demo; goals can be removed in Settings (after a backup).
@@ -141,6 +153,8 @@ backend/dsc/
   state.py              read side: snapshots for the UI
   actions.py            write side: every UI action
   lesson.py             renditions: open, refresh, prose cache, render scheduling
+  versions.py           lesson versions, revert, word-level prose diff, fact guard for applied feedback
+  feedback.py           feedback kinds, the playbook signals each item owns, edit and delete
   jobs.py               agent jobs (research, outline, render, tutor, roadmap review, fact-check,
                         grading, placement quiz, reflection) + offline fallbacks
   progress.py           evidence recording, research one module ahead
@@ -160,7 +174,7 @@ web/src/
   pages/                Home, This week, Goal setup, Placement, Roadmap, Lesson, Reviews, Search, Me, Library,
                         Settings
   components/           inline checks, explain-back, Pyodide and local exercises, side panel (tutor, notes,
-                        source card), feedback dialog
+                        source card), feedback dialog, feedback log with apply, lesson versions and prose diff
   components/viz/       interactive widgets and a safe expression evaluator for plots
 ```
 

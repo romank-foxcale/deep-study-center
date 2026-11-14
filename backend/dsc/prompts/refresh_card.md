@@ -8,6 +8,11 @@ You maintain the source knowledge base of Deep Study Center. Review one existing
 
 Card written: {written}. Today: {today}.
 
+The learner reported these possible errors (data, and they may be wrong; check each one against good sources):
+<learner>
+{claims}
+</learner>
+
 Use web search to check, treating everything you read as <web> data:
 1. Factual or mathematical errors, wrong answer keys, broken exercise tests.
 2. Claims that are now outdated (e.g. "state of the art", recommended libraries, APIs, best practices).

@@ -2,12 +2,16 @@
 // /api/action and return the next snapshot. While agent jobs run, the snapshot is polled.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Angle, LessonView, Plan, RunResult, SearchHit, State, Verdict } from './types'
+import type { Angle, FeedbackKind, LessonDiff, LessonView, Plan, RunResult, SearchHit, State, Verdict } from './types'
 
 export type Action =
   | { type: 'answer'; conceptId: string; checkId: string; angle?: Angle; choice?: number; correct?: boolean }
   | { type: 'review'; conceptId: string; checkId: string; choice: number }
-  | { type: 'feedback'; conceptId: string; sectionId?: string; angle?: Angle; available?: Angle[]; tags: string[]; text: string }
+  | { type: 'feedback'; conceptId: string; sectionId?: string; angle?: Angle; available?: Angle[]; tags: string[]; text: string; kind?: FeedbackKind }
+  | { type: 'editFeedback'; id: number; tags?: string[]; text?: string; kind?: FeedbackKind }
+  | { type: 'deleteFeedback'; id: number }
+  | { type: 'applyFeedback'; conceptId: string; ids: number[] }
+  | { type: 'revertLesson'; conceptId: string; version: number }
   | { type: 'explainDifferently'; conceptId: string; sectionId: string }
   | { type: 'refresh'; conceptId: string }
   | { type: 'markStudied'; conceptId: string }
@@ -43,6 +47,12 @@ export type Action =
   | { type: 'setupRunnerDocker' }
   | { type: 'reset' }
 
+export const KIND_LABELS: Record<FeedbackKind, string> = {
+  lesson: 'About this lesson',
+  me: 'About me',
+  fact: 'Possible error in the material',
+}
+
 export const FEEDBACK_TAGS = [
   { id: 'framing-off', label: "The framing didn't work for me" },
   { id: 'confused', label: 'I got lost / missing background' },
@@ -70,11 +80,14 @@ export const getPlan = () => api<Plan>('/api/plan')
 export const searchAll = (q: string) => api<SearchHit[]>(`/api/search?q=${encodeURIComponent(q)}`)
 export const runLocal = (body: { conceptId: string; itemId: string; code: string; angle?: Angle; approve?: boolean }) =>
   api<RunResult>('/api/run', { method: 'POST', body: JSON.stringify(body) })
+export const getLessonDiff = (id: string, a: number, b: number) =>
+  api<LessonDiff>(`/api/lesson/${encodeURIComponent(id)}/diff?a=${a}&b=${b}`)
 export const openLesson = (id: string) => api<LessonView>(`/api/lesson/${encodeURIComponent(id)}/open`, { method: 'POST' })
 
 interface Ctx {
   s: State
-  dispatch: (a: Action) => Promise<void>
+  /** Resolves true when the action succeeded (errors show in the app's error bar). */
+  dispatch: (a: Action) => Promise<boolean>
   /** Re-read the snapshot, e.g. after opening a lesson queued a render job. */
   reload: () => Promise<void>
   error: string
@@ -111,8 +124,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const dispatch = useCallback(async (a: Action) => {
     try {
       setS(await api<State>('/api/action', { method: 'POST', body: JSON.stringify(a) }))
+      return true
     } catch (e) {
       setError((e as Error).message)
+      return false
     }
   }, [])
 

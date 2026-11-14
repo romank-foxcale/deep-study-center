@@ -5,8 +5,9 @@ from __future__ import annotations
 
 import re
 
-from . import engine, lesson, library, progress, state
-from .db import DB, dumps, now
+from . import engine, lesson, library, progress, state, versions
+from . import feedback as fb
+from .db import DB, dumps, loads, now
 from .jobs import Jobs
 from .seed import delete_goal as _delete_goal, seed_demo
 
@@ -15,22 +16,12 @@ class ActionError(ValueError):
     pass
 
 
-TAG_LABELS = {
-    "framing-off": "The framing didn't work for me",
-    "confused": "I got lost / missing background",
-    "too-abstract": "Too abstract",
-    "too-fast": "Too fast",
-    "too-slow": "Too slow",
-    "too-long": "Too long",
-    "more-rigor": "I want more rigor",
-    "loved-it": "This worked really well",
-}
+TAG_LABELS = fb.TAG_LABELS
 
 
 def _signal(db: DB, kind: str, dimension: str, value: str, delta: float = 0, evidence: float = 0,
             note: str = "", bumps: bool = True) -> None:
-    db.x("INSERT INTO signals(ts, kind, dimension, value, delta, evidence, note, bumps) VALUES(?,?,?,?,?,?,?,?)",
-         (now(), kind, dimension, value, delta, evidence, note, 1 if bumps else 0))
+    fb._signal(db, kind, dimension, value, delta, evidence, note, bumps)
 
 
 def _entry(pb: dict, dimension: str, value: str) -> dict | None:
@@ -91,36 +82,17 @@ def review(db: DB, jobs: Jobs, a: dict) -> None:
 # ---------------------------------------------------------------- feedback
 
 def feedback(db: DB, jobs: Jobs, a: dict) -> None:
+    """New feedback. Its kind (lesson | me | fact) is the learner's choice, or a first guess an agent refines.
+    Only "me" feedback adds playbook signals; any kind can then be applied to the lesson (SPEC §11)."""
     cid, sid, angle = a["conceptId"], a.get("sectionId"), a.get("angle")
     tags, text = a.get("tags", []), (a.get("text") or "").strip()
+    if not tags and not text:
+        raise ActionError("pick a tag or write something")
+    chosen = a.get("kind") in fb.KINDS
+    kind = a["kind"] if chosen else fb.propose_kind(tags, text)
     pb0 = state.playbook(db)
-    effects: list[str] = []
-
-    def nudge(value: str, delta: float, why: str) -> None:
-        e = _entry(pb0, "angle", value) or {"score": 0.5}
-        _signal(db, "reaction", "angle", value, delta, 1.0, note=text or why)
-        effects.append(f'Playbook: "{value}" {"less" if delta < 0 else "more"} trusted '
-                       f'({e["score"]:.2f} → {engine.clamp(e["score"] + delta, 0.02, 0.98):.2f}) {why}')
-
-    def knob(key: str, step: int, what: str) -> None:
-        _signal(db, "adjust", key, key, step)
-        effects.append(f"{key.capitalize()} {'+' if step > 0 else ''}{step}: {what}")
-
-    for t in tags:
-        if t == "framing-off" and angle:
-            nudge(angle, -0.14, "because the framing missed")
-        elif t == "loved-it" and angle:
-            nudge(angle, +0.10, "because it landed")
-        elif t == "too-abstract":
-            nudge("computational", +0.08, "(more concrete, code-first)")
-        elif t == "too-fast":
-            knob("pace", -1, "smaller steps, more worked examples")
-        elif t == "too-slow":
-            knob("pace", +1, "fewer worked examples, skip what you show you know")
-        elif t == "too-long":
-            knob("depth", -1, 'shorter lessons, details moved to "go deeper"')
-        elif t == "more-rigor":
-            knob("rigor", +1, "formal statements and proofs earlier")
+    signal_ids, effects = fb.add_signals(db, tags, text, angle, kind)
+    done_note = None
     if "confused" in tags:
         jobs.enqueue("roadmap_review", "Review roadmap after feedback", {"concept_id": cid, "tags": [TAG_LABELS[t] for t in tags], "text": text})
         effects.append("Roadmap: reviewing whether something is missing; a proposed change will appear on the roadmap")
@@ -134,6 +106,7 @@ def feedback(db: DB, jobs: Jobs, a: dict) -> None:
         if nxt:
             _pin(db, cid, sid, nxt)
             lesson.ensure_prose(db, jobs, cid)
+            done_note = f"This section switched to the {nxt} angle right away"
             effects.insert(0, f"This section now uses the {nxt} angle. Other lessons switch too if the pattern repeats.")
 
     pb1 = state.playbook(db)
@@ -141,10 +114,79 @@ def feedback(db: DB, jobs: Jobs, a: dict) -> None:
         n = sum(1 for x in db.q("SELECT playbook_version FROM renditions") if x["playbook_version"] < pb1["version"])
         effects.append(f"Playbook v{pb1['version']}: {n} lesson{'s' if n != 1 else ''} will be re-rendered for you "
                        "(past ones offer a refresh)")
-    if text:
-        effects.append("Your comment is logged and goes into the weekly reflection")
-    db.x("INSERT INTO feedback(ts, concept_id, section_id, tags, text, effects) VALUES(?,?,?,?,?,?)",
-         (now(), cid, sid, dumps([TAG_LABELS.get(t, t) for t in tags]), text, dumps(effects or ["Logged"])))
+    effects.append(fb.kind_effect(kind))
+    fid = db.x("""INSERT INTO feedback(ts, concept_id, section_id, tags, text, effects, kind, kind_source, signal_ids, angle, done_note)
+                  VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+               (now(), cid, sid, dumps([TAG_LABELS.get(t, t) for t in tags]), text, dumps(effects), kind,
+                "learner" if chosen else "auto", dumps(signal_ids), angle, done_note))
+    if text and not chosen:
+        jobs.enqueue("classify_feedback", "Sort feedback", {"feedback_id": fid, "concept_id": cid})
+
+
+def edit_feedback(db: DB, jobs: Jobs, a: dict) -> None:
+    """Change an item's tags, text or kind: its old signals are voided and new ones added (the playbook replays)."""
+    kind = a.get("kind")
+    if kind is not None and kind not in fb.KINDS:
+        raise ActionError("kind must be lesson, me or fact")
+    try:
+        fb.resignal(db, int(a["id"]), tags=a.get("tags"), text=a.get("text"), kind=kind,
+                    kind_source="learner" if kind else None)
+    except ValueError as e:
+        raise ActionError(str(e)) from e
+
+
+def delete_feedback(db: DB, jobs: Jobs, a: dict) -> None:
+    """Remove an item: its signals are voided (the playbook replays). Lesson versions that applied it stay."""
+    try:
+        fb.delete(db, int(a["id"]))
+    except ValueError as e:
+        raise ActionError(str(e)) from e
+
+
+def apply_feedback(db: DB, jobs: Jobs, a: dict) -> None:
+    """Apply selected feedback to one lesson: one agent job writes the next lesson version.
+    Fact claims never touch the prose: they go to the card check (refresh proposal + fact-check)."""
+    cid = a["conceptId"]
+    ids = sorted({int(i) for i in a.get("ids") or []})
+    if not ids:
+        raise ActionError("select at least one piece of feedback")
+    rows = db.q(f"SELECT * FROM feedback WHERE deleted=0 AND concept_id=? AND id IN ({','.join('?' * len(ids))})", [cid, *ids])
+    if len(rows) != len(ids):
+        raise ActionError("every selected item must be feedback on this lesson")
+    if jobs.active("apply_feedback", concept_id=cid):
+        raise ActionError("feedback is already being applied to this lesson; wait for it to finish")
+    facts = [r for r in rows if r["kind"] == "fact"]
+    prose = [r["id"] for r in rows if r["kind"] != "fact"]
+    h = None
+    if prose:
+        lesson.ensure_rendition(db, cid)
+        versions.sync(db, cid)
+        h = versions.head(db, cid)
+        if not versions.head_matches(h, state.rendition_row(db, cid)):
+            raise ActionError("this lesson is still being written; apply when it is ready")
+    if facts:
+        route_facts(db, jobs, cid, facts)
+    if prose:
+        title = db.one("SELECT title FROM concepts WHERE id=?", (cid,))["title"]
+        jobs.enqueue("apply_feedback", f"Apply feedback to {title}",
+                     {"concept_id": cid, "feedback_ids": prose, "base_version": h["version"]})
+
+
+def route_facts(db: DB, jobs: Jobs, cid: str, rows: list[dict]) -> None:
+    """A learner's report that the material is wrong goes to the card check, never into their lesson."""
+    claims = [r["text"] or ", ".join(loads(r["tags"], [])) for r in rows]
+    db.x(f"UPDATE feedback SET routed_at=? WHERE id IN ({','.join('?' * len(rows))})", [now(), *[r["id"] for r in rows]])
+    if not jobs.active("refresh_card", concept_id=cid):
+        title = db.one("SELECT title FROM concepts WHERE id=?", (cid,))["title"]
+        jobs.enqueue("refresh_card", f"Check {title} (your report)", {"concept_id": cid, "claims": claims})
+
+
+def revert_lesson(db: DB, jobs: Jobs, a: dict) -> None:
+    """Show another version of a lesson. Leaving applied feedback behind is a learning signal."""
+    try:
+        versions.restore(db, a["conceptId"], int(a["version"]))
+    except ValueError as e:
+        raise ActionError(str(e)) from e
 
 
 def _pin(db: DB, cid: str, sid: str, angle: str) -> None:
@@ -167,13 +209,14 @@ def explain_differently(db: DB, jobs: Jobs, a: dict) -> None:
     _signal(db, "explain", "angle", cur, -0.04, 0.3, bumps=False)
     _pin(db, cid, sid, nxt)
     lesson.ensure_prose(db, jobs, cid)
-    db.x("INSERT INTO feedback(ts, concept_id, section_id, tags, text, effects) VALUES(?,?,?,?,?,?)",
+    db.x("INSERT INTO feedback(ts, concept_id, section_id, tags, text, effects, kind, angle, done_note) VALUES(?,?,?,?,?,?,?,?,?)",
          (now(), cid, sid, dumps(["Explain it differently"]), "",
-          dumps([f"Section switched: {cur} → {nxt}", f"Weak signal recorded: \"{cur}\" didn't land here"])))
+          dumps([f"Section switched: {cur} → {nxt}", f"Weak signal recorded: \"{cur}\" didn't land here"]),
+          "lesson", cur, f"Section switched to the {nxt} angle right away"))
 
 
 def refresh(db: DB, jobs: Jobs, a: dict) -> None:
-    lesson.refresh(db, jobs, a["conceptId"])
+    lesson.refresh(db, jobs, a["conceptId"], by_learner=True)
 
 
 def mark_studied(db: DB, jobs: Jobs, a: dict) -> None:
@@ -491,7 +534,8 @@ ACTIONS = {
     "refreshCard": refresh_card, "decideCardProposal": decide_card_proposal, "setPlanSettings": set_plan_settings,
     "undoAnswer": undo_answer, "loadDemo": load_demo, "deleteGoal": delete_goal, "backupNow": backup_now,
     "promoteSuggested": promote_suggested, "setRunnerMode": set_runner_mode, "setupRunnerDocker": setup_runner_docker, "feedback": feedback, "explainDifferently": explain_differently,
-    "refresh": refresh, "markStudied": mark_studied, "addNote": add_note, "deleteNote": delete_note,
+    "editFeedback": edit_feedback, "deleteFeedback": delete_feedback, "applyFeedback": apply_feedback,
+    "revertLesson": revert_lesson, "refresh": refresh, "markStudied": mark_studied, "addNote": add_note, "deleteNote": delete_note,
     "chat": chat, "decideDiff": decide_diff, "researchModule": research_module, "createGoal": create_goal,
     "setGoal": set_goal, "correctEntry": correct_entry, "adjust": adjust, "route": route, "reset": reset,
 }
