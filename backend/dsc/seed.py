@@ -15,7 +15,7 @@ from .db import DB, dumps, now
 
 TABLES = ("goals", "tracks", "modules", "concepts", "cards", "prose", "renditions", "signals", "evidence",
           "feedback", "notes", "diffs", "chats", "reviews", "routes", "jobs", "meta", "lesson_versions", "lesson_heads",
-          "lesson_reverts")
+          "lesson_reverts", "guidelines")
 
 # Routes added after the demo data was exported; ensure_routes() adds them to older workspaces too.
 EXTRA_ROUTES = [

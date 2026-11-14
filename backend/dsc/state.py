@@ -132,7 +132,8 @@ def snapshot(db: DB) -> dict:
     gid = active_goal(db)
     pb = playbook(db)
     from . import library
-    base = {"playbook": pb, "providers": providers.status(), "routes": routes(db), "jobs": jobs(db),
+    from . import guidelines
+    base = {"playbook": pb, "guidelines": guidelines.current(db), "providers": providers.status(), "routes": routes(db), "jobs": jobs(db),
             "library": library.listing(db),
             "runner": runner_status(db),
             "backups": {"folder": str(workspace() / "backups"), "last": db.meta("last_backup"), "items": _backups()[:5]},
@@ -201,7 +202,8 @@ def feedback_items(db: DB, ids: list[str]) -> list[dict]:
     status = versions.feedback_status(db, rows)
     return [{"id": f["id"], "ts": f["ts"], "conceptId": f["concept_id"], "sectionId": f["section_id"],
              "tags": loads(f["tags"]), "text": f["text"], "effects": loads(f["effects"]), "kind": f["kind"],
-             "kindSource": f["kind_source"], "angle": f["angle"], "updatedAt": f["updated_at"], "status": status[f["id"]]}
+             "kindSource": f["kind_source"], "angle": f["angle"], "updatedAt": f["updated_at"], "status": status[f["id"]],
+             "ref": loads(f["ref"]) if f["ref"] else None}
             for f in rows]
 
 

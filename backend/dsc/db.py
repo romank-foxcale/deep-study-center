@@ -119,6 +119,11 @@ CREATE TABLE IF NOT EXISTS lesson_reverts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, concept_id TEXT NOT NULL, from_version INTEGER NOT NULL,
   to_version INTEGER NOT NULL, feedback_ids TEXT NOT NULL, changes TEXT NOT NULL);
 
+-- Lesson guidelines distilled from the learner's feedback (SPEC §12); one row per version.
+CREATE TABLE IF NOT EXISTS guidelines (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, items TEXT NOT NULL, source TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '');
+
 CREATE TABLE IF NOT EXISTS routes (
   role TEXT PRIMARY KEY, ord INTEGER NOT NULL, description TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS jobs (
@@ -138,7 +143,8 @@ MIGRATIONS = [
     ("feedback", "deleted", "INTEGER NOT NULL DEFAULT 0"),
     ("feedback", "done_note", "TEXT"),                     # handled at once (e.g. section switched), nothing to apply
     ("feedback", "routed_at", "TEXT"),
-    ("feedback", "angle", "TEXT"),                         # the section's angle when the feedback was given                     # a fact claim sent to the card check
+    ("feedback", "angle", "TEXT"),
+    ("feedback", "ref", "TEXT"),                           # the part it is about: {kind: text|formula|viz, quote, sectionId}                         # the section's angle when the feedback was given                     # a fact claim sent to the card check
 ]
 
 

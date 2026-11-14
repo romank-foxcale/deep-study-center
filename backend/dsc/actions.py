@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from . import engine, lesson, library, progress, state, versions
+from . import engine, guidelines, lesson, library, progress, remedial, state, versions
 from . import feedback as fb
 from .db import DB, dumps, loads, now
 from .jobs import Jobs
@@ -48,7 +48,8 @@ def answer(db: DB, jobs: Jobs, a: dict) -> None:
         raise ActionError("explain-back answers go through the 'explain' action")
     # Checks are graded here against the hidden key; code exercises run in the browser (Pyodide).
     correct = (a.get("choice") == item["answer"]) if item["kind"] == "check" else bool(a.get("correct"))
-    progress.record_evidence(db, cid, item_id, 1.0 if correct else 0.0, choice=a.get("choice"), angle=a.get("angle"))
+    if progress.record_evidence(db, cid, item_id, 1.0 if correct else 0.0, choice=a.get("choice"), angle=a.get("angle")):
+        progress.on_finished(db, jobs, cid)
     progress.research_ahead(db, jobs)
 
 
@@ -88,6 +89,9 @@ def feedback(db: DB, jobs: Jobs, a: dict) -> None:
     tags, text = a.get("tags", []), (a.get("text") or "").strip()
     if not tags and not text:
         raise ActionError("pick a tag or write something")
+    ref = _clean_ref(a.get("ref"))
+    if ref and not sid:
+        sid = ref.get("sectionId")
     chosen = a.get("kind") in fb.KINDS
     kind = a["kind"] if chosen else fb.propose_kind(tags, text)
     pb0 = state.playbook(db)
@@ -115,12 +119,23 @@ def feedback(db: DB, jobs: Jobs, a: dict) -> None:
         effects.append(f"Playbook v{pb1['version']}: {n} lesson{'s' if n != 1 else ''} will be re-rendered for you "
                        "(past ones offer a refresh)")
     effects.append(fb.kind_effect(kind))
-    fid = db.x("""INSERT INTO feedback(ts, concept_id, section_id, tags, text, effects, kind, kind_source, signal_ids, angle, done_note)
-                  VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+    fid = db.x("""INSERT INTO feedback(ts, concept_id, section_id, tags, text, effects, kind, kind_source, signal_ids, angle, done_note, ref)
+                  VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
                (now(), cid, sid, dumps([TAG_LABELS.get(t, t) for t in tags]), text, dumps(effects), kind,
-                "learner" if chosen else "auto", dumps(signal_ids), angle, done_note))
+                "learner" if chosen else "auto", dumps(signal_ids), angle, done_note, dumps(ref) if ref else None))
     if text and not chosen:
         jobs.enqueue("classify_feedback", "Sort feedback", {"feedback_id": fid, "concept_id": cid})
+
+
+def _clean_ref(ref: object) -> dict | None:
+    """The part of the lesson a piece of feedback is about: selected text, a formula (LaTeX) or a graph."""
+    if not isinstance(ref, dict) or ref.get("kind") not in ("text", "formula", "viz"):
+        return None
+    quote = " ".join(str(ref.get("quote") or "").split())[:600]
+    if ref["kind"] != "viz" and not quote:
+        return None
+    sid = ref.get("sectionId")
+    return {"kind": ref["kind"], "quote": quote, "sectionId": sid if isinstance(sid, str) else None}
 
 
 def edit_feedback(db: DB, jobs: Jobs, a: dict) -> None:
@@ -220,7 +235,38 @@ def refresh(db: DB, jobs: Jobs, a: dict) -> None:
 
 
 def mark_studied(db: DB, jobs: Jobs, a: dict) -> None:
+    r = state.rendition_row(db, a["conceptId"])
     db.x("UPDATE renditions SET studied=1 WHERE concept_id=?", (a["conceptId"],))
+    if r and not r["studied"]:
+        progress.on_finished(db, jobs, a["conceptId"])
+
+
+def add_remedial(db: DB, jobs: Jobs, a: dict) -> None:
+    """Add the offered extra lesson ("Vectors (b)") after this one; it is researched and fact-checked."""
+    if not remedial.offer(db, a["conceptId"]):
+        raise ActionError("no extra lesson is offered for this lesson now")
+    try:
+        remedial.add(db, jobs, a["conceptId"])
+    except ValueError as e:
+        raise ActionError(str(e)) from e
+
+
+def dismiss_remedial(db: DB, jobs: Jobs, a: dict) -> None:
+    remedial.dismiss(db, a["conceptId"])
+
+
+def edit_guidelines(db: DB, jobs: Jobs, a: dict) -> None:
+    """The learner's own version of the lesson guidelines: every line they keep or write stays."""
+    items = [{"text": t, "byLearner": True} for t in (a.get("lines") or []) if isinstance(t, str) and t.strip()]
+    from .guidelines import MAX_ITEMS
+    if len(items) > MAX_ITEMS:
+        raise ActionError(f"at most {MAX_ITEMS} guidelines")
+    guidelines.save(db, items, "learner", "Edited by you")
+
+
+def distill_guidelines(db: DB, jobs: Jobs, a: dict) -> None:
+    if not jobs.active("distill_guidelines"):
+        jobs.enqueue("distill_guidelines", "Learn from your feedback", {"concept_id": None, "next": None})
 
 
 # ---------------------------------------------------------------- notes & chat
@@ -276,8 +322,10 @@ def _insert_concept(db: DB, jobs: Jobs, ch: dict) -> None:
         db.conn.execute("UPDATE concepts SET ord = ord + 1 WHERE module_id=? AND ord >= ?", (anchor["module_id"], pos))
         db.conn.execute("INSERT INTO concepts VALUES(?,?,?,?,?,?,?,?,0)",
                         (cid, anchor["module_id"], pos, title, ch["detail"], 10, dumps([]), 0.3))
+    prev = db.one("SELECT research FROM modules WHERE id=?", (anchor["module_id"],))["research"]
     jobs.enqueue("research_module", f"Research {title}",
-                 {"module_id": anchor["module_id"], "concept": {"id": cid, "title": title, "detail": ch["detail"]}})
+                 {"module_id": anchor["module_id"], "prev_research": prev,
+                  "concept": {"id": cid, "title": title, "detail": ch["detail"]}})
 
 
 def research_module(db: DB, jobs: Jobs, a: dict) -> None:
@@ -535,7 +583,8 @@ ACTIONS = {
     "undoAnswer": undo_answer, "loadDemo": load_demo, "deleteGoal": delete_goal, "backupNow": backup_now,
     "promoteSuggested": promote_suggested, "setRunnerMode": set_runner_mode, "setupRunnerDocker": setup_runner_docker, "feedback": feedback, "explainDifferently": explain_differently,
     "editFeedback": edit_feedback, "deleteFeedback": delete_feedback, "applyFeedback": apply_feedback,
-    "revertLesson": revert_lesson, "refresh": refresh, "markStudied": mark_studied, "addNote": add_note, "deleteNote": delete_note,
+    "revertLesson": revert_lesson, "addRemedial": add_remedial, "dismissRemedial": dismiss_remedial,
+    "editGuidelines": edit_guidelines, "distillGuidelines": distill_guidelines, "refresh": refresh, "markStudied": mark_studied, "addNote": add_note, "deleteNote": delete_note,
     "chat": chat, "decideDiff": decide_diff, "researchModule": research_module, "createGoal": create_goal,
     "setGoal": set_goal, "correctEntry": correct_entry, "adjust": adjust, "route": route, "reset": reset,
 }
