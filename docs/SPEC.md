@@ -58,10 +58,14 @@ a learner's taste.
   Each records the versions it was built from. A rendition is **stale** when either changed.
   - not yet studied → regenerated on open (or ahead of time in the background)
   - already studied → "Refresh for current me" (keeps old one for comparison)
+  - Each lesson keeps immutable **versions** (v1, v2, …) with a "current" pointer; revert moves the pointer
+    (see §11).
 - **Notes & highlights** (per lesson, anchored to text), searchable, readable by the tutor.
 - **Feedback log**: every rating/comment with its target (lesson, section, example, angle),
   plus what the system changed in response ("playbook: geometric angle +", "roadmap: proposed
-  inserting 'Dot product intuition'").
+  inserting 'Dot product intuition'"). Items can be added, edited and deleted, have a kind
+  (about this lesson / about me / possible error) and a status (pending, applied in vN, reverted),
+  and can be applied to their lesson (§11).
 - **Evidence**: graded answers → BKT mastery, FSRS reviews (port of Mentor's engine ideas).
 
 ### 2.3 How feedback propagates
@@ -75,6 +79,8 @@ feedback / outcome ──▶ signal log ──▶ playbook replay ──▶ play
          past: refresh offered)   prereq, compress, deepen)
                                   → learner approves
 ```
+Feedback can also be **applied** to the lesson at hand: one agent job writes the lesson's next version,
+and a word-level diff shows what changed and why. Reverting that version is itself a signal (§11).
 
 ## 3. Pages (prototype)
 1. **Home**: active goal, next activity, due reviews, streak, recent feedback effects.
@@ -206,3 +212,50 @@ Scope chosen: daily-use readiness, small planner and library items, and the Dock
   PyTorch, unprivileged user). Runs with `--network none --read-only --tmpfs /tmp --memory 2g --cpus 2
   --pids-limit 256 --cap-drop ALL --security-opt no-new-privileges` and the code mounted read-only. Test approval
   and the static check still apply. Untested here: Docker isn't installed.
+
+
+## 11. Applying feedback to a lesson (2026-11-14)
+The learner applies their own feedback to the current lesson, sees exactly what changed and why, and can go back.
+- **Lesson versions** (`versions.py`, tables `lesson_versions`, `lesson_heads`). A version is an immutable snapshot of
+  every section's prose plus the fingerprint it was written for: card version, style key, angle per section, and the
+  playbook version. It records its parent, source (`render` | `apply`), summary, the feedback ids it applied and, per
+  change, section, feedback ids, why, how and a short `technique` label. The rendered lesson becomes v1. A complete
+  re-render (new card, new style, another angle) adds a `render` version; sections whose fingerprint did not change
+  keep the head's text, so "explain differently" in one section keeps feedback applied to the others. The page shows
+  the head. While a re-render is incomplete, sections fall back to the prose cache as before.
+- **Chosen lessons.** Applying feedback or restoring a version sets `chosen`: the lesson is then treated like a
+  studied one and is never re-rendered silently on open; the stale banner offers "Refresh for current me", which
+  clears `chosen`.
+- **Kinds.** `lesson` (only this lesson; no playbook signals), `me` (also adds playbook signals: the tag rules from
+  §6, or a weak non-bumping `stated` signal for a comment), `fact` (claims the material is wrong). A rule-based guess
+  is shown at once; for items with text a `classify_feedback` job (route "Feedback") proposes the kind; the learner can
+  set it, and an agent never overrides the learner's choice.
+- **Edit and delete.** An item owns its signals (`signal_ids`). Edit voids them and adds new ones; delete voids them and
+  hides the item. Replay counts voided bumping signals toward the version, and a void that withdraws a bumping
+  signal adds a `void` marker that only bumps, so `playbook_version` never goes down and staleness stays correct.
+- **Status** (derived): `pending`; `applied` in vN when a version on the head's line contains the item; `reverted` when
+  only versions off that line contain it; `routed` (sent to the card check); `done` (handled at once, e.g. a section
+  switched angle). An applied item edited later is marked "changed since applied".
+- **Apply** (`applyFeedback` → job `apply_feedback`, route "Feedback"). Requires the head to match the rendition (the
+  lesson is fully written). One call gets the card, the current lesson, the selected items, the playbook and recent
+  reverts, and returns per item a kind, the changed sections, and per change feedback ids, why, how and technique.
+  `fact` items are never applied: they set `routed_at` and start a `refresh_card` job with the learner's claims (the
+  existing proposal → approval → fact-check flow). The agent may flag an item as fact unless the learner set its kind.
+  The new version keeps the base fingerprint and updates the rendition's playbook version, so "me" feedback it
+  answered does not make it stale. Offline fallback: each targeted section switches to the next angle that already
+  has cached prose for the same card and style (and pins it).
+- **Fact guard** (`versions.fact_guard`). The job can only return section prose: checks with hidden keys, exercises
+  and the card are not part of its output. A revision is rejected when it names an unknown section, reveals a check
+  explanation or explain-back rubric (normalized substring, ≥ 25 characters), is more than 3× the section (min 2,500
+  characters), or adds a display formula that is a new claim: not in the card or lesson, and not a numeric worked
+  example (digits outside exponents and indices, and only symbols the card's or lesson's math already uses). A change
+  without a reason is dropped. Rejections are shown as job progress.
+- **Revert** (`revertLesson`). Moves the head to any version of the current card (versions of an older card version
+  are refused: the card may have been corrected) and updates the rendition's fingerprint. When applied versions are
+  left behind, a `lesson_reverts` row is written and each of their techniques gets a weak, non-bumping `reaction`
+  signal (dimension `technique`, −0.1, evidence 0.5), so the playbook shows it, three reverts make it "avoid", and it
+  re-renders nothing. Later applies and the weekly reflection get the recent reverts.
+- **Diff** (`GET /api/lesson/{id}/diff?a=&b=`). Per section, a word-level diff (difflib over word, space and punctuation
+  tokens) as `eq | del | ins` runs with inserted/deleted word counts and the angle on each side. Annotations are the
+  changes of versions on b's line but not a's; changes only on a's line are marked `undone`. The UI shows the raw
+  Markdown with deleted text red and struck through, inserted text green, using the theme tokens.

@@ -37,5 +37,5 @@ What you may change (the fact guard):
 
 For each change, return one entry in `changes`: the section id, the feedback ids that caused it, `why` (which part of the feedback it answers, in one sentence), `how` (what you did, in one sentence, e.g. "Replaced the abstract definition with a worked 2D example first"), and `technique` (2-4 words naming the approach, e.g. "worked example first", "code before formula", "cooking analogy").
 In `items`, give every feedback id with the kind you think it is and a short reason.
-In `summary`, say in one sentence what this version changes.
+In `summary`, say in one sentence what this version changes. In `summary`, `why` and `how`, name sections by their heading, never by their id: the learner reads these.
 Return JSON matching the schema.

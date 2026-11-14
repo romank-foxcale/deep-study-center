@@ -9,6 +9,7 @@ import ExplainBack from '../components/ExplainBack'
 import LocalExercise from '../components/LocalExercise'
 import Viz from '../components/viz/Viz'
 import FeedbackDialog from '../components/FeedbackDialog'
+import LessonHistory from '../components/LessonHistory'
 import SidePanel, { SourceCardView, type Tab } from '../components/SidePanel'
 import StateBadge, { MasteryBar } from '../components/StateBadge'
 
@@ -26,6 +27,9 @@ export default function Lesson() {
   const clearDraft = useCallback(() => setDraft(null), [])
   const [feedbackFor, setFeedbackFor] = useState<{ sectionId?: string; label: string; angle?: Angle; available?: Angle[] } | null>(null)
   const [toast, setToast] = useState('')
+  const [history, setHistory] = useState<{ focus?: number } | null>(null)
+  const [newVersion, setNewVersion] = useState<number | null>(null)
+  const lastHead = useRef<number | null>(null)
   const [current, setCurrent] = useState<string | undefined>()
   const [selection, setSelection] = useState<{ text: string; top: number; left: number } | null>(null)
   const article = useRef<HTMLElement>(null)
@@ -63,6 +67,14 @@ export default function Lesson() {
     }, 30_000)
     return () => { clearInterval(t); events.forEach(e => window.removeEventListener(e, mark)) }
   }, [id])
+
+  // A finished apply job moves the head to a new "apply" version: offer to show what changed.
+  useEffect(() => {
+    const h = view?.head ?? null
+    const top = view?.versions[0]
+    if (lastHead.current !== null && h !== null && h > lastHead.current && top?.version === h && top.source === 'apply') setNewVersion(h)
+    if (view) lastHead.current = h
+  }, [view])
 
   useEffect(() => {
     if (!toast) return
@@ -104,6 +116,11 @@ export default function Lesson() {
             <MasteryBar value={concept.mastery} />
             <span className="muted small">~{concept.minutes} min</span>
             {rendition && <span className="muted small">Rendered from card v{rendition.cardVersion} · playbook v{rendition.playbookVersion}</span>}
+            {view && view.head !== null && (
+              <button className="pill pill-button" onClick={() => setHistory({})} title="Lesson versions: compare and go back">
+                Version v{view.head}{view.versions.length > 1 ? ` of ${view.versions.length}` : ''} · history
+              </button>
+            )}
             <span className="spacer" />
             <button className="btn" onClick={() => setFeedbackFor({ label: 'this lesson' })}>Give feedback</button>
           </div>
@@ -112,9 +129,20 @@ export default function Lesson() {
         {loadError && <p className="error">{loadError}</p>}
         {!view && !loadError && <p className="muted">Opening…</p>}
 
-        {rendition?.stale && rendition.studied && (
+        {view?.applying && <div className="banner"><span>Applying your feedback: the next version of this lesson is being written.</span></div>}
+        {newVersion !== null && !view?.applying && (
+          <div className="banner banner-ok">
+            <span>Your feedback is applied: this is v{newVersion}.</span>
+            <span className="row">
+              <button className="btn btn-primary" onClick={() => { setHistory({ focus: newVersion }); setNewVersion(null) }}>See what changed</button>
+              <button className="btn" onClick={() => setNewVersion(null)}>Dismiss</button>
+            </span>
+          </div>
+        )}
+        {rendition?.stale && (rendition.studied || rendition.shaped) && (
           <div className="banner">
-            <span>Your playbook changed since you studied this (v{rendition.playbookVersion} → v{s.playbook.version}).</span>
+            <span>Your playbook changed since {rendition.studied ? 'you studied this' : 'you shaped this lesson'} (v{rendition.playbookVersion} → v{s.playbook.version}).
+              {rendition.shaped && ' Refreshing keeps the text you shaped where the angle and style stay the same; earlier versions stay in the history.'}</span>
             <button className="btn btn-primary" onClick={() => { dispatch({ type: 'refresh', conceptId: id }); setToast('Refreshing for current you…') }}>Refresh for current me</button>
           </div>
         )}
@@ -198,7 +226,12 @@ export default function Lesson() {
         )}
       </article>
 
-      <SidePanel conceptId={id} card={view?.card} tab={tab} setTab={setTab} draft={draft} clearDraft={clearDraft} currentSection={current} />
+      <SidePanel conceptId={id} card={view?.card} tab={tab} setTab={setTab} draft={draft} clearDraft={clearDraft} currentSection={current}
+        onShowVersion={v => setHistory({ focus: v })} />
+
+      {history && view && view.head !== null && view.versions.length > 0 && (
+        <LessonHistory conceptId={id} versions={view.versions} head={view.head} focus={history.focus} onClose={() => setHistory(null)} />
+      )}
 
       {selection && (
         <div className="sel-toolbar" style={{ top: selection.top, left: selection.left }} onMouseDown={e => e.preventDefault()}>
@@ -209,8 +242,8 @@ export default function Lesson() {
 
       {feedbackFor && (
         <FeedbackDialog target={feedbackFor.label} onClose={() => setFeedbackFor(null)}
-          onSubmit={(tags, text) => {
-            dispatch({ type: 'feedback', conceptId: id, sectionId: feedbackFor.sectionId, angle: feedbackFor.angle, available: feedbackFor.available, tags, text })
+          onSubmit={(tags, text, kind) => {
+            dispatch({ type: 'feedback', conceptId: id, sectionId: feedbackFor.sectionId, angle: feedbackFor.angle, available: feedbackFor.available, tags, text, kind })
             setFeedbackFor(null); setTab('feedback')
           }} />
       )}

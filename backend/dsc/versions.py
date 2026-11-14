@@ -282,6 +282,21 @@ def summary(v: dict) -> dict:
 # ---------------------------------------------------------------- fact guard
 
 _DISPLAY_MATH = re.compile(r"\$\$(.+?)\$\$", re.S)
+_ANY_MATH = re.compile(r"\$\$(.+?)\$\$|\$([^$\n]+?)\$", re.S)
+
+
+def _symbols(math: str) -> set[str]:
+    """Variable letters of a formula (LaTeX commands such as \\begin or \\lVert are layout, not variables)."""
+    return set(re.findall(r"[A-Za-z]", re.sub(r"\\[A-Za-z]+", " ", math)))
+
+
+def _new_claim(math: str, known: set[str], known_symbols: set[str]) -> bool:
+    """A display formula that is not in the card or lesson is a new claim, unless it is a worked example:
+    it has numbers and only uses symbols the fact-checked material already uses."""
+    if _norm(math) in known:
+        return False
+    values = re.sub(r"[\^_](\{[^{}]*\}|\S)", " ", math)  # numbers in exponents or indices (x^2, v_1) are notation
+    return not (re.search(r"\d", values) and _symbols(math) <= known_symbols)
 
 
 def _norm(text: str) -> str:
@@ -290,8 +305,8 @@ def _norm(text: str) -> str:
 
 def fact_guard(card: dict, base: dict[str, str], proposed: list[dict]) -> tuple[dict[str, str], list[dict]]:
     """Accept only prose revisions (SPEC §11). A revision is rejected when it targets something that is not a
-    section of the lesson, reveals a hidden answer key or rubric, adds a display formula that is neither in the
-    card nor in the lesson, or grows far beyond the section. Checks, exercises and the card itself are never
+    section of the lesson, reveals a hidden answer key or rubric, adds a display formula that is a new claim
+    (not in the card or lesson, and not a numeric worked example in their notation), or grows far beyond the section. Checks, exercises and the card itself are never
     part of a revision: the job can only return section prose."""
     secs = {s["id"]: s for s in card.get("sections", [])}
     hidden = []
@@ -301,8 +316,9 @@ def fact_guard(card: dict, base: dict[str, str], proposed: list[dict]) -> tuple[
         if s.get("explain"):
             hidden += list(s["explain"].get("rubric", [])) + [s["explain"].get("exemplar", "")]
     hidden = [_norm(h) for h in hidden if len(_norm(h)) >= 25]
-    known_math = {_norm(m) for m in _DISPLAY_MATH.findall(" ".join(
-        [card.get(k) or "" for k in ("core", "formal", "why")] + list(base.values())))}
+    material = " ".join([card.get(k) or "" for k in ("core", "formal", "why")] + list(base.values()))
+    known_math = {_norm(m) for m in _DISPLAY_MATH.findall(material)}
+    known_symbols = set().union(*[_symbols(a or b) for a, b in _ANY_MATH.findall(material)])
     accepted: dict[str, str] = {}
     rejected: list[dict] = []
     for p in proposed:
@@ -315,8 +331,8 @@ def fact_guard(card: dict, base: dict[str, str], proposed: list[dict]) -> tuple[
             rejected.append({"sectionId": sid, "reason": "far longer than the section it replaces"})
         elif any(h in _norm(body) for h in hidden):
             rejected.append({"sectionId": sid, "reason": "reveals a hidden answer key or grading rubric"})
-        elif any(_norm(m) not in known_math for m in _DISPLAY_MATH.findall(body)):
-            rejected.append({"sectionId": sid, "reason": "adds a formula that is not in the fact-checked card"})
+        elif new := [m for m in _DISPLAY_MATH.findall(body) if _new_claim(m, known_math, known_symbols)]:
+            rejected.append({"sectionId": sid, "reason": f"adds a formula that is not in the fact-checked card: $${new[0].strip()[:120]}$$"})
         else:
             accepted[sid] = body
     return accepted, rejected

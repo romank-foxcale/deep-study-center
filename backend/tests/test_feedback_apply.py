@@ -134,7 +134,7 @@ def test_fact_guard_keeps_revisions_to_prose(env):
     runner.responses["Feedback"] = lambda call: {
         "items": [{"id": a, "kind": "lesson", "why": ""}],
         "sections": [{"id": "s-length", "body": leak},                                   # reveals a hidden key
-                     {"id": "s-misc", "body": "New fact: $$\\lVert v \\rVert = 7$$"},    # a formula not in the card
+                     {"id": "s-misc", "body": "Also: $$\\lVert u + v \\rVert^2 = \\lVert u \\rVert^2 + \\lVert v \\rVert^2$$"},  # new claim
                      {"id": "s-nope", "body": "made-up section"}],                       # not a section
         "changes": [{"section_id": s, "feedback_ids": [a], "why": "x", "how": "y", "technique": "z"}
                     for s in ("s-length", "s-misc", "s-nope")],
@@ -156,6 +156,11 @@ def test_fact_guard_unit():
         {"id": "s1", "body": "New: $$\\lVert v \\rVert = \\sqrt{v_1^2 + v_2^2}$$ with a picture."},
         {"id": "s2", "body": "Note: moving along one axis does NOT change the other one."}])
     assert list(ok) == ["s1"] and bad[0]["sectionId"] == "s2"
+    # a numeric worked example in the card's notation is fine; a new symbolic identity is not
+    ok, bad = versions.fact_guard(card, base, [
+        {"id": "s1", "body": "Try it: $$\\lVert v \\rVert = \\sqrt{3^2 + 4^2} = 5$$"},
+        {"id": "s2", "body": "And: $$\\lVert v \\rVert = v_1 + v_2$$"}])
+    assert list(ok) == ["s1"] and "formula" in bad[0]["reason"]
 
 
 def test_fact_claims_go_to_the_card_check_not_the_lesson(env):

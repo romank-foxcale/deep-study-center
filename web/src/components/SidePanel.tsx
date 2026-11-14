@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { jobActive, useStore } from '../store'
 import type { SourceCard } from '../types'
 import Markdown from './Markdown'
+import FeedbackItems from './FeedbackItems'
 
 export type Tab = 'tutor' | 'notes' | 'source' | 'feedback'
 
@@ -13,9 +14,10 @@ interface Props {
   draft: { tab: Tab; text: string; quote?: string } | null
   clearDraft: () => void
   currentSection?: string
+  onShowVersion?: (version: number) => void
 }
 
-export default function SidePanel({ conceptId, card, tab, setTab, draft, clearDraft, currentSection }: Props) {
+export default function SidePanel({ conceptId, card, tab, setTab, draft, clearDraft, currentSection, onShowVersion }: Props) {
   return (
     <aside className="side">
       <div className="tabs" role="tablist">
@@ -29,7 +31,7 @@ export default function SidePanel({ conceptId, card, tab, setTab, draft, clearDr
         {tab === 'tutor' && <Tutor conceptId={conceptId} draft={draft?.tab === 'tutor' ? draft.text : ''} clearDraft={clearDraft} section={currentSection} />}
         {tab === 'notes' && <Notes conceptId={conceptId} quote={draft?.tab === 'notes' ? draft.quote : undefined} clearDraft={clearDraft} />}
         {tab === 'source' && <SourceCardView card={card} />}
-        {tab === 'feedback' && <FeedbackLog conceptId={conceptId} />}
+        {tab === 'feedback' && <FeedbackLog conceptId={conceptId} onShowVersion={onShowVersion} />}
       </div>
     </aside>
   )
@@ -134,26 +136,9 @@ export function SourceCardView({ card }: { card?: SourceCard | null }) {
   )
 }
 
-function FeedbackLog({ conceptId }: { conceptId: string }) {
+function FeedbackLog({ conceptId, onShowVersion }: { conceptId: string; onShowVersion?: (version: number) => void }) {
   const { s } = useStore()
   const items = s.feedback.filter(f => f.conceptId === conceptId)
   if (!items.length) return <p className="muted">No feedback on this lesson yet. Use “Give feedback” any time, even before you've answered anything.</p>
-  return <FeedbackList items={items} />
-}
-
-export function FeedbackList({ items }: { items: ReturnType<typeof useStore>['s']['feedback'] }) {
-  return (
-    <div className="fb-list">
-      {items.map(f => (
-        <div key={f.id} className="fb">
-          <div className="row row-between">
-            <span>{f.tags.join(' · ') || 'Comment'}</span>
-            <span className="muted small">{new Date(f.ts).toLocaleString()}</span>
-          </div>
-          {f.text && <p className="fb-text">“{f.text}”</p>}
-          <ul className="effects">{f.effects.map((e, i) => <li key={i}>{e}</li>)}</ul>
-        </div>
-      ))}
-    </div>
-  )
+  return <FeedbackItems items={items} conceptId={conceptId} onShowVersion={onShowVersion} />
 }

@@ -99,7 +99,7 @@ def add_signals(db: DB, tags: list[str], text: str, angle: str | None, kind: str
 
 def kind_effect(kind: str) -> str:
     return {"lesson": "About this lesson: select it and click Apply to rewrite this lesson (the playbook is not changed)",
-            "me": "About you: the playbook changed; select it and click Apply to rewrite this lesson now",
+            "me": "About you: the playbook takes it into account; select it and click Apply to rewrite this lesson now",
             "fact": "A possible error in the material: Apply sends it to the card check, not into your lesson"}[kind]
 
 

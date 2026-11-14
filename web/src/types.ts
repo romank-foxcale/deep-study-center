@@ -181,7 +181,13 @@ export interface LessonView {
   rendering: boolean
   renderError: string | null
   refreshed?: boolean
-  rendition: { cardVersion: number; playbookVersion: number; studied: boolean; stale: boolean } | null
+  rendition: { cardVersion: number; playbookVersion: number; studied: boolean; stale: boolean; shaped: boolean } | null
+  /** The version the page shows. */
+  head: number | null
+  /** Newest first. */
+  versions: LessonVersion[]
+  /** An apply-feedback job is running for this lesson. */
+  applying: boolean
 }
 
 export interface PlaybookEntry {
@@ -200,14 +206,75 @@ export interface Playbook {
   adjust: { pace: number; depth: number; rigor: number }
 }
 
+/** lesson = about this lesson only; me = about how I learn (changes the playbook); fact = the material may be wrong. */
+export type FeedbackKind = 'lesson' | 'me' | 'fact'
+
+export interface FeedbackStatus {
+  state: 'pending' | 'applied' | 'reverted' | 'routed' | 'done'
+  /** The lesson version that applied it (applied) or that was left (reverted). */
+  version: number | null
+  /** Edited after it was applied. */
+  changedSinceApplied: boolean
+  note: string | null
+}
+
 export interface Feedback {
   id: number
   ts: string
   conceptId: string
-  sectionId?: string
+  sectionId?: string | null
   tags: string[]
   text: string
   effects: string[]
+  kind: FeedbackKind
+  /** Who set the kind: auto (rules), agent, or learner. */
+  kindSource: 'auto' | 'agent' | 'learner'
+  angle?: Angle | null
+  updatedAt: string | null
+  status: FeedbackStatus
+}
+
+/** One immutable version of a lesson (SPEC §11). */
+export interface LessonVersion {
+  version: number
+  ts: string
+  parent: number | null
+  source: 'render' | 'apply'
+  summary: string
+  cardVersion: number
+  playbookVersion: number
+  style: string
+  feedbackIds: number[]
+  changes: number
+}
+
+export interface DiffChange {
+  sectionId: string
+  feedbackIds: number[]
+  why: string
+  how: string
+  technique: string
+  version: number
+  /** The change is in the older side only: going from A to B undoes it. */
+  undone: boolean
+}
+
+export interface LessonDiff {
+  conceptId: string
+  a: LessonVersion
+  b: LessonVersion
+  sections: {
+    id: string
+    heading: string
+    status: 'same' | 'changed' | 'added' | 'removed'
+    angleA: Angle | null
+    angleB: Angle | null
+    tokens: ['eq' | 'del' | 'ins', string][]
+    inserted: number
+    deleted: number
+    changes: DiffChange[]
+  }[]
+  feedback: { id: number; text: string; tags: string[]; kind: FeedbackKind; deleted: boolean }[]
 }
 
 export interface Note { id: number; ts: string; conceptId: string; quote?: string | null; text: string }
