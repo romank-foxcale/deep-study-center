@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import engine, library, progress, providers, runner, state, versions, viz
+from . import engine, guidelines, library, progress, providers, runner, state, versions, viz
 from . import feedback as fb
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
@@ -127,7 +127,7 @@ def run_render(jobs: Jobs, jid: int, d: dict) -> dict:
     lines = "\n".join(f'- {sid} "{heads[sid]["heading"]}" ({heads[sid].get("purpose", "")}) -> angle: {a}' for sid, a in want.items())
     out = jobs.call(jid, "Renditions", Call(
         prompt=prompt("render", card=_card_text(card), goal=g["title"], profile=g["profile"],
-                      playbook=state.playbook_text(pb), sections=lines, **pb["adjust"]),
+                      playbook=state.playbook_text(pb), sections=lines, guidelines=guidelines.text(db), **pb["adjust"]),
         schema=RENDER_SCHEMA, model="sonnet", timeout=300))
     written = 0
     for s in out.get("sections", []):
@@ -339,7 +339,8 @@ def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
 def fallback_research_module(jobs: Jobs, jid: int, d: dict) -> None:
     m = jobs.db.one("SELECT research FROM modules WHERE id=?", (d["module_id"],))
     if m and m["research"] == "researching":
-        jobs.db.x("UPDATE modules SET research='outline' WHERE id=?", (d["module_id"],))
+        # A single inserted lesson must not turn a researched module back into an outline.
+        jobs.db.x("UPDATE modules SET research=? WHERE id=?", (d.get("prev_research") or "outline", d["module_id"]))
 
 
 FACT_SCHEMA = {"type": "object", "required": ["results"], "properties": {"results": {"type": "array", "items": {
@@ -384,7 +385,8 @@ def run_grade(jobs: Jobs, jid: int, d: dict) -> dict:
     score = float(out["score"])
     db.x("UPDATE gradings SET status='graded', score=?, feedback=?, missing=?, followup=? WHERE id=?",
          (score, out["feedback"], dumps(out.get("missing", [])), out.get("followup") or "", g["id"]))
-    progress.record_evidence(db, g["concept_id"], g["item_id"], score, angle=d.get("angle"))
+    if progress.record_evidence(db, g["concept_id"], g["item_id"], score, angle=d.get("angle")):
+        progress.on_finished(db, jobs, g["concept_id"])
     return {"score": score}
 
 
@@ -553,10 +555,23 @@ APPLY_SCHEMA = {"type": "object", "required": ["items", "sections", "changes", "
         "id": {"type": "integer"}, "kind": {"enum": list(fb.KINDS)}, "why": {"type": "string"}}}},
     "sections": {"type": "array", "items": {"type": "object", "required": ["id", "body"], "properties": {
         "id": {"type": "string"}, "body": {"type": "string"}}}},
-    "changes": {"type": "array", "items": {"type": "object", "required": ["section_id", "feedback_ids", "why", "how", "technique"],
+    "changes": {"type": "array", "items": {"type": "object",
+                "required": ["section_id", "feedback_ids", "why", "how", "technique", "related_because"],
                 "properties": {"section_id": {"type": "string"}, "feedback_ids": {"type": "array", "items": {"type": "integer"}},
-                               "why": {"type": "string"}, "how": {"type": "string"}, "technique": {"type": "string"}}}},
+                               "why": {"type": "string"}, "how": {"type": "string"}, "technique": {"type": "string"},
+                               "related_because": {"type": "string"}}}},
     "summary": {"type": "string"}}}
+
+
+def _target(f: dict) -> str:
+    """Where a feedback item points: the whole lesson, a section, or a quoted part of a section."""
+    ref = loads(f["ref"], None) if f.get("ref") else None
+    where = f["section_id"] or "whole lesson"
+    if not ref:
+        return where
+    what = {"text": "the text", "formula": "the formula", "viz": "the interactive graph"}[ref["kind"]]
+    quote = f' {json.dumps(ref["quote"], ensure_ascii=False)}' if ref.get("quote") else ""
+    return f"{where}, about {what}{quote}"
 
 
 def _apply_inputs(db: DB, d: dict) -> tuple[dict, dict, list[dict], dict]:
@@ -598,11 +613,12 @@ def run_apply_feedback(jobs: Jobs, jid: int, d: dict) -> dict:
         f'## {sid} "{secs[sid]["heading"]}" (angle: {base["angles"].get(sid)})\n{body}'
         for sid, body in base["sections"].items() if sid in secs)
     fb_text = "\n".join(
-        f'- #{f["id"]} kind={f["kind"]} target={f["section_id"] or "whole lesson"} tags={", ".join(loads(f["tags"], [])) or "-"}'
+        f'- #{f["id"]} kind={f["kind"]} target={_target(f)} tags={", ".join(loads(f["tags"], [])) or "-"}'
         f' words={json.dumps(f["text"] or "", ensure_ascii=False)}' for f in rows)
     out = jobs.call(jid, "Feedback", Call(
         prompt=prompt("apply_feedback", card=_card_text(card), goal=g["title"], profile=g["profile"],
                       playbook=state.playbook_text(pb), reverts=versions.reverts_text(db), base=base["version"],
+                      guidelines=guidelines.text(db),
                       lesson=lesson_text, feedback=fb_text, **pb["adjust"]),
         schema=APPLY_SCHEMA, model="sonnet", timeout=420))
     by_id = {f["id"]: f for f in rows}
@@ -627,9 +643,18 @@ def run_apply_feedback(jobs: Jobs, jid: int, d: dict) -> dict:
     changes = []
     for c in out.get("changes", []):
         ids = [i for i in c.get("feedback_ids", []) if i in allowed]
-        if c.get("section_id") in accepted and ids:
-            changes.append({"sectionId": c["section_id"], "feedbackIds": ids, "why": c.get("why", ""),
-                            "how": c.get("how", ""), "technique": (c.get("technique") or "").strip()[:60]})
+        if c.get("section_id") not in accepted or not ids:
+            continue
+        # Scope: feedback about one part changes that part. Another section may change only when the agent
+        # says why it is directly relevant or has the same issue; whole-lesson feedback may change any section.
+        targets = {by_id[i]["section_id"] for i in ids}
+        related = (c.get("related_because") or "").strip()
+        if None not in targets and c["section_id"] not in targets and not related:
+            jobs.progress(jid, f'dropped {c["section_id"]}: outside the part your feedback is about, with no reason given')
+            continue
+        changes.append({"sectionId": c["section_id"], "feedbackIds": ids, "why": c.get("why", ""),
+                        "how": c.get("how", ""), "technique": (c.get("technique") or "").strip()[:60],
+                        "relatedBecause": related if c["section_id"] not in targets else ""})
     for sid in accepted:  # every accepted section needs an explanation, or it is not taken
         if not any(c["sectionId"] == sid for c in changes):
             jobs.progress(jid, f"dropped {sid}: no reason given for the change")
@@ -676,6 +701,70 @@ def fallback_apply_feedback(jobs: Jobs, jid: int, d: dict) -> None:
     _save_applied(jobs, jid, d, base, sections, angles, changes, "Switched angles (offline)", "apply")
 
 
+
+# ---------------------------------------------------------------- lesson guidelines (SPEC §12)
+
+GUIDE_SCHEMA = {"type": "object", "required": ["items", "summary"], "properties": {
+    "items": {"type": "array", "maxItems": guidelines.MAX_ITEMS, "items": {"type": "object",
+              "required": ["text", "why", "feedback_ids", "by_learner"], "properties": {
+                  "text": {"type": "string"}, "why": {"type": "string"},
+                  "feedback_ids": {"type": "array", "items": {"type": "integer"}}, "by_learner": {"type": "boolean"}}}},
+    "summary": {"type": "string"}}}
+
+
+def _guideline_inputs(db: DB) -> dict:
+    fb_rows = db.q("""SELECT f.*, c.title FROM feedback f JOIN concepts c ON c.id = f.concept_id
+                      WHERE f.deleted = 0 ORDER BY f.id DESC LIMIT 60""")
+    status = versions.feedback_status(db, fb_rows)
+    feedback = "\n".join(
+        f'- #{f["id"]} [{f["title"]}] kind={f["kind"]} status={status[f["id"]]["state"]} target={_target(f)}'
+        f' tags={", ".join(loads(f["tags"], [])) or "-"} words={json.dumps(f["text"] or "", ensure_ascii=False)}' for f in fb_rows)
+    kept = [c for v in db.q("SELECT changes FROM lesson_versions WHERE source='apply' ORDER BY ts DESC LIMIT 30")
+            for c in loads(v["changes"], [])]
+    applied = "\n".join(f'- {c.get("how", "")} (technique: {c.get("technique") or "n/a"})' for c in kept[:20]) or "(none)"
+    g = guidelines.current(db)
+    cur = "\n".join(f'- {"[learner] " if it.get("byLearner") else ""}{it["text"]}' for it in (g or {}).get("items", [])) or "(none yet)"
+    return {"feedback": feedback or "(no feedback yet)", "applied": applied, "current": cur, "count": len(fb_rows)}
+
+
+def run_distill_guidelines(jobs: Jobs, jid: int, d: dict) -> dict:
+    """Distill the main points and patterns of all feedback so far into lesson guidelines, then write the next lesson."""
+    db = jobs.db
+    x = _guideline_inputs(db)
+    if not x["count"] and not guidelines.current(db):
+        jobs.progress(jid, "no feedback yet: nothing to learn from")
+        _prewrite_next(jobs, jid, d)
+        return {"version": None}
+    out = jobs.call(jid, "Feedback", Call(
+        prompt=prompt("distill_guidelines", goal=_goal(db)["title"], playbook=state.playbook_text(state.playbook(db)),
+                      feedback=x["feedback"], applied=x["applied"], reverts=versions.reverts_text(db), current=x["current"]),
+        schema=GUIDE_SCHEMA, model="sonnet", timeout=300))
+    old = guidelines.current(db) or {"items": []}
+    mine = [it for it in old["items"] if it.get("byLearner")]
+    items = [{"text": it["text"], "why": it["why"], "feedbackIds": it.get("feedback_ids", []), "byLearner": it.get("by_learner")}
+             for it in out["items"]]
+    # The learner's own lines are never dropped by the job.
+    texts = {" ".join(it["text"].lower().split()) for it in items}
+    items = [{**it, "byLearner": True} for it in mine if " ".join(it["text"].lower().split()) not in texts] + items
+    v = guidelines.save(db, items, "agent", out.get("summary", ""))
+    jobs.progress(jid, f"lesson guidelines v{v}: {min(len(items), guidelines.MAX_ITEMS)} point(s)")
+    _prewrite_next(jobs, jid, d)
+    return {"version": v}
+
+
+def fallback_distill_guidelines(jobs: Jobs, jid: int, d: dict) -> None:
+    """Offline: keep the guidelines as they are, but still write the next lesson."""
+    _prewrite_next(jobs, jid, d)
+
+
+def _prewrite_next(jobs: Jobs, jid: int, d: dict) -> None:
+    nxt = d.get("next")
+    if nxt and state.latest_card(jobs.db, nxt):
+        title = jobs.db.one("SELECT title FROM concepts WHERE id=?", (nxt,))["title"]
+        jobs.progress(jid, f"writing your next lesson: {title}")
+        progress.prewrite(jobs.db, jobs, nxt)
+
+
 HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "render": (run_render, None),
     "tutor": (run_tutor, fallback_tutor),
@@ -690,5 +779,6 @@ HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "refresh_card": (run_refresh_card, None),
     "classify_feedback": (run_classify_feedback, None),
     "apply_feedback": (run_apply_feedback, fallback_apply_feedback),
+    "distill_guidelines": (run_distill_guidelines, fallback_distill_guidelines),
     "runner_docker_setup": (lambda jobs, jid, d: runner.setup_docker(lambda msg: jobs.progress(jid, msg)), None),
 }

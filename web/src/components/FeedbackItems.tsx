@@ -4,7 +4,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FEEDBACK_TAGS, KIND_LABELS, jobActive, useStore } from '../store'
-import type { Feedback, FeedbackKind } from '../types'
+import Markdown from './Markdown'
+import type { Feedback, FeedbackKind, FeedbackRef } from '../types'
 
 const KINDS: FeedbackKind[] = ['lesson', 'me', 'fact']
 
@@ -109,6 +110,7 @@ function FeedbackItem({ f, selectable, selected, onToggle, onShowVersion, lesson
       </div>
       {editing ? <EditFeedback f={f} onDone={() => setEditing(false)} /> : (
         <>
+          {f.ref && <RefQuote r={f.ref} />}
           {f.text && <p className="fb-text">“{f.text}”</p>}
           <div className="row fb-tools">
             <label className="small fb-kind">
@@ -162,6 +164,15 @@ function EditFeedback({ f, onDone }: { f: Feedback; onDone: () => void }) {
         <button className="btn btn-small btn-primary" disabled={!tags.length && !text.trim()} onClick={save}>Save</button>
       </div>
     </div>
+  )
+}
+
+export function RefQuote({ r }: { r: FeedbackRef }) {
+  return (
+    <blockquote className="quote ref-quote">
+      <span className="pill">{{ text: 'text', formula: 'formula', viz: 'graph' }[r.kind]}</span>{' '}
+      {r.kind === 'formula' ? <Markdown inline>{`$${r.quote}$`}</Markdown> : r.kind === 'viz' ? <span>{r.quote || 'Interactive graph'}</span> : <Markdown inline>{`“${r.quote}”`}</Markdown>}
+    </blockquote>
   )
 }
 

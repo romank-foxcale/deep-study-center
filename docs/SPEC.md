@@ -259,3 +259,36 @@ The learner applies their own feedback to the current lesson, sees exactly what 
   tokens) as `eq | del | ins` runs with inserted/deleted word counts and the angle on each side. Annotations are the
   changes of versions on b's line but not a's; changes only on a's line are marked `undone`. The UI shows the raw
   Markdown with deleted text red and struck through, inserted text green, using the theme tokens.
+
+
+## 12. Feedback on a chosen part, lesson guidelines, extra lessons (2026-11-14)
+- **References.** Selecting text in a lesson offers "Add note", "Feedback on this" and "Ask tutor". Hovering a formula
+  offers "Feedback on formula" and "Note"; each interactive graph has "Feedback on this graph" and "Note". A feedback
+  item stores `ref` = {kind: text | formula | viz, quote, sectionId}. Formulas are quoted as their LaTeX source (from
+  KaTeX's annotation); text with formulas inside keeps them as `$LaTeX$`; a graph is quoted by its caption. Notes keep
+  the same quote.
+- **Scope on apply.** Feedback without a section is about the whole lesson and may change any section. Feedback about a
+  section or a quoted part changes that part; another section may change only when the agent gives
+  `related_because` (directly relevant, or the same issue). A change outside the target without a reason is dropped
+  (job progress says so). The diff shows the reason as "Also changed here because". Graphs are card widgets: the agent
+  can change the text around them, not the graph.
+- **Lesson guidelines** (`guidelines.py`, table `guidelines`, one row per version). Up to 10 concrete instructions to a
+  lesson writer, each with why and the feedback ids it comes from. The `distill_guidelines` job (route "Feedback") reads
+  recent feedback with kinds, targets and statuses, kept revisions, reverts, the playbook and the current guidelines.
+  It writes a point only for a pattern: the same request in two or more items, a general statement by the learner, or a
+  kept revision. Lines the learner wrote or kept (`byLearner`) are never dropped. The learner edits them on the Me page
+  (one per line). Render and apply prompts include them. They do not make written lessons stale.
+- **Next lesson on finish.** A lesson is finished when the learner clicks "I've read it" (first time) or an answer makes
+  the concept learned. Then `distill_guidelines` runs and afterwards prewrites the next lesson in roadmap order that is
+  not learned and has a lesson plan (render with the new guidelines; never rewrites a studied or shaped lesson).
+  Offline, the guidelines stay and the next lesson is still written. Later lessons can still be opened early; they are
+  written on open.
+- **Extra (remedial) lessons** (`remedial.py`). Struggle score per lesson = wrong answers + 1.5 × failed explain-backs
+  + 0.5 × tutor questions + 2 × "I got lost" feedback. At 4 or more, with at least one wrong answer, failed
+  explain-back or "I got lost", and while the lesson is not learned and has no open extra lesson, the lesson page offers
+  "Vectors (b)" with the reasons. "Not now" stores the score; the offer returns after 3 more points. Adding it inserts
+  concept `<id>-rb` (then `-rc`, …) after the lesson and its earlier extra lessons, and runs the single-concept research
+  job with a brief of what went wrong (wrong answers with the chosen and right options, explain-back gaps, tutor
+  questions, feedback and its quotes, all as learner data). The card is fact-checked as usual.
+- Fix: when a single inserted lesson fails to research, the module returns to its earlier research status instead of
+  "outline" (which made the whole module research again).

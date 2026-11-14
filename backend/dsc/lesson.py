@@ -10,7 +10,7 @@ Rules (docs/SPEC.md §2.3):
 
 from __future__ import annotations
 
-from . import engine, progress, state, versions, viz
+from . import engine, progress, remedial, state, versions, viz
 from .db import DB, dumps
 from .jobs import Jobs
 
@@ -123,6 +123,8 @@ def view(db: DB, cid: str) -> dict:
                             "studied": _studied(db, cid, r), "stale": state.is_stale(r, card, pb),
                             "shaped": bool(h and h["chosen"])},
         "head": h["version"] if h else None,
+        "remedial": remedial.offer(db, cid),
+        "extraLessons": [{"id": x["id"], "title": x["title"]} for x in remedial.extra_lessons(db, cid)],
         "versions": [versions.summary(v) for v in versions.all_versions(db, cid)][::-1],
         "applying": any(j["status"] in ("queued", "running") and j["kind"] == "apply_feedback"
                         and j["input"].get("concept_id") == cid for j in state.jobs(db)),

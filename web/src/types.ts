@@ -188,6 +188,10 @@ export interface LessonView {
   versions: LessonVersion[]
   /** An apply-feedback job is running for this lesson. */
   applying: boolean
+  /** Offer of an extra lesson when the learner is stuck (SPEC §12). */
+  remedial: { id: string; title: string; reasons: string[]; score: number } | null
+  /** Extra lessons already added for this lesson ("Vectors (b)", …). */
+  extraLessons: { id: string; title: string }[]
 }
 
 export interface PlaybookEntry {
@@ -218,6 +222,23 @@ export interface FeedbackStatus {
   note: string | null
 }
 
+/** The part of a lesson a piece of feedback (or a note) is about. */
+export interface FeedbackRef {
+  kind: 'text' | 'formula' | 'viz'
+  /** Selected text (formulas as $LaTeX$), a formula's LaTeX, or a graph's caption. */
+  quote: string
+  sectionId?: string | null
+}
+
+/** Lesson guidelines distilled from the learner's feedback (SPEC §12). */
+export interface Guidelines {
+  version: number
+  ts: string
+  source: 'agent' | 'learner'
+  summary: string
+  items: { text: string; why: string; feedbackIds: number[]; byLearner: boolean }[]
+}
+
 export interface Feedback {
   id: number
   ts: string
@@ -232,6 +253,7 @@ export interface Feedback {
   angle?: Angle | null
   updatedAt: string | null
   status: FeedbackStatus
+  ref: FeedbackRef | null
 }
 
 /** One immutable version of a lesson (SPEC §11). */
@@ -254,6 +276,8 @@ export interface DiffChange {
   why: string
   how: string
   technique: string
+  /** Set when the change is outside the part the feedback is about: why it is directly relevant. */
+  relatedBecause?: string
   version: number
   /** The change is in the older side only: going from A to B undoes it. */
   undone: boolean
@@ -312,6 +336,7 @@ export interface State {
   concepts: Concept[]
   cards: SourceCard[]
   playbook: Playbook
+  guidelines: Guidelines | null
   renditions: RenditionSummary[]
   feedback: Feedback[]
   notes: Note[]

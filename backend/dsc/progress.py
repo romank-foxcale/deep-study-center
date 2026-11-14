@@ -13,8 +13,9 @@ if TYPE_CHECKING:
 
 
 def record_evidence(db: DB, cid: str, item_id: str, score: float, *, choice: int | None = None,
-                    angle: str | None = None) -> None:
-    """Append graded practice evidence; schedule the first review when the concept becomes learned."""
+                    angle: str | None = None) -> bool:
+    """Append graded practice evidence; schedule the first review when the concept becomes learned.
+    Returns True when this answer made the concept learned (the lesson is finished: see ``on_finished``)."""
     gid = state.active_goal(db)
     _, before = state.concept_states(db, gid)
     db.x("INSERT INTO evidence(ts, concept_id, item_id, kind, choice, correct, angle, score) VALUES(?,?,?,?,?,?,?,?)",
@@ -29,6 +30,49 @@ def record_evidence(db: DB, cid: str, item_id: str, score: float, *, choice: int
     if cid in after and after[cid].learned_at and not before[cid].learned_at:
         card, due = engine.first_review(after[cid].learned_at)
         db.x("INSERT OR REPLACE INTO reviews VALUES(?,?,?,?)", (cid, card, due, after[cid].learned_at))
+        return True
+    return False
+
+
+def next_lesson(db: DB, cid: str) -> str | None:
+    """The next lesson in roadmap order after ``cid`` that is not learned yet and has a lesson plan."""
+    gid = state.active_goal(db)
+    if not gid:
+        return None
+    concepts, states = state.concept_states(db, gid)
+    ids = [c["id"] for c in concepts]
+    if cid not in ids:
+        return None
+    for nxt in ids[ids.index(cid) + 1:]:
+        card = state.latest_card(db, nxt)
+        if card and card.get("sections") and states[nxt].state not in ("learned", "mastered"):
+            return nxt
+    return None
+
+
+def on_finished(db: DB, jobs: Jobs, cid: str) -> None:
+    """A lesson is finished ("I've read it" or the mastery gate): distill the feedback so far into lesson
+    guidelines, then write the next lesson with them (SPEC §12). Without a model the next lesson is still written."""
+    nxt = next_lesson(db, cid)
+    if jobs.active("distill_guidelines"):
+        if nxt:
+            prewrite(db, jobs, nxt)
+        return
+    jobs.enqueue("distill_guidelines", "Learn from your feedback", {"concept_id": cid, "next": nxt})
+
+
+def prewrite(db: DB, jobs: Jobs, cid: str) -> None:
+    """Write a lesson ahead of time with the current playbook and guidelines (never rewrites a studied or
+    shaped lesson)."""
+    from . import lesson
+    r = lesson.ensure_rendition(db, cid)
+    if not r:
+        return
+    if state.is_stale(r, state.latest_card(db, cid), state.playbook(db)) and not lesson._studied(db, cid, r) \
+            and not lesson._chosen(db, cid):
+        lesson.refresh(db, jobs, cid)
+    else:
+        lesson.ensure_prose(db, jobs, cid)
 
 
 def research_ahead(db: DB, jobs: Jobs) -> str | None:

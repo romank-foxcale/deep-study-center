@@ -78,7 +78,8 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
         if problems:
             return {"status": "blocked", "problems": problems}
         result = runner.run(code, item["tests"], f"{cid}-{item_id}", use_docker=use_docker)
-        progress.record_evidence(db, cid, item_id, 1.0 if result["passed"] else 0.0, angle=body.get("angle"))
+        if progress.record_evidence(db, cid, item_id, 1.0 if result["passed"] else 0.0, angle=body.get("angle")):
+            progress.on_finished(db, jobs, cid)
         return {"status": "ran", **result}
 
     @app.post("/api/activity")

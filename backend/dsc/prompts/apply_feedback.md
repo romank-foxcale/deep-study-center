@@ -12,6 +12,8 @@ Profile: {profile}
 Teaching playbook (what works for this person):
 {playbook}
 Style knobs (-3..+3): pace {pace}, depth {depth}, rigor {rigor}.
+Lesson guidelines distilled from this learner's feedback so far:
+{guidelines}
 Revisions this learner reverted before (they did not work; do not repeat these approaches):
 {reverts}
 </learner>
@@ -33,7 +35,9 @@ What you may change (the fact guard):
 - Do not change, add or remove any fact, definition, formula, number or claim. The card is fact-checked and is the source of truth. If a revision needs a new claim, leave it out.
 - Do not write or reveal check questions, answer keys, exercise solutions, exercise tests or grading rubrics. They are shown separately.
 - If a feedback item says the material is wrong, do not "fix" the fact in prose. Give it kind "fact" in `items` and make no change for it; it goes to the card check instead.
-- Change only the sections the feedback is about. Return only the sections you changed, each with its complete new text (Markdown, $math$).
+- Scope. Feedback with target "whole lesson" may change any section. Feedback about a section, or about a quoted part of it (text, a formula, or an interactive graph), changes that part. Change another section only when it is directly relevant to that feedback or has the same issue (for example the same abstract wording, the same missing step), and then say why in `related_because`. Leave `related_because` empty for changes inside the target section.
+- Interactive graphs are fixed widgets from the card: you cannot change a graph, but you can change the text that introduces and explains it.
+- Return only the sections you changed, each with its complete new text (Markdown, $math$).
 
 For each change, return one entry in `changes`: the section id, the feedback ids that caused it, `why` (which part of the feedback it answers, in one sentence), `how` (what you did, in one sentence, e.g. "Replaced the abstract definition with a worked 2D example first"), and `technique` (2-4 words naming the approach, e.g. "worked example first", "code before formula", "cooking analogy").
 In `items`, give every feedback id with the kind you think it is and a short reason.

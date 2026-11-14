@@ -11,6 +11,8 @@ Goal: {goal}
 Profile: {profile}
 Teaching playbook (what works for this person):
 {playbook}
+Lesson guidelines distilled from this learner's feedback so far (follow them in every section):
+{guidelines}
 Style knobs (-3..+3): pace {pace} (negative = smaller steps, more worked examples), depth {depth} (negative = essentials only), rigor {rigor} (positive = formal statements and proofs earlier).
 </learner>
 
