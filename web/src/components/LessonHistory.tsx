@@ -106,6 +106,7 @@ export default function LessonHistory({ conceptId, versions, head, focus, onClos
                         <span className="pill">v{c.version}{c.undone ? ' · undone' : ''}</span>{' '}
                         <strong>Why:</strong> {c.why} <strong>How:</strong> {c.how}
                         {c.technique && <span className="muted"> · {c.technique}</span>}
+                        {c.relatedBecause && <div className="small"><strong>Also changed here because:</strong> {c.relatedBecause}</div>}
                         {c.feedbackIds.map(id => {
                           const f = fbText(id)
                           return <div key={id} className="muted small">#{id}{f ? `: ${f.text ? `“${f.text}”` : f.tags.join(', ')}${f.deleted ? ' (deleted)' : ''}` : ''}</div>

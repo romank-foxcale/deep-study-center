@@ -52,7 +52,18 @@ units you already know, and the post weekday. See [docs/ROADMAP.md](docs/ROADMAP
 
 ## Status
 
-**Feedback you can apply** (current): every lesson changes with your feedback, and you see how.
+**Personal lessons** (current): feedback on any part of a lesson, lessons that learn from your feedback, and extra
+lessons when you are stuck.
+
+- Select text, or point at a formula or an interactive graph, to give feedback on exactly that part (or add a note).
+  Applying it changes that part, and other parts only where they are directly relevant or have the same issue.
+- Lesson guidelines: when you finish a lesson, the main points and patterns of your feedback are distilled into a
+  short list (Me page, editable). The next lesson is then written with them, and so is every later lesson.
+- Extra lessons: when wrong answers, failed explain-backs, tutor questions or "I got lost" pile up, the lesson offers
+  an extra lesson ("Vectors (b)") aimed at exactly what got in the way. One click adds it; it is researched and
+  fact-checked like any lesson.
+
+**Feedback you can apply** added:
 
 - Apply one or more pieces of feedback to the lesson you are on (from the lesson's Feedback log or Me → Feedback log).
   One agent job writes the next version of the lesson and says, per change, which feedback caused it, why and how.
@@ -155,6 +166,8 @@ backend/dsc/
   lesson.py             renditions: open, refresh, prose cache, render scheduling
   versions.py           lesson versions, revert, word-level prose diff, fact guard for applied feedback
   feedback.py           feedback kinds, the playbook signals each item owns, edit and delete
+  guidelines.py         lesson guidelines distilled from feedback patterns (versioned, editable)
+  remedial.py           struggle signals and extra lessons ("Vectors (b)")
   jobs.py               agent jobs (research, outline, render, tutor, roadmap review, fact-check,
                         grading, placement quiz, reflection) + offline fallbacks
   progress.py           evidence recording, research one module ahead

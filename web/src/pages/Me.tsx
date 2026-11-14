@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { jobActive, useStore } from '../store'
 import Markdown from '../components/Markdown'
 import { Link } from 'react-router-dom'
@@ -83,6 +84,8 @@ export default function Me() {
         })()}
       </div>
 
+      <Guidelines />
+
       <div className="card">
         <h2>Adjustments</h2>
         {ADJUST.map(a => (
@@ -118,6 +121,55 @@ export default function Me() {
           <ul className="plain">{s.notes.map(n => <li key={n.id}><span className="muted small">{s.concepts.find(c => c.id === n.conceptId)?.title}:</span> {n.text}</li>)}</ul>
         )}
       </div>
+    </div>
+  )
+}
+
+/** Lesson guidelines: the main points and patterns of your feedback, followed by every new lesson (SPEC §12). */
+function Guidelines() {
+  const { s, dispatch } = useStore()
+  const g = s.guidelines
+  const [editing, setEditing] = useState<string | null>(null)
+  const busy = jobActive(s, 'distill_guidelines')
+  const save = async () => {
+    if (editing === null) return
+    if (await dispatch({ type: 'editGuidelines', lines: editing.split('\n').map(l => l.trim()).filter(Boolean) })) setEditing(null)
+  }
+  return (
+    <div className="card">
+      <div className="row row-between">
+        <h2>Lesson guidelines</h2>
+        <span className="row">
+          {g && <span className="pill">v{g.version}</span>}
+          <button className="btn btn-small" disabled={busy} onClick={() => dispatch({ type: 'distillGuidelines' })}>
+            {busy ? 'Learning from your feedback…' : 'Update from my feedback'}</button>
+          {editing === null && <button className="btn btn-small" onClick={() => setEditing((g?.items ?? []).map(i => i.text).join('\n'))}>Edit</button>}
+        </span>
+      </div>
+      <p className="muted small">The main points and patterns in your feedback. Every new lesson and every applied revision follows them.
+        They are updated when you finish a lesson, and the next lesson is then written with them. Lines you write or keep stay.</p>
+      {editing !== null ? (
+        <div className="col">
+          <textarea className="input" rows={6} value={editing} onChange={e => setEditing(e.target.value)} aria-label="Guidelines, one per line"
+            placeholder="One guideline per line, e.g. Start each idea with a tiny numeric example" />
+          <div className="row row-end">
+            <button className="btn btn-small" onClick={() => setEditing(null)}>Cancel</button>
+            <button className="btn btn-small btn-primary" onClick={save}>Save</button>
+          </div>
+        </div>
+      ) : !g || g.items.length === 0 ? <p className="muted">None yet. They appear after you give feedback and finish a lesson.</p> : (
+        <ol className="guidelines">
+          {g.items.map((it, i) => (
+            <li key={i}>
+              {it.text} {it.byLearner && <span className="pill pill-ok">yours</span>}
+              {(it.why || it.feedbackIds.length > 0) && (
+                <div className="muted small">{it.why}{it.feedbackIds.length > 0 && ` (feedback ${it.feedbackIds.map(x => '#' + x).join(', ')})`}</div>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+      {g && <p className="muted small">{g.source === 'learner' ? 'Edited by you' : g.summary} · {new Date(g.ts).toLocaleString()}</p>}
     </div>
   )
 }

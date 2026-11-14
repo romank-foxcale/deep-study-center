@@ -313,3 +313,11 @@ a.concept:hover { background: var(--surface-2); text-decoration: none; }
 .pd-notes { margin: 0; padding: 8px 12px 10px 30px; border-top: 1px dashed var(--border); font-size: 0.86rem; display: flex; flex-direction: column; gap: 6px; }
 .pd-undone { opacity: 0.75; }
 .pd-same .pd-text { color: var(--muted); }
+
+/* feedback on a chosen part, extra lessons, guidelines (SPEC §12) */
+.ref-quote { margin: 6px 0; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; font-size: 0.88rem; }
+.ref-quote .md { display: inline; }
+.banner-accent { background: var(--accent-soft); }
+.viz-block { display: flex; flex-direction: column; gap: 2px; }
+.viz-tools { display: flex; gap: 14px; justify-content: flex-end; }
+.guidelines { margin: 6px 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }

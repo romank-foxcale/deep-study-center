@@ -2,16 +2,20 @@
 // /api/action and return the next snapshot. While agent jobs run, the snapshot is polled.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Angle, FeedbackKind, LessonDiff, LessonView, Plan, RunResult, SearchHit, State, Verdict } from './types'
+import type { Angle, FeedbackKind, FeedbackRef, LessonDiff, LessonView, Plan, RunResult, SearchHit, State, Verdict } from './types'
 
 export type Action =
   | { type: 'answer'; conceptId: string; checkId: string; angle?: Angle; choice?: number; correct?: boolean }
   | { type: 'review'; conceptId: string; checkId: string; choice: number }
-  | { type: 'feedback'; conceptId: string; sectionId?: string; angle?: Angle; available?: Angle[]; tags: string[]; text: string; kind?: FeedbackKind }
+  | { type: 'feedback'; conceptId: string; sectionId?: string; angle?: Angle; available?: Angle[]; tags: string[]; text: string; kind?: FeedbackKind; ref?: FeedbackRef }
   | { type: 'editFeedback'; id: number; tags?: string[]; text?: string; kind?: FeedbackKind }
   | { type: 'deleteFeedback'; id: number }
   | { type: 'applyFeedback'; conceptId: string; ids: number[] }
   | { type: 'revertLesson'; conceptId: string; version: number }
+  | { type: 'addRemedial'; conceptId: string }
+  | { type: 'dismissRemedial'; conceptId: string }
+  | { type: 'editGuidelines'; lines: string[] }
+  | { type: 'distillGuidelines' }
   | { type: 'explainDifferently'; conceptId: string; sectionId: string }
   | { type: 'refresh'; conceptId: string }
   | { type: 'markStudied'; conceptId: string }
