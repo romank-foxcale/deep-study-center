@@ -17,6 +17,7 @@ export default function GoalSetup() {
   const [answers, setAnswers] = useState<string[]>([])
   const [text, setText] = useState('')
   const [submitted, setSubmitted] = useState<{ at: string; goalBefore?: string } | null>(null)
+  const [layout, setLayout] = useState<'ohtani' | 'list'>('ohtani')
   const logRef = useRef<HTMLDivElement>(null)
   useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }) }, [log.length, s.jobs])
 
@@ -24,7 +25,7 @@ export default function GoalSetup() {
     if (!answer.trim()) return
     const next = answers.length + 1
     const reply = next < QUESTIONS.length ? QUESTIONS[next]
-      : 'Thanks, that’s everything I need. I’ll research the field, keep only the best sources, and build your roadmap. You can change anything afterwards.'
+      : 'Thanks, that’s everything I need. Choose the shape of your roadmap below. I’ll research the field, keep only the best sources, and build it. You can change anything afterwards.'
     setLog(l => [...l, { role: 'me', text: answer }, { role: 'tutor', text: reply }])
     setAnswers(a => [...a, answer]); setText('')
   }
@@ -32,7 +33,7 @@ export default function GoalSetup() {
 
   const build = () => {
     setSubmitted({ at: new Date().toISOString(), goalBefore: s.goal?.id })
-    dispatch({ type: 'createGoal', answers: QUESTIONS.map((q, i) => ({ q, a: answers[i] ?? '' })) })
+    dispatch({ type: 'createGoal', layout, answers: QUESTIONS.map((q, i) => ({ q, a: answers[i] ?? '' })) })
   }
 
   const jobs = submitted
@@ -73,7 +74,17 @@ export default function GoalSetup() {
             </div>
           </div>
         ) : !submitted && (
-          <button className="btn btn-primary" onClick={build}>Build my roadmap</button>
+          <div className="layout-pick">
+            <fieldset>
+              <legend className="small muted">Roadmap shape</legend>
+              <label><input type="radio" name="layout" checked={layout === 'ohtani'} onChange={() => setLayout('ohtani')} />
+                <span><strong>Ohtani table</strong> <span className="muted small">8 areas × 8 steps around your goal, plus 8 steps that
+                merge neighbouring areas. A grid you fill as you learn.</span></span></label>
+              <label><input type="radio" name="layout" checked={layout === 'list'} onChange={() => setLayout('list')} />
+                <span><strong>Classic roadmap</strong> <span className="muted small">3–7 tracks of modules, sized to the goal.</span></span></label>
+            </fieldset>
+            <button className="btn btn-primary" onClick={build}>{layout === 'ohtani' ? 'Build my Ohtani table' : 'Build my roadmap'}</button>
+          </div>
         )}
       </div>
     </div>

@@ -339,7 +339,8 @@ def create_goal(db: DB, jobs: Jobs, a: dict) -> None:
     answers = a.get("answers") or []
     if not answers or not answers[0].get("a", "").strip():
         raise ActionError("the goal is required")
-    jobs.enqueue("outline", "Build roadmap", {"answers": answers})
+    layout = "list" if a.get("layout") == "list" else "ohtani"
+    jobs.enqueue("outline", "Build Ohtani table" if layout == "ohtani" else "Build roadmap", {"answers": answers, "layout": layout})
 
 
 def set_goal(db: DB, jobs: Jobs, a: dict) -> None:

@@ -88,7 +88,7 @@ def research_ahead(db: DB, jobs: Jobs) -> str | None:
     if not gid:
         return None
     modules = db.q("""SELECT m.* FROM modules m JOIN tracks t ON t.id = m.track_id
-                      WHERE t.goal_id = ? AND m.known = 0 ORDER BY t.ord, m.ord""", (gid,))
+                      WHERE t.goal_id = ? AND m.known = 0 ORDER BY m.seq, t.ord, m.ord""", (gid,))
     if not modules:
         return None
     concepts, states = state.concept_states(db, gid)

@@ -292,3 +292,30 @@ The learner applies their own feedback to the current lesson, sees exactly what 
   questions, feedback and its quotes, all as learner data). The card is fact-checked as usual.
 - Fix: when a single inserted lesson fails to research, the module returns to its earlier research status instead of
   "outline" (which made the whole module research again).
+
+## 13. Ohtani table roadmaps (2026-11-18)
+A goal has a `layout`: `list` (the classic roadmap above) or `ohtani` (the default for new goals), chosen on the goal
+setup page. An Ohtani table (Mandala Chart) is a 9x9 grid of nine 3x3 blocks:
+
+- **Goal**: the center cell of the center block.
+- **Areas**: 8 tracks, one per outer block. `tracks.pos` is the block (TL, TM, TR, MR, BR, BM, BL, ML: clockwise from the
+  top left). The area name is the block's center cell; its 8 modules ("steps") fill the cells around it, clockwise from
+  the top-left cell. A step's concepts are its sub-steps, as many as the step needs.
+- **Merges**: a ninth track with `pos` C. Its 8 modules fill the cells around the goal; merge i joins area i with its
+  clockwise neighbour (the cell at C.TL joins TL and TM). `modules.requires` lists the steps of those two areas it
+  builds on. The outline prompt (`outline_ohtani.md`) orders the areas so that ring neighbours have real synergy.
+- Every step has `modules.done_when`, a concrete check. Research gets it in the module brief; a merge's brief also
+  names the steps it merges.
+- **Order**: the outline gives each step a wave (1-12). `modules.seq` = steps sorted by wave and interleaved across
+  areas, each merge right after the last step it requires (`ohtani.build`). Every "roadmap order" query (research
+  ahead, next lesson, weekly plan, placement) sorts by `m.seq, t.ord, m.ord`; classic goals have seq 0 everywhere, so
+  their order is unchanged.
+- **Locks**: the concepts of a module with `requires` get every concept of the required modules as extra prerequisites
+  (a required module that is not researched yet adds a placeholder, so the merge stays locked; one placement marked as
+  known adds nothing). Placeholders never appear in the snapshot.
+- Placement asks only about area steps, not merges.
+- **Grid** (Roadmap page): a cell fills bottom-up by learned/total concepts (known = full); an area cell and the goal
+  show the average of their steps. Locked merges are dimmed, the step of the next lesson has a ring, and the cells a
+  picked merge builds on are outlined. The detail panel shows the step's "done when", progress, requirements and a
+  link to its lessons in the list below the grid.
+

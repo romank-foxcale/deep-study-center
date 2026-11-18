@@ -24,7 +24,7 @@ export type Action =
   | { type: 'chat'; conceptId: string; text: string; sectionHeading?: string }
   | { type: 'decideDiff'; id: number; approve: boolean }
   | { type: 'researchModule'; moduleId: string }
-  | { type: 'createGoal'; answers: { q: string; a: string }[] }
+  | { type: 'createGoal'; answers: { q: string; a: string }[]; layout: 'ohtani' | 'list' }
   | { type: 'setGoal'; id: string }
   | { type: 'correctEntry'; id: string; verdict: Verdict | 'remove' }
   | { type: 'adjust'; key: 'pace' | 'depth' | 'rigor'; value: number }
