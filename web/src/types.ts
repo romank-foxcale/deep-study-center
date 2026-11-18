@@ -65,6 +65,12 @@ export type VizSpec =
   | { type: 'lincomb2d'; caption: string; u: number[]; v: number[]; target?: number[] }
   | { type: 'matrix2d'; caption: string; matrix: number[][] }
   | { type: 'plot'; caption: string; expr: string; xmin: number; xmax: number; params: { name: string; min: number; max: number; value: number }[] }
+  | { type: 'formula'; caption: string; tex: string
+      parts: { id: string; tex: string; label: string; color: string; side: 'above' | 'below'; param: string | null
+        expr?: string; variants?: { tex: string; expr: string; why: string }[] }[]
+      checks?: { kind: 'area' | 'peak' | 'at' | 'result'; label: string; at?: number; expect?: number }[]
+      params: { name: string; min: number; max: number; value: number; effect: string }[]
+      resultExpr?: string; resultTex?: string; plotExpr?: string; plotVar?: string; xmin?: number; xmax?: number }
 
 export interface PlanItem { kind: 'review' | 'lesson'; goalId: string; conceptId: string; title: string; minutes: number; note: string }
 
@@ -182,6 +188,21 @@ export interface LessonSectionView {
   code: CodeExercise | null
   explain: ExplainItem | null
   viz: VizSpec | null
+  /** The graph / quiz question was made for this learner by the lesson writer (not the card's one). */
+  vizMine: boolean
+  checkMine: boolean
+}
+
+/** How the lesson was written for this learner: the planner's summary and briefs, and the reviewer's findings. */
+export interface LessonPlan {
+  summary: string
+  briefs: Record<string, string>
+  review: {
+    summary: string
+    issues: { sectionId: string; part: 'prose' | 'viz' | 'check'; problem: string; fix: string; source: string }[]
+    fixed: string[]
+    dropped: string[]
+  } | null
 }
 
 /** Knowledge center #2 output for one lesson, as the page shows it. */
@@ -203,6 +224,7 @@ export interface LessonView {
   remedial: { id: string; title: string; reasons: string[]; score: number } | null
   /** Extra lessons already added for this lesson ("Vectors (b)", …). */
   extraLessons: { id: string; title: string }[]
+  plan: LessonPlan | null
 }
 
 export interface PlaybookEntry {
@@ -322,7 +344,14 @@ export interface ChatMessage { role: 'tutor' | 'me'; text: string }
 
 export interface Answer { choice: number | null; correct: boolean; score?: number | null; answer?: number; explanation?: string }
 
-export interface ProviderRoute { role: string; description: string; provider: Provider; model: string }
+export interface ProviderRoute {
+  role: string
+  description: string
+  provider: Provider
+  model: string
+  /** The recommended provider and model for this job, and why. */
+  recommended: { provider: Provider; model: string; why: string } | null
+}
 
 export interface ProviderStatus { id: Provider; cli: string; detected: boolean; implemented: boolean; models: string[] }
 
@@ -361,7 +390,7 @@ export interface State {
   gradings: Record<string, Grading>
   placement: PlacementState | null
   reflections: Reflection[]
-  settings: { autoResearch: boolean; autoRefresh: boolean; weeklyHours: number; studyDays: number[]; startTime: string }
+  settings: { autoResearch: boolean; autoRefresh: boolean; lessonWriting: 'steps' | 'single'; weeklyHours: number; studyDays: number[]; startTime: string }
   cardProposals: CardProposal[]
   library: LibraryCard[]
   runner: { setUp: boolean; packages: string[]; mode: 'local' | 'docker'; dockerReady: boolean }

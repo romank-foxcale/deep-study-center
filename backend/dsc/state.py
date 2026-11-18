@@ -107,12 +107,13 @@ def answers(db: DB, concept_ids: list[str]) -> dict:
         return out
     rows = db.q(f"""SELECT * FROM evidence WHERE voided=0 AND kind='practice' AND concept_id IN ({','.join('?' * len(concept_ids))})
                     ORDER BY id""", concept_ids)
+    from .writer import effective_sections  # quiz questions made for this learner have their own keys
     cards = {cid: latest_card(db, cid) for cid in {r["concept_id"] for r in rows}}
+    secs = {cid: effective_sections(db, cid, c) + (c or {}).get("sections", []) for cid, c in cards.items()}
     for r in rows:
         key = f'{r["concept_id"]}:{r["item_id"]}'
         item = {"choice": r["choice"], "correct": bool(r["correct"]), "score": r["score"]}
-        check = next((s["check"] for s in (cards[r["concept_id"]] or {}).get("sections", [])
-                      if s.get("check", {}).get("id") == r["item_id"]), None)
+        check = next((s["check"] for s in secs[r["concept_id"]] if (s.get("check") or {}).get("id") == r["item_id"]), None)
         if check:
             item.update(answer=check["answer"], explanation=check["explanation"])
         out[key] = item
@@ -268,6 +269,7 @@ def settings(db: DB) -> dict:
     from . import planner
     p = planner.settings(db)
     return {"autoResearch": db.meta("auto_research", "1") == "1", "autoRefresh": db.meta("auto_refresh", "1") == "1",
+            "lessonWriting": db.meta("lesson_writing", "steps"),
             "weeklyHours": p["weekly_hours"], "studyDays": p["study_days"], "startTime": p["start_time"]}
 
 
@@ -327,7 +329,10 @@ def reflections(db: DB) -> list[dict]:
 
 
 def routes(db: DB) -> list[dict]:
-    return [{"role": r["role"], "description": r["description"], "provider": r["provider"], "model": r["model"]}
+    rec = providers.RECOMMENDED
+    return [{"role": r["role"], "description": r["description"], "provider": r["provider"], "model": r["model"],
+             "recommended": {"provider": rec[r["role"]][0], "model": rec[r["role"]][1], "why": rec[r["role"]][2]}
+             if r["role"] in rec else None}
             for r in db.q("SELECT * FROM routes ORDER BY ord")]
 
 

@@ -128,6 +128,12 @@ CREATE TABLE IF NOT EXISTS guidelines (
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, items TEXT NOT NULL, source TEXT NOT NULL,
   summary TEXT NOT NULL DEFAULT '');
 
+-- Writing one learner's lesson in steps (SPEC §14): the planner's plan, the graphs and quiz questions made for this
+-- learner, and the reviewer's findings, per (lesson, card version). The card itself never changes.
+CREATE TABLE IF NOT EXISTS lesson_plans (
+  concept_id TEXT NOT NULL, card_version INTEGER NOT NULL, ts TEXT NOT NULL, plan TEXT NOT NULL DEFAULT '{}',
+  assets TEXT NOT NULL DEFAULT '{}', review TEXT NOT NULL DEFAULT '{}', PRIMARY KEY (concept_id, card_version));
+
 CREATE TABLE IF NOT EXISTS routes (
   role TEXT PRIMARY KEY, ord INTEGER NOT NULL, description TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS jobs (

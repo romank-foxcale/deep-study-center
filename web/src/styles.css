@@ -288,23 +288,19 @@ a.concept:hover { background: var(--surface-2); text-decoration: none; }
 .fb-group { margin-top: 14px; }
 .fb-group h3 { margin-bottom: 6px; }
 .effects-box summary { cursor: pointer; }
-.kind-picker { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.88rem; }
-.kind-picker label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+.kind-picker { display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px 10px; margin: 0; }
+.worked { display: flex; flex-direction: column; gap: 6px; }
+.kind-picker label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.kind-picker input { margin-top: 4px; }
 
 /* lesson versions and the prose diff: deleted red, inserted green, in both themes */
 .modal-wide { width: min(1100px, 100%); max-height: calc(100vh - 32px); overflow: auto; }
-.history { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
-@media (max-width: 800px) { .history { grid-template-columns: 1fr; } }
-.version-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.version { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; }
-.version-head { border-color: var(--ok); }
-.version-b { box-shadow: inset 3px 0 0 var(--accent); }
-.diff-pane { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
-.diff-pick { flex-wrap: wrap; }
-.pd-legend { display: flex; gap: 8px; }
+.diff-pane { min-width: 0; display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.pd-version { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-top: 8px; }
+.pd-legend { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
 .pd-section { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .pd-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 6px 12px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
-.pd-text { padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.92rem; line-height: 1.65; }
+.pd-text { padding: 2px 12px; overflow-wrap: anywhere; font-size: 0.95rem; line-height: 1.65; }
 .pd-del { background: var(--bad-soft); color: var(--bad); text-decoration: line-through; text-decoration-thickness: 1px; border-radius: 3px; }
 .pd-ins { background: var(--ok-soft); color: var(--ok); text-decoration: none; border-radius: 3px; }
 .pd-legend .pd-del, .pd-legend .pd-ins { padding: 0 6px; }
@@ -312,7 +308,6 @@ a.concept:hover { background: var(--surface-2); text-decoration: none; }
 .pd-count-del { color: var(--bad); font-weight: 600; }
 .pd-notes { margin: 0; padding: 8px 12px 10px 30px; border-top: 1px dashed var(--border); font-size: 0.86rem; display: flex; flex-direction: column; gap: 6px; }
 .pd-undone { opacity: 0.75; }
-.pd-same .pd-text { color: var(--muted); }
 
 /* feedback on a chosen part, extra lessons, guidelines (SPEC §12) */
 .ref-quote { margin: 6px 0; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; font-size: 0.88rem; }
@@ -369,3 +364,123 @@ a.concept:hover { background: var(--surface-2); text-decoration: none; }
   .og-cell { padding: 1px; border-radius: 3px; }
   .og-step .og-label, .og-merge .og-label { display: none; }
 }
+
+/* a dialog title with its one-line subtitle directly under it */
+.modal-head h3 { margin: 0; }
+.modal-head p { margin: 2px 0 0; }
+
+/* change markers around a display formula render as empty paragraphs */
+.pd-text .md p:empty { display: none; }
+
+/* how a lesson was written for this learner (planner, review) and "made for you" marks */
+.plan-note { margin: 4px 0 10px; font-size: 0.9rem; border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; background: var(--surface); }
+.plan-note summary { cursor: pointer; color: var(--muted); }
+.plan-note p { margin: 6px 0; }
+.plan-note ul { margin: 4px 0 6px; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.mine-note { display: flex; justify-content: flex-end; margin-bottom: -4px; }
+.viz-tools .pill { margin-right: auto; }
+
+/* Settings: the recommended model per job */
+.table td.rec { min-width: 220px; max-width: 340px; }
+
+/* a Python block in lesson text that the learner edits and runs (Pyodide) */
+.runnable { margin: 10px 0; display: flex; flex-direction: column; gap: 6px; }
+.runnable .code-editor { resize: none; overflow-y: hidden; overflow-x: auto; white-space: pre; min-height: 0; }
+.runnable-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.runnable .code-output { background: var(--surface-2); border-radius: 8px; padding: 8px 12px; }
+
+/* IDE-style code (a dark editor theme in both app themes): lesson code blocks, runnable blocks and exercises */
+.ide, .md pre, pre.code-output {
+  --ide-bg: #1e1e1e; --ide-fg: #d4d4d4; --ide-gutter: #858585; --ide-line: #2a2a2a;
+}
+.md pre { background: var(--ide-bg); color: var(--ide-fg); border: 1px solid #333; }
+.md pre code { color: inherit; }
+.ide { display: flex; background: var(--ide-bg); border: 1px solid #333; border-radius: 8px; overflow: hidden;
+  font: 0.88rem/1.55 var(--mono); }
+.ide-gutter { flex: none; padding: 10px 8px 10px 10px; text-align: right; color: var(--ide-gutter); background: #1b1b1b;
+  border-right: 1px solid var(--ide-line); user-select: none; min-width: 2.6em; }
+.ide-code { position: relative; flex: 1; min-width: 0; }
+.ide-highlight, .ide-input { margin: 0; padding: 10px 12px; font: inherit; white-space: pre; tab-size: 4; letter-spacing: 0; }
+.ide-highlight { position: absolute; inset: 0; overflow: hidden; color: var(--ide-fg); pointer-events: none; background: none; border: 0; border-radius: 0; }
+.ide-input { position: relative; display: block; width: 100%; resize: none; border: 0; outline: none; background: transparent;
+  color: transparent; caret-color: #aeafad; overflow-x: auto; overflow-y: hidden; }
+.ide-input::selection { background: rgba(38, 79, 120, 0.85); color: transparent; }
+.ide:focus-within { border-color: #3b8eea; }
+.tk-comment { color: #6a9955; font-style: italic; }
+.tk-string { color: #ce9178; }
+.tk-number { color: #b5cea8; }
+.tk-keyword { color: #c586c0; }
+.tk-builtin { color: #4ec9b0; }
+.tk-function { color: #dcdcaa; }
+.tk-decorator { color: #dcdcaa; }
+.tk-operator { color: #d4d4d4; }
+pre.code-output { background: #181818; color: #cccccc; border: 1px solid #333; border-radius: 8px; padding: 8px 12px; }
+pre.code-output.bad { color: #f48771; }
+.runnable .code-output { background: #181818; }
+.btn-run { background: #2ea043; border-color: #2ea043; color: #fff; font-weight: 600; }
+.btn-run:hover:not(:disabled) { background: #3fb950; border-color: #3fb950; }
+.btn-run:disabled { opacity: 0.6; }
+
+/* explorable formula (viz "formula"): colored parts, hover tooltip, legend with sliders, the formula with your values */
+.formula-w { display: flex; flex-direction: column; gap: 10px; }
+.formula-stage { position: relative; user-select: none; padding: 6px 0; }
+.formula-math .katex-display { margin: 0.4em 0; }
+.formula-math .katex { font-size: 1.45em; }
+.formula-math .fparam, .formula-math [class*="fpp-"] { cursor: ew-resize; }
+.formula-math [class*="fp-"]:hover, .formula-math [class*="fpp-"]:hover { background: rgba(127, 127, 127, 0.18); border-radius: 4px; }
+.formula-tip { position: absolute; transform: translate(-50%, calc(-100% - 8px)); background: var(--surface); border: 1px solid;
+  border-radius: 8px; padding: 4px 10px; font-size: 0.82rem; white-space: nowrap; box-shadow: var(--shadow); pointer-events: none; z-index: 2; }
+.formula-legend { display: flex; flex-direction: column; gap: 4px; }
+.formula-row { display: grid; grid-template-columns: minmax(4.5em, 9em) 1fr auto; gap: 10px; align-items: center; padding: 3px 8px;
+  border-left: 3px solid var(--c); border-radius: 4px; font-size: 0.88rem; }
+.formula-row.on { background: color-mix(in srgb, var(--c) 12%, transparent); }
+.formula-sym { text-align: center; }
+.formula-desc { color: var(--c); }
+.formula-control { display: flex; align-items: center; gap: 8px; }
+.formula-control input[type=range] { width: 150px; accent-color: var(--c); }
+.formula-val { font: 0.85rem var(--mono); min-width: 3.2em; text-align: right; }
+.formula-now { border-top: 1px dashed var(--border); padding-top: 6px; }
+.formula-now .katex-display { margin: 0.2em 0; }
+.formula-change { font-size: 0.88rem; border-left: 3px solid; padding: 4px 10px; background: var(--surface-2); border-radius: 4px; }
+.formula-plot { width: 100%; max-width: 560px; align-self: center; height: auto; }
+.formula-curve { fill: none; stroke-width: 2.2; }
+.formula-curve-start { fill: none; stroke: var(--muted); stroke-width: 1.4; stroke-dasharray: 5 4; }
+
+/* formula "what if": edit a part in the legend; real and yours side by side (or stacked); why; live checks */
+.formula-sym { background: none; border: 1px solid transparent; border-radius: 6px; padding: 2px 6px; font: inherit; color: inherit; }
+.formula-sym.editable { cursor: text; border-color: color-mix(in srgb, var(--c) 40%, transparent); border-style: dashed; }
+.formula-sym.editable:hover { background: color-mix(in srgb, var(--c) 12%, transparent); }
+.formula-sym.edited { border-style: solid; border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
+.formula-sym:disabled { cursor: default; }
+.formula-edit input { width: 100%; min-width: 0; font-family: var(--mono); border-color: var(--c); }
+.formula-edit input.bad { border-color: var(--bad); }
+.formula-pair { display: flex; align-items: center; justify-content: center; gap: 18px; }
+.formula-pair.stacked { flex-direction: column; align-items: stretch; gap: 6px; }
+.formula-side { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.formula-side .formula-math .katex { font-size: 1.05em; }
+.formula-tag { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 99px; padding: 0 8px; }
+.formula-tag.yours { color: var(--accent); border-color: var(--accent); }
+.formula-sep { align-self: stretch; width: 1px; background: var(--border); }
+.formula-pair.stacked .formula-sep { width: auto; height: 1px; }
+.formula-math .fchanged { outline: 2px dashed currentColor; outline-offset: 3px; border-radius: 4px; }
+.formula-why { font-size: 0.88rem; border-left: 3px solid; padding: 6px 10px; background: var(--surface-2); border-radius: 4px; }
+.formula-checks { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+.formula-checks th, .formula-checks td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.formula-checks th { color: var(--muted); font-weight: 600; }
+.ok-text { color: var(--ok); font-weight: 700; }
+.bad-text { color: var(--bad); }
+
+.formula-plot-legend rect { fill: var(--surface); stroke: var(--border); }
+.formula-plot-legend text { fill: var(--text); font-size: 12px; }
+
+/* editing a formula part: the input takes the row's width; collapsible blocks under the formula */
+.formula-row.editing { grid-template-columns: 1fr auto; }
+.formula-row.editing .formula-edit { grid-column: 1; grid-row: 1; }
+.formula-row.editing .formula-control { grid-column: 2; grid-row: 1; }
+.formula-row.editing .formula-desc { grid-column: 1 / -1; grid-row: 2; }
+.formula-edit input { font-size: 0.95rem; padding: 6px 10px; }
+.formula-fold { border-top: 1px dashed var(--border); padding-top: 6px; }
+.formula-fold > summary { cursor: pointer; color: var(--muted); font-size: 0.82rem; user-select: none; }
+.formula-fold > summary:hover { color: var(--text); }
+.formula-fold .katex-display { margin: 0.3em 0; }

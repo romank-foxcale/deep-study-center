@@ -52,7 +52,12 @@ units you already know, and the post weekday. See [docs/ROADMAP.md](docs/ROADMAP
 
 ## Status
 
-**Ohtani table** (current): a new goal can be built as an Ohtani table (a Mandala Chart), the default shape.
+**Lessons written in steps** (current): a whole lesson is planned, its graphs and quiz questions are made for you,
+its text is written, and a reviewer checks it against your lesson guidelines and feedback before you see it (one round
+of fixes). Each section's angle is a mix that follows the section's purpose and your playbook, not one angle everywhere.
+The lesson page shows how it was written; graphs and questions made for you are marked.
+
+**Ohtani table** added: a new goal can be built as an Ohtani table (a Mandala Chart), the default shape.
 
 - The goal is in the middle of a 9x9 grid. 8 areas (for example Linear Algebra, Statistics) sit around it, each with
   8 steps; every step has as many lessons as it needs.

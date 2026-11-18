@@ -12,7 +12,7 @@ import FeedbackDialog from '../components/FeedbackDialog'
 import LessonHistory from '../components/LessonHistory'
 import SidePanel, { SourceCardView, type Tab } from '../components/SidePanel'
 import StateBadge, { MasteryBar } from '../components/StateBadge'
-import { formulaAt, refFromSelection, sectionOf } from '../components/selection'
+import { refFromSelection } from '../components/selection'
 import type { FeedbackRef } from '../types'
 
 export default function Lesson() {
@@ -34,8 +34,6 @@ export default function Lesson() {
   const lastHead = useRef<number | null>(null)
   const [current, setCurrent] = useState<string | undefined>()
   const [selection, setSelection] = useState<{ text: string; ref: FeedbackRef | null; top: number; left: number } | null>(null)
-  const [mathTool, setMathTool] = useState<{ ref: FeedbackRef; top: number; left: number } | null>(null)
-  const mathHide = useRef(0)
   const article = useRef<HTMLElement>(null)
 
   // Opening the lesson applies playbook changes (re-renders if it isn't studied yet).
@@ -86,8 +84,15 @@ export default function Lesson() {
     return () => clearTimeout(t)
   }, [toast])
 
+  // A widget (e.g. the "what if" of a formula) can send a question to the tutor.
   useEffect(() => {
-    const hide = () => { setSelection(null); setMathTool(null) }
+    const ask = (e: Event) => { setTab('tutor'); setDraft({ tab: 'tutor', text: (e as CustomEvent<string>).detail }) }
+    window.addEventListener('dsc:ask-tutor', ask)
+    return () => window.removeEventListener('dsc:ask-tutor', ask)
+  }, [])
+
+  useEffect(() => {
+    const hide = () => setSelection(null)
     window.addEventListener('scroll', hide, true)
     return () => window.removeEventListener('scroll', hide, true)
   }, [])
@@ -100,23 +105,6 @@ export default function Lesson() {
     if (!sel || text.length < 3 || !article.current?.contains(sel.anchorNode)) { setSelection(null); return }
     const r = sel.getRangeAt(0).getBoundingClientRect()
     setSelection({ text: text.slice(0, 300), ref: refFromSelection(sel), top: Math.max(8, r.top - 44), left: r.left + r.width / 2 })
-    setMathTool(null)
-  }
-
-  // Hovering a formula in the lesson text offers feedback or a note about exactly that formula. The toolbar
-  // stays a moment after the mouse leaves the formula, so it can be reached.
-  const onMouseMove = (e: React.MouseEvent) => {
-    const t = e.target as Element
-    const k = t.closest('button') ? null : formulaAt(t)
-    const quote = k?.querySelector('annotation[encoding="application/x-tex"]')?.textContent?.trim() ?? ''
-    if (!k || !k.closest('.lesson-section') || quote.length < 3) {
-      if (mathTool && !mathHide.current) mathHide.current = window.setTimeout(() => { setMathTool(null); mathHide.current = 0 }, 700)
-      return
-    }
-    window.clearTimeout(mathHide.current); mathHide.current = 0
-    if (mathTool?.ref.quote === quote) return
-    const r = k.getBoundingClientRect()
-    setMathTool({ ref: { kind: 'formula', quote, sectionId: sectionOf(k) }, top: Math.max(8, r.top - 40), left: r.left + r.width / 2 })
   }
   const sectionTitle = (sid?: string | null) => sections.find(x => x.id === sid)?.heading
   const feedbackOn = (ref: FeedbackRef) => {
@@ -137,7 +125,7 @@ export default function Lesson() {
 
   return (
     <div className="lesson-layout">
-      <article className="lesson" ref={article} onMouseUp={onMouseUp} onMouseMove={onMouseMove}>
+      <article className="lesson" ref={article} onMouseUp={onMouseUp}>
         <div className="crumbs"><Link to="/roadmap">{track?.title}</Link> › {module?.title}</div>
         <header className="lesson-head">
           <h1>{concept.title}</h1>
@@ -148,14 +136,35 @@ export default function Lesson() {
             <span className="muted small">~{concept.minutes} min</span>
             {rendition && <span className="muted small">Rendered from card v{rendition.cardVersion} · playbook v{rendition.playbookVersion}</span>}
             {view && view.head !== null && (
-              <button className="pill pill-button" onClick={() => setHistory({})} title="Lesson versions: compare and go back">
-                Version v{view.head}{view.versions.length > 1 ? ` of ${view.versions.length}` : ''} · history
+              <button className="pill pill-button" onClick={() => setHistory({})} title="What changed between versions of this lesson; go back to any version">
+                Change log ({view.head} of {view.versions.length})
               </button>
             )}
             <span className="spacer" />
-            <button className="btn" onClick={() => setFeedbackFor({ label: 'this lesson' })}>Give feedback</button>
+            <button className="btn" onClick={() => setFeedbackFor({ label: 'the whole lesson' })}
+              title="Feedback about the lesson as a whole. For one section, use its Feedback button; for one part, select it.">Add lesson feedback</button>
           </div>
         </header>
+
+        {view?.plan && (
+          <details className="plan-note">
+            <summary>How this lesson was written for you{view.plan.review
+              ? ` · reviewed: ${view.plan.review.issues.length ? `${view.plan.review.issues.length} problem${view.plan.review.issues.length > 1 ? 's' : ''} found, ${view.plan.review.fixed.length} section${view.plan.review.fixed.length === 1 ? '' : 's'} rewritten` : 'no problems'}`
+              : ''}</summary>
+            <p><strong>Plan:</strong> {view.plan.summary}</p>
+            {view.plan.review && <p><strong>Review:</strong> {view.plan.review.summary}</p>}
+            {view.plan.review && view.plan.review.issues.length > 0 && (
+              <ul className="small">
+                {view.plan.review.issues.map((i, n) => (
+                  <li key={n}><strong>{sections.find(x => x.id === i.sectionId)?.heading ?? i.sectionId}</strong> ({i.part === 'prose' ? 'text' : i.part === 'viz' ? 'graph' : 'quiz question'}):
+                    {' '}{i.problem} <span className="muted">→ {view.plan!.review!.dropped.includes(`${i.sectionId}:${i.part}`) ? 'the card’s one is shown instead' : i.fix}</span>
+                    {i.source && <span className="muted"> · {i.source}</span>}</li>
+                ))}
+              </ul>
+            )}
+            <p className="muted small">A planner, a writer for graphs and questions, a text writer and a reviewer each read your guidelines and feedback.</p>
+          </details>
+        )}
 
         {loadError && <p className="error">{loadError}</p>}
         {!view && !loadError && <p className="muted">Opening…</p>}
@@ -229,18 +238,20 @@ export default function Lesson() {
                 </div>
               </div>
               {sec.body
-                ? <div className={sec.pending ? 'rendering' : ''}><Markdown>{sec.body}</Markdown></div>
+                ? <div className={sec.pending ? 'rendering' : ''}><Markdown runnable={id}>{sec.body}</Markdown></div>
                 : <div className="skeleton" aria-busy={sec.pending}>{sec.pending ? `Writing this section for you (${sec.angle})…` : 'Not rendered yet.'}</div>}
               {sec.viz && (
                 <div className="viz-block">
                   <Viz key={`${sec.id}-viz`} spec={sec.viz} />
                   <div className="viz-tools">
+                    {sec.vizMine && <span className="pill pill-accent small" title="This graph was made for you from the source card">made for you</span>}
                     <button className="link small" onClick={() => feedbackOn({ kind: 'viz', quote: sec.viz!.caption, sectionId: sec.id })}>Feedback on this graph</button>
                     <button className="link small" onClick={() => noteOn({ kind: 'viz', quote: sec.viz!.caption, sectionId: sec.id })}>Note</button>
                   </div>
                 </div>
               )}
               {sec.approximate && <p className="muted small">{sec.pending ? 'Showing the closest earlier version while your new one is written.' : 'Closest earlier version.'}</p>}
+              {sec.check && sec.checkMine && <div className="mine-note"><span className="pill pill-accent small" title="This question was written for you from the source card">question made for you</span></div>}
               {sec.check && (
                 <InlineCheck key={sec.check.id} check={sec.check} previous={s.answers[`${id}:${sec.check.id}`]}
                   onAnswer={choice => dispatch({ type: 'answer', conceptId: id, checkId: sec.check!.id, angle: sec.angle, choice })}
@@ -296,18 +307,10 @@ export default function Lesson() {
         </div>
       )}
 
-      {mathTool && !selection && (
-        <div className="sel-toolbar" style={{ top: mathTool.top, left: mathTool.left }} onMouseDown={e => e.preventDefault()}
-          onMouseEnter={() => { window.clearTimeout(mathHide.current); mathHide.current = 0 }} onMouseLeave={() => setMathTool(null)}>
-          <button onClick={() => { feedbackOn(mathTool.ref); setMathTool(null) }}>Feedback on formula</button>
-          <button onClick={() => { noteOn(mathTool.ref); setMathTool(null) }}>Note</button>
-        </div>
-      )}
-
       {feedbackFor && (
         <FeedbackDialog target={feedbackFor.label} reference={feedbackFor.reference} onClose={() => setFeedbackFor(null)}
-          onSubmit={(tags, text, kind) => {
-            dispatch({ type: 'feedback', conceptId: id, sectionId: feedbackFor.sectionId, angle: feedbackFor.angle, available: feedbackFor.available, tags, text, kind, ref: feedbackFor.reference })
+          onSubmit={(tags, text, kind, apply, worked) => {
+            dispatch({ type: 'feedback', conceptId: id, sectionId: feedbackFor.sectionId, angle: feedbackFor.angle, available: feedbackFor.available, tags, text, kind, ref: feedbackFor.reference, apply, worked })
             setFeedbackFor(null); setTab('feedback')
           }} />
       )}

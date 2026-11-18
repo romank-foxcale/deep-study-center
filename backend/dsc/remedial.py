@@ -83,8 +83,10 @@ def dismiss(db: DB, cid: str) -> None:
 def brief(db: DB, cid: str) -> str:
     """What went wrong, for the research agent (learner data: goes inside <learner> tags in the prompt)."""
     s = signals(db, cid)
+    from .writer import effective_sections
     card = state.latest_card(db, cid) or {}
-    checks = {sec["check"]["id"]: sec["check"] for sec in card.get("sections", []) if sec.get("check")}
+    checks = {sec["check"]["id"]: sec["check"] for sec in card.get("sections", []) + effective_sections(db, cid, card)
+              if sec.get("check")}
     lines = []
     for w in s["wrong"][-6:]:
         c = checks.get(w["item_id"])

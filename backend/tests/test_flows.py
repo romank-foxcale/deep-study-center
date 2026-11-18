@@ -27,23 +27,27 @@ def test_seed_snapshot_serves_vectors_without_a_provider(env):
 def test_section_feedback_pins_that_section_and_repeated_feedback_flips_the_lesson_on_open(env):
     db, jobs, _ = env
     lesson.open_lesson(db, jobs, "c-vectors")
-    assert set(angles(db).values()) == {"geometric"}
+    a0 = angles(db)
+    geometric = lambda a: sum(1 for x in a.values() if x == "geometric")  # noqa: E731
+    # a mix that follows the playbook: the liked angle leads, but not everywhere
+    assert len(set(a0.values())) >= 2 and geometric(a0) > len(a0) / 2
     avail = ["geometric", "algebraic", "computational"]
 
     s = act(db, jobs, type="feedback", conceptId="c-vectors", sectionId="s-idea", angle="geometric",
             available=avail, tags=["framing-off"], text="")
     a1 = angles(db)
-    assert a1["s-idea"] != "geometric" and a1["s-ops"] == "geometric"  # only the targeted section changed
+    assert a1["s-idea"] != "geometric" and {k: v for k, v in a1.items() if k != "s-idea"} == \
+        {k: v for k, v in a0.items() if k != "s-idea"}  # only the targeted section changed
     assert next(r for r in s["renditions"] if r["conceptId"] == "c-vectors")["stale"]
     assert "This section now uses" in s["feedback"][0]["effects"][0]
 
     act(db, jobs, type="feedback", conceptId="c-vectors", sectionId="s-ops", angle="geometric",
         available=avail, tags=["framing-off"], text="arrows don't help me")
-    assert angles(db)["s-length"] == "geometric"  # not rewritten while reading
+    assert {k: v for k, v in angles(db).items() if k != "s-ops"} == {k: v for k, v in a1.items() if k != "s-ops"}  # not rewritten while reading
     v = lesson.open_lesson(db, jobs, "c-vectors")  # reopen: re-rendered with the new playbook
     assert v["refreshed"]
     after = angles(db)
-    assert after["s-length"] != "geometric" and after["s-idea"] == a1["s-idea"]  # pins survive
+    assert geometric(after) < geometric(a0) and after["s-idea"] == a1["s-idea"]  # pins survive
     geo = next(e for e in state.playbook(db)["entries"] if e["value"] == "geometric")
     assert geo["verdict"] == "trying" and geo["note"] == "arrows don't help me"
 
@@ -63,8 +67,8 @@ def test_new_style_renders_through_provider_and_falls_back_to_cached_prose_meanw
         {"id": line.split()[1], "body": f"rendered {line.split()[1]}"} for line in call.prompt.splitlines() if line.startswith("- s-")]}
     act(db, jobs, type="adjust", key="rigor", value=2)
     v = lesson.open_lesson(db, jobs, "c-vectors")
-    assert runner.calls and runner.calls[0][0] == "Renditions"
-    assert "rigor 2" in runner.calls[0][1].prompt
+    prose = [c for r, c in runner.calls if r == "Renditions"]
+    assert prose and "rigor 2" in prose[0].prompt
     assert v["sections"][0]["body"].startswith("rendered") and not v["sections"][0]["approximate"]
 
 

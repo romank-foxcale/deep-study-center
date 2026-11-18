@@ -306,6 +306,30 @@ PROVIDERS: dict[str, Provider] = {p.name: p for p in (ClaudeCLI(), CodexCLI(), C
 # "default" lets a CLI use its own configured model (set it in that CLI's config); other values go to --model.
 MODELS = {"claude": ["opus", "sonnet", "haiku"], "codex": ["default"], "cursor": ["default"]}
 
+# Recommended provider and model per job, with the reason shown in Settings. Opus where a mistake is expensive or
+# repeats in every lesson (research, roadmap, facts, the lesson plan); Sonnet where the output is long or must be fast
+# (lesson text, tutor, grading); Codex for the fact-check, so a second model family checks what Claude wrote.
+RECOMMENDED: dict[str, tuple[str, str, str]] = {
+    "Research": ("claude", "opus", "Deep web research and choosing the best sources needs the strongest reasoning."),
+    "Source curation": ("claude", "opus", "Choosing the canonical source among many needs careful judgment."),
+    "Curriculum": ("claude", "opus", "The roadmap shapes months of study; a weak plan costs the most."),
+    "Source cards": ("claude", "opus", "Cards are the facts every lesson is written from."),
+    "Fact-check": ("codex", "default", "A different model family checks the cards, so it does not share their blind spots. "
+                                       "Without Codex, use Claude Opus."),
+    "Renditions": ("claude", "sonnet", "Long lesson text: Sonnet writes it well and fast. Opus is better but much slower."),
+    "Tutor chat": ("claude", "sonnet", "Answers must come fast."),
+    "Grading": ("claude", "sonnet", "A rubric check: Sonnet is accurate enough and fast."),
+    "Code review": ("claude", "sonnet", "Reading short code against tests."),
+    "Roadmap review": ("claude", "opus", "Changes to the roadmap need judgment about the whole goal."),
+    "Placement": ("claude", "sonnet", "Short quiz questions over the outline."),
+    "Reflection": ("claude", "opus", "Finding patterns over weeks of feedback needs careful reasoning."),
+    "Card refresh": ("claude", "opus", "Finds errors in facts: the strongest model."),
+    "Feedback": ("claude", "sonnet", "Rewrites one lesson from your feedback; Sonnet is good and fast."),
+    "Lesson planner": ("claude", "opus", "The plan decides every section of the lesson; its answer is short, so Opus costs little."),
+    "Lesson assets": ("claude", "sonnet", "Small graphs and questions from the card."),
+    "Lesson review": ("claude", "sonnet", "Checks every lesson; Opus finds more problems but costs more for each lesson."),
+}
+
 
 def status() -> list[dict]:
     return [{"id": p.name, "cli": p.binary, "detected": p.available(), "implemented": True,

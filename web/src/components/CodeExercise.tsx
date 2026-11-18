@@ -1,34 +1,8 @@
 import { useState } from 'react'
 import type { CodeExercise as Ex } from '../types'
+import CodeEditor from './CodeEditor'
 import Markdown from './Markdown'
-
-const PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js'
-
-interface Pyodide {
-  runPythonAsync: (code: string) => Promise<unknown>
-  setStdout: (o: { batched: (s: string) => void }) => void
-  setStderr: (o: { batched: (s: string) => void }) => void
-}
-declare global {
-  interface Window { loadPyodide?: (opts?: object) => Promise<Pyodide> }
-}
-
-let pyodidePromise: Promise<Pyodide> | null = null
-
-/** Loads Pyodide once, on first use (about 10 MB, cached by the browser afterwards). */
-function getPyodide(): Promise<Pyodide> {
-  if (!pyodidePromise) {
-    pyodidePromise = new Promise<void>((resolve, reject) => {
-      const s = document.createElement('script')
-      s.src = PYODIDE_URL
-      s.onload = () => resolve()
-      s.onerror = () => reject(new Error('Could not load Pyodide'))
-      document.head.appendChild(s)
-    }).then(() => window.loadPyodide!())
-    pyodidePromise.catch(() => { pyodidePromise = null })
-  }
-  return pyodidePromise
-}
+import { pyodideLoaded, runPython } from './pyodide'
 
 interface Props {
   exercise: Ex
@@ -42,22 +16,14 @@ export default function CodeExercise({ exercise, passed, onResult }: Props) {
   const [status, setStatus] = useState<'idle' | 'loading' | 'running'>('idle')
 
   async function run(withTests: boolean) {
-    setStatus(pyodidePromise ? 'running' : 'loading')
+    setStatus(pyodideLoaded() ? 'running' : 'loading')
     setOutput('')
     try {
-      const py = await getPyodide()
-      setStatus('running')
-      let out = ''
-      py.setStdout({ batched: s => { out += s + '\n' } })
-      py.setStderr({ batched: s => { out += s + '\n' } })
-      await py.runPythonAsync(withTests ? `${code}\n\n${exercise.tests}` : code)
+      const out = await runPython(withTests ? `${code}\n\n${exercise.tests}` : code)
       setOutput(out || '(no output)')
       if (withTests) onResult(true)
     } catch (e) {
-      const msg = String(e instanceof Error ? e.message : e)
-      // Show only the last line of a Python traceback, which names the failing assertion.
-      const last = msg.trim().split('\n').filter(Boolean).pop() ?? msg
-      setOutput(last)
+      setOutput((e as Error).message)  // the last traceback line names the failing assertion
       if (withTests) onResult(false)
     } finally {
       setStatus('idle')
@@ -68,23 +34,9 @@ export default function CodeExercise({ exercise, passed, onResult }: Props) {
     <div className="exercise">
       <div className="check-label">Exercise · runs in your browser (Pyodide)</div>
       <Markdown>{exercise.prompt}</Markdown>
-      <textarea
-        className="code-editor"
-        value={code}
-        spellCheck={false}
-        onChange={e => setCode(e.target.value)}
-        onKeyDown={e => {
-          if (e.key === 'Tab') {
-            e.preventDefault()
-            const t = e.currentTarget, { selectionStart: a, selectionEnd: b } = t
-            setCode(code.slice(0, a) + '    ' + code.slice(b))
-            requestAnimationFrame(() => { t.selectionStart = t.selectionEnd = a + 4 })
-          }
-        }}
-        rows={Math.max(10, code.split('\n').length + 1)}
-      />
+      <CodeEditor value={code} onChange={setCode} onRun={() => { if (status === 'idle') run(false) }} minRows={8} label="Exercise code" />
       <div className="row">
-        <button className="btn" onClick={() => run(false)} disabled={status !== 'idle'}>Run</button>
+        <button className="btn btn-run" onClick={() => run(false)} disabled={status !== 'idle'} title="Run (Ctrl+Enter)">▶ Run</button>
         <button className="btn btn-primary" onClick={() => run(true)} disabled={status !== 'idle'}>Run tests</button>
         {status === 'loading' && <span className="muted">Loading Python (first run only)…</span>}
         {status === 'running' && <span className="muted">Running…</span>}

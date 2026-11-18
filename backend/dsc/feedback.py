@@ -25,10 +25,10 @@ TAG_LABELS = {
     "too-fast": "Too fast",
     "too-slow": "Too slow",
     "too-long": "Too long",
-    "more-rigor": "I want more rigor",
+    "more-rigor": "More formal (exact definitions, proofs)",
     "loved-it": "This worked really well",
 }
-TAG_IDS = {v: k for k, v in TAG_LABELS.items()}
+TAG_IDS = {v: k for k, v in TAG_LABELS.items()} | {"I want more rigor": "more-rigor"}  # older label
 
 # Tags that describe the learner rather than one lesson (they were always playbook signals).
 ME_TAGS = {"framing-off", "too-abstract", "too-fast", "too-slow", "too-long", "more-rigor", "loved-it"}
@@ -98,9 +98,9 @@ def add_signals(db: DB, tags: list[str], text: str, angle: str | None, kind: str
 
 
 def kind_effect(kind: str) -> str:
-    return {"lesson": "About this lesson: select it and click Apply to rewrite this lesson (the playbook is not changed)",
-            "me": "About you: the playbook takes it into account; select it and click Apply to rewrite this lesson now",
-            "fact": "A possible error in the material: Apply sends it to the card check, not into your lesson"}[kind]
+    return {"lesson": "Only this lesson: apply it to rewrite this lesson (your playbook does not change)",
+            "me": "All your future lessons: your playbook takes it into account; apply it to rewrite this lesson too",
+            "fact": "Error in the material: applying it sends it to the fact check of the source card, not into your lesson"}[kind]
 
 
 def void_signals(db: DB, row: dict) -> None:

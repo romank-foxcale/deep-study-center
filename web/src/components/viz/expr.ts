@@ -78,3 +78,43 @@ export function evaluate(n: Node, vars: Record<string, number>): number {
     }
   }
 }
+
+export type ExprNode = Node
+
+// Names shown as Greek letters (and pi) when an expression is written as TeX.
+const GREEK = new Set(['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'theta', 'lambda', 'mu', 'nu', 'pi', 'rho', 'sigma', 'tau', 'phi', 'omega'])
+const PREC: Record<string, number> = { '+': 1, '-': 1, '*': 2, '/': 2, '^': 3 }
+
+/** An expression as TeX, for showing what the learner typed: sigma*sqrt(3*pi) → \sigma\sqrt{3\pi}. */
+export function toTex(n: Node, parent = 0): string {
+  switch (n.k) {
+    case 'num': return String(n.v)
+    case 'var': return GREEK.has(n.name) ? `\\${n.name}` : n.name.length > 1 ? `\\mathrm{${n.name}}` : n.name
+    case 'neg': return `-${toTex(n.a, 3)}`
+    case 'call': {
+      const args = n.args.map(a => toTex(a))
+      if (n.fn === 'sqrt') return `\\sqrt{${args[0]}}`
+      if (n.fn === 'abs') return `\\left|${args[0]}\\right|`
+      if (['sin', 'cos', 'tan', 'exp', 'log', 'tanh', 'max', 'min'].includes(n.fn)) return `\\${n.fn}\\left(${args.join(', ')}\\right)`
+      return `\\mathrm{${n.fn}}\\left(${args.join(', ')}\\right)`
+    }
+    case 'bin': {
+      if (n.op === '/') return `\\frac{${toTex(n.a)}}{${toTex(n.b)}}`
+      if (n.op === '^') return `{${toTex(n.a, 4)}}^{${toTex(n.b)}}`
+      const p = PREC[n.op]
+      // a product of a number and a name reads without a sign (2\pi); otherwise use a centered dot
+      const join = n.op === '*' ? (n.a.k === 'num' && n.b.k !== 'num' ? '' : n.b.k === 'call' && n.b.fn === 'sqrt' ? '' : '\\cdot ') : ` ${n.op} `
+      const s = `${toTex(n.a, p)}${join}${toTex(n.b, p + (n.op === '-' ? 1 : 0))}`
+      return p < parent ? `\\left(${s}\\right)` : s
+    }
+  }
+}
+
+/** Replace [part] references with the part's current calculator form (in parentheses). */
+export function resolveRefs(expr: string, partExpr: (id: string) => string | undefined, depth = 0): string {
+  if (depth > 3) return expr
+  return expr.replace(/\[([a-z][a-z0-9_]{0,15})\]/g, (_m, id: string) => {
+    const e = partExpr(id)
+    return e === undefined ? 'nan_ref' : `(${resolveRefs(e, partExpr, depth + 1)})`
+  })
+}

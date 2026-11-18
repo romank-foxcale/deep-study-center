@@ -104,7 +104,7 @@ export default function Me() {
         <h2>Feedback log</h2>
         <p className="muted small">Every piece of feedback, grouped by lesson. Select items and apply them to their lesson: you get a
           new lesson version, can see what changed and why, and can go back. Edit or delete any item; the playbook is replayed.
-          “About me” items change the playbook; “about this lesson” items change only that lesson. A weekly reflection reads
+          “All my future lessons” items change the playbook; “Only this lesson” items change only that lesson. A weekly reflection reads
           this log to spot patterns.</p>
         {s.feedback.length === 0 && <p className="muted">Nothing yet. Give feedback from any lesson.</p>}
         {[...new Set(s.feedback.map(f => f.conceptId))].map(cid => (

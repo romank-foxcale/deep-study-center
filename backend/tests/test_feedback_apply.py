@@ -188,11 +188,12 @@ def test_fact_claims_go_to_the_card_check_not_the_lesson(env):
 def test_offline_apply_switches_to_an_already_written_angle(env):
     db, jobs, runner = env
     lesson.open_lesson(db, jobs, CID)
-    a = give(db, jobs, sectionId="s-ops", text="arrows lose me here", kind="lesson", angle="geometric")
+    before = next(s for s in lesson.view(db, CID)["sections"] if s["id"] == "s-ops")["angle"]
+    a = give(db, jobs, sectionId="s-ops", text="this framing loses me here", kind="lesson", angle=before)
     runner.unavailable = True
     act(db, jobs, type="applyFeedback", conceptId=CID, ids=[a])
     v = lesson.view(db, CID)
-    assert v["head"] == 2 and next(s for s in v["sections"] if s["id"] == "s-ops")["angle"] != "geometric"
+    assert v["head"] == 2 and next(s for s in v["sections"] if s["id"] == "s-ops")["angle"] != before
     assert "offline" in versions.get(db, CID, 2)["changes"][0]["how"]
     assert fb_item(db, a)["status"]["state"] == "applied"
 
@@ -270,3 +271,54 @@ def test_diff_between_versions_is_annotated_with_reasons_and_feedback(env):
     assert next(s for s in back["sections"] if s["id"] == "s-idea")["changes"][0]["undone"]
     assert client.get(f"/api/lesson/{CID}/diff", params={"a": 1, "b": 9}).status_code == 404
     assert loads(db.one("SELECT feedback_ids FROM lesson_versions WHERE version=2")["feedback_ids"]) == [a]
+
+
+def test_add_and_apply_feedback_in_one_step(env):
+    """"Add and apply" saves the item and writes the next lesson version from it alone."""
+    db, jobs, runner = env
+    lesson.open_lesson(db, jobs, CID)
+    give(db, jobs, text="an older item that is not applied", kind="lesson")
+    runner.responses["Feedback"] = apply_reply()
+    act(db, jobs, type="feedback", conceptId=CID, text="more pictures please", kind="lesson", tags=[], apply=True)
+    fid = max(f["id"] for f in state.snapshot(db)["feedback"])
+    assert versions.get(db, CID, 2)["feedback_ids"] == [fid]
+    assert fb_item(db, fid)["status"]["state"] == "applied"
+
+
+def test_add_and_apply_keeps_the_item_when_apply_is_refused(env):
+    import pytest
+    from dsc.actions import ActionError
+    db, jobs, runner = env
+    lesson.open_lesson(db, jobs, CID)
+    # an apply job already running for this lesson refuses a second one
+    db.x("INSERT INTO jobs(kind, status, label, input, created_at, updated_at) VALUES('apply_feedback','running','x',?,'t','t')",
+         (dumps({"concept_id": CID}),))
+    with pytest.raises(ActionError, match="Feedback added, but not applied"):
+        actions.dispatch(db, jobs, {"type": "feedback", "conceptId": CID, "text": "shorter", "kind": "lesson", "tags": [], "apply": True})
+    assert any(f["text"] == "shorter" for f in state.snapshot(db)["feedback"])
+
+
+def test_what_worked_goes_into_the_text_and_for_all_lessons_into_the_guidelines(env):
+    from dsc import guidelines
+    db, jobs, _ = env
+    before = len((guidelines.current(db) or {"items": []})["items"])
+    act(db, jobs, type="feedback", conceptId=CID, tags=["loved-it"], text="", kind="lesson", worked=["The examples"])
+    f = state.snapshot(db)["feedback"][0]
+    assert f["text"] == "What worked: the examples."
+    assert len((guidelines.current(db) or {"items": []})["items"]) == before  # only this lesson: no guideline
+    act(db, jobs, type="feedback", conceptId=CID, tags=["loved-it"], text="nice", kind="me", worked=["The code", "The step size"])
+    g = guidelines.current(db)
+    assert g["items"][-1]["text"].startswith("Keep the code, the step size like in the lesson") and g["items"][-1]["byLearner"]
+    assert any("Lesson guidelines v" in e for e in state.snapshot(db)["feedback"][0]["effects"])
+
+
+def test_old_tag_label_still_maps_to_its_tag():
+    from dsc import feedback as fb
+    assert fb.tag_ids(["I want more rigor", "More formal (exact definitions, proofs)"]) == ["more-rigor", "more-rigor"]
+
+
+def test_word_diff_keeps_formulas_whole():
+    d = versions.word_diff("Let $v = (3, 2)$ be `v`.", "Let $v = (3, 4)$ be `v`.")
+    assert ["del", "$v = (3, 2)$"] in d and ["ins", "$v = (3, 4)$"] in d
+    block = versions.word_diff("$$a + b$$", "$$a - b$$")
+    assert block == [["del", "$$a + b$$"], ["ins", "$$a - b$$"]]

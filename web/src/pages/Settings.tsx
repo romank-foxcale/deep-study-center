@@ -26,9 +26,34 @@ export default function Settings() {
       </div>
 
       <div className="card">
-        <h2>Who does what</h2>
+        <h2>Lesson writing</h2>
+        <p className="muted small">How a whole lesson is written (a new lesson, a refresh, a new style). One section
+          (“Explain differently”) always takes one call.</p>
+        <div className="layout-pick" role="radiogroup" aria-label="Lesson writing">
+          <fieldset>
+            <label><input type="radio" checked={s.settings.lessonWriting === 'steps'} onChange={() => dispatch({ type: 'setSetting', key: 'lessonWriting', value: 'steps' })} />
+              <span><strong>In steps</strong> <span className="pill pill-ok small">recommended</span> <span className="muted small">A planner
+                chooses each section's angle and what it needs, graphs and quiz questions are made for you, the text is written,
+                and a reviewer checks the lesson against your guidelines and feedback (one round of fixes). 4–5 model calls per
+                lesson: about 3–5 times the cost and time of one call.</span></span></label>
+            <label><input type="radio" checked={s.settings.lessonWriting === 'single'} onChange={() => dispatch({ type: 'setSetting', key: 'lessonWriting', value: 'single' })} />
+              <span><strong>One call</strong> <span className="muted small">Only the text writer (“Renditions”). Faster and cheaper; the
+                lesson uses the card's graphs and quiz questions, and nothing checks it before you see it.</span></span></label>
+          </fieldset>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="row row-between">
+          <h2>Who does what</h2>
+          {s.routes.some(r => r.recommended && (r.recommended.provider !== r.provider || r.recommended.model !== r.model)) &&
+            <button className="btn btn-small" onClick={() => dispatch({ type: 'useRecommendedRoutes' })}>Use all recommended</button>}
+        </div>
+        <p className="muted small">The model for each job. Opus is the strongest and slowest; Sonnet is fast and good for long text;
+          Haiku is the fastest and cheapest, for simple sorting. “Lesson planner”, “Lesson assets” and “Lesson review” run only when
+          lessons are written in steps.</p>
         <table className="table">
-          <thead><tr><th>Job</th><th>Provider</th><th>Model</th></tr></thead>
+          <thead><tr><th>Job</th><th>Provider</th><th>Model</th><th>Recommended</th></tr></thead>
           <tbody>
             {s.routes.map(r => {
               const p = s.providers.find(x => x.id === r.provider)
@@ -49,6 +74,19 @@ export default function Settings() {
                       onChange={e => dispatch({ type: 'route', role: r.role, provider: r.provider, model: e.target.value })}>
                       {(p?.models ?? [r.model]).map(m => <option key={m}>{m}</option>)}
                     </select>
+                  </td>
+                  <td className="rec">
+                    {r.recommended && (
+                      <>
+                        {r.recommended.provider === r.provider && r.recommended.model === r.model
+                          ? <span className="pill pill-ok small">{r.recommended.provider} · {r.recommended.model} ✓</span>
+                          : <button className="btn btn-small" title="Use the recommended provider and model for this job"
+                              disabled={!s.providers.find(x => x.id === r.recommended!.provider)?.detected}
+                              onClick={() => dispatch({ type: 'route', role: r.role, provider: r.recommended!.provider, model: r.recommended!.model })}>
+                              Use {r.recommended.provider} · {r.recommended.model}</button>}
+                        <div className="muted small">{r.recommended.why}</div>
+                      </>
+                    )}
                   </td>
                 </tr>
               )

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from . import engine, guidelines, lesson, library, progress, remedial, state, versions
+from . import engine, guidelines, lesson, library, progress, remedial, state, versions, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now
 from .jobs import Jobs
@@ -29,8 +29,10 @@ def _entry(pb: dict, dimension: str, value: str) -> dict | None:
 
 
 def _card_item(db: DB, cid: str, item_id: str) -> dict | None:
+    """An item of the lesson: from the card, or a quiz question made for this learner (``writer``). An item of the
+    card that the learner's lesson replaced can still be answered (e.g. in reviews)."""
     card = state.latest_card(db, cid) or {}
-    for s in card.get("sections", []):
+    for s in writer.effective_sections(db, cid, card) + card.get("sections", []):
         for kind in ("check", "code", "explain"):
             if s.get(kind, {}).get("id") == item_id:
                 return {"kind": kind, **s[kind]}
@@ -87,6 +89,9 @@ def feedback(db: DB, jobs: Jobs, a: dict) -> None:
     Only "me" feedback adds playbook signals; any kind can then be applied to the lesson (SPEC §11)."""
     cid, sid, angle = a["conceptId"], a.get("sectionId"), a.get("angle")
     tags, text = a.get("tags", []), (a.get("text") or "").strip()
+    worked = [" ".join(str(w).split())[:60] for w in (a.get("worked") or []) if str(w).strip()][:6] if "loved-it" in tags else []
+    if worked:  # "This worked really well" + what exactly worked
+        text = (text + "\n" if text else "") + "What worked: " + ", ".join(w[0].lower() + w[1:] for w in worked) + "."
     if not tags and not text:
         raise ActionError("pick a tag or write something")
     ref = _clean_ref(a.get("ref"))
@@ -118,13 +123,36 @@ def feedback(db: DB, jobs: Jobs, a: dict) -> None:
         n = sum(1 for x in db.q("SELECT playbook_version FROM renditions") if x["playbook_version"] < pb1["version"])
         effects.append(f"Playbook v{pb1['version']}: {n} lesson{'s' if n != 1 else ''} will be re-rendered for you "
                        "(past ones offer a refresh)")
+    if worked and kind == "me":
+        effects.append(_keep_doing(db, cid, worked))
     effects.append(fb.kind_effect(kind))
     fid = db.x("""INSERT INTO feedback(ts, concept_id, section_id, tags, text, effects, kind, kind_source, signal_ids, angle, done_note, ref)
                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
                (now(), cid, sid, dumps([TAG_LABELS.get(t, t) for t in tags]), text, dumps(effects), kind,
                 "learner" if chosen else "auto", dumps(signal_ids), angle, done_note, dumps(ref) if ref else None))
-    if text and not chosen:
+    if text and not chosen and not a.get("apply"):
         jobs.enqueue("classify_feedback", "Sort feedback", {"feedback_id": fid, "concept_id": cid})
+    if a.get("apply"):  # "Add and apply": write the next lesson version from this item alone
+        try:
+            apply_feedback(db, jobs, {"conceptId": cid, "ids": [fid]})
+        except ActionError as e:
+            raise ActionError(f"Feedback added, but not applied: {e}. Apply it later from the Feedback log.") from e
+
+
+def _keep_doing(db: DB, cid: str, worked: list[str]) -> str:
+    """Praise meant for all future lessons becomes a lesson guideline at once (the learner's own line, so the
+    guideline job keeps it)."""
+    title = db.one("SELECT title FROM concepts WHERE id=?", (cid,))["title"]
+    parts = ", ".join(w[0].lower() + w[1:] for w in worked)
+    line = f"Keep {parts} like in the lesson “{title}”: they worked well for me."
+    cur = guidelines.current(db) or {"items": []}
+    items = [{"text": it["text"], "why": it.get("why", ""), "feedbackIds": it.get("feedbackIds", []), "byLearner": it.get("byLearner")}
+             for it in cur["items"]]
+    if len(items) >= guidelines.MAX_ITEMS:
+        return "Lesson guidelines are full (10 points): the next guideline update takes this praise into account"
+    v = guidelines.save(db, items + [{"text": line, "why": "You marked it as worked really well.", "byLearner": True}], "feedback",
+                        f"Added from your feedback on {title}.")
+    return f'Lesson guidelines v{v}: added "{line}"'
 
 
 def _clean_ref(ref: object) -> dict | None:
@@ -445,7 +473,23 @@ def route(db: DB, jobs: Jobs, a: dict) -> None:
     db.x("UPDATE routes SET provider=?, model=? WHERE role=?", (a["provider"], a["model"], a["role"]))
 
 
+def use_recommended_routes(db: DB, jobs: Jobs, a: dict) -> None:
+    """Set every job to its recommended provider and model (Settings). A recommended provider that is not installed
+    keeps the job on Claude (for the fact-check: Opus)."""
+    from .providers import RECOMMENDED, status
+    detected = {p["id"] for p in status() if p["detected"]}
+    for role, (prov, model, _why) in RECOMMENDED.items():
+        if prov not in detected and prov != "claude":
+            prov, model = "claude", "opus"
+        db.x("UPDATE routes SET provider=?, model=? WHERE role=?", (prov, model, role))
+
+
 def set_setting(db: DB, jobs: Jobs, a: dict) -> None:
+    if a["key"] == "lessonWriting":  # "steps": planner, graphs and questions, text, review; "single": one call for the text
+        if a["value"] not in ("steps", "single"):
+            raise ActionError("lesson writing must be steps or single")
+        db.set_meta("lesson_writing", a["value"])
+        return
     keys = {"autoResearch": "auto_research", "autoRefresh": "auto_refresh"}
     if a["key"] not in keys:
         raise ActionError("unknown setting")
@@ -587,7 +631,7 @@ ACTIONS = {
     "revertLesson": revert_lesson, "addRemedial": add_remedial, "dismissRemedial": dismiss_remedial,
     "editGuidelines": edit_guidelines, "distillGuidelines": distill_guidelines, "refresh": refresh, "markStudied": mark_studied, "addNote": add_note, "deleteNote": delete_note,
     "chat": chat, "decideDiff": decide_diff, "researchModule": research_module, "createGoal": create_goal,
-    "setGoal": set_goal, "correctEntry": correct_entry, "adjust": adjust, "route": route, "reset": reset,
+    "setGoal": set_goal, "correctEntry": correct_entry, "adjust": adjust, "route": route, "useRecommendedRoutes": use_recommended_routes, "reset": reset,
 }
 
 

@@ -85,20 +85,32 @@ def create(db: DB, cid: str, *, parent: int | None, card_version: int, playbook_
     return n
 
 
-def sync(db: DB, cid: str) -> int | None:
+def _writing(db: DB, cid: str) -> bool:
+    """A lesson-writing job runs for this lesson: its text is a draft until the reviewer's fixes are in."""
+    for j in db.q("SELECT input FROM jobs WHERE kind='render' AND status IN ('queued', 'running')"):
+        if loads(j["input"], {}).get("concept_id") == cid:
+            return True
+    return False
+
+
+def sync(db: DB, cid: str, by_writer: bool = False, rewrite: bool = False) -> int | None:
     """Snapshot the rendered lesson as a new version when its prose is complete and differs from the head
-    (first render, new card, new style, another angle). Returns the new version, if any."""
+    (first render, new card, new style, another angle). Returns the new version, if any. While a writing job
+    runs, only that job snapshots (``by_writer``), so a draft never becomes a version. ``rewrite``: the whole lesson
+    was written again ("Refresh for current me"), so every section takes the new text, even with the same angle."""
     r = state.rendition_row(db, cid)
     card = state.latest_card(db, cid)
     if not r or not card or not card.get("sections"):
         return None
+    if not by_writer and _writing(db, cid):
+        return None
     h = head(db, cid)
-    if head_matches(h, r):
+    if head_matches(h, r) and not rewrite:
         return None
     bodies, changes = {}, []
     for s in card["sections"]:
         sid, angle = s["id"], r["section_angles"].get(s["id"])
-        kept = section_from_head(h, r, sid)
+        kept = None if rewrite else section_from_head(h, r, sid)
         if kept is not None:
             bodies[sid] = kept
             continue
@@ -112,8 +124,12 @@ def sync(db: DB, cid: str) -> int | None:
                             "technique": ""})
     if not h:
         summary = f"First version, as rendered for you (card v{r['card_version']}, playbook v{r['playbook_version']})"
+    elif rewrite:
+        summary = "Written again for you (Refresh for current me)"
     else:
         summary = "Re-rendered: " + "; ".join(sorted({c["why"] for c in changes}))
+    if h and rewrite and all(bodies.get(k) == v for k, v in h["sections"].items()) and len(bodies) == len(h["sections"]):
+        return None  # nothing changed
     return create(db, cid, parent=h["version"] if h else None, card_version=r["card_version"],
                   playbook_version=r["playbook_version"], style=r["style"], angles=dict(r["section_angles"]),
                   sections=bodies, source="render", summary=summary, changes=changes)
@@ -209,7 +225,9 @@ def feedback_status(db: DB, rows: list[dict]) -> dict[int, dict]:
 
 # ---------------------------------------------------------------- diff
 
-_TOKEN = re.compile(r"\s+|\w+|[^\w\s]")
+# A formula ($...$, $$...$$) and inline code are one token each, so a changed formula is shown as the old one
+# deleted and the new one inserted, never as a mix that does not render.
+_TOKEN = re.compile(r"\$\$[\s\S]*?\$\$|\$[^$\n]+?\$|`[^`\n]+`|\s+|\w+|[^\w\s]")
 
 
 def word_diff(a: str, b: str) -> list[list[str]]:
