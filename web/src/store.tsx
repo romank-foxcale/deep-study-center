@@ -7,7 +7,7 @@ import type { Angle, FeedbackKind, FeedbackRef, LessonDiff, LessonView, Plan, Ru
 export type Action =
   | { type: 'answer'; conceptId: string; checkId: string; angle?: Angle; choice?: number; correct?: boolean }
   | { type: 'review'; conceptId: string; checkId: string; choice: number }
-  | { type: 'feedback'; conceptId: string; sectionId?: string; angle?: Angle; available?: Angle[]; tags: string[]; text: string; kind?: FeedbackKind; ref?: FeedbackRef }
+  | { type: 'feedback'; conceptId: string; sectionId?: string; angle?: Angle; available?: Angle[]; tags: string[]; text: string; kind?: FeedbackKind; ref?: FeedbackRef; apply?: boolean; worked?: string[] }
   | { type: 'editFeedback'; id: number; tags?: string[]; text?: string; kind?: FeedbackKind }
   | { type: 'deleteFeedback'; id: number }
   | { type: 'applyFeedback'; conceptId: string; ids: number[] }
@@ -29,6 +29,7 @@ export type Action =
   | { type: 'correctEntry'; id: string; verdict: Verdict | 'remove' }
   | { type: 'adjust'; key: 'pace' | 'depth' | 'rigor'; value: number }
   | { type: 'route'; role: string; provider: string; model: string }
+  | { type: 'useRecommendedRoutes' }
   | { type: 'explain'; conceptId: string; itemId: string; answer: string; angle?: Angle }
   | { type: 'startPlacement' }
   | { type: 'placementAnswer'; moduleId: string; choice: number | null }
@@ -37,6 +38,7 @@ export type Action =
   | { type: 'reflect' }
   | { type: 'decideProposal'; reflectionId: number; index: number; accept: boolean }
   | { type: 'setSetting'; key: 'autoResearch' | 'autoRefresh'; value: boolean }
+  | { type: 'setSetting'; key: 'lessonWriting'; value: 'steps' | 'single' }
   | { type: 'refreshCard'; conceptId: string }
   | { type: 'decideCardProposal'; id: number; approve: boolean }
   | { type: 'setPlanSettings'; weeklyHours?: number; studyDays?: number[]; startTime?: string; goalId?: string; hours?: number }
@@ -52,21 +54,24 @@ export type Action =
   | { type: 'reset' }
 
 export const KIND_LABELS: Record<FeedbackKind, string> = {
-  lesson: 'About this lesson',
-  me: 'About me',
-  fact: 'Possible error in the material',
+  lesson: 'Only this lesson',
+  me: 'All my future lessons',
+  fact: 'Report an error in the material',
 }
 
-export const FEEDBACK_TAGS = [
+export const FEEDBACK_TAGS: { id: string; label: string; old?: string }[] = [
   { id: 'framing-off', label: "The framing didn't work for me" },
   { id: 'confused', label: 'I got lost / missing background' },
   { id: 'too-abstract', label: 'Too abstract' },
   { id: 'too-fast', label: 'Too fast' },
   { id: 'too-slow', label: 'Too slow' },
   { id: 'too-long', label: 'Too long' },
-  { id: 'more-rigor', label: 'I want more rigor' },
+  { id: 'more-rigor', label: 'More formal (exact definitions, proofs)', old: 'I want more rigor' },
   { id: 'loved-it', label: 'This worked really well' },
 ]
+
+/** With "This worked really well": what exactly worked (saved in the text, and as a guideline for all future lessons). */
+export const WORKED_PARTS = ['The pictures and graphs', 'The examples', 'The code', 'The step size', 'The order of the ideas']
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...init })

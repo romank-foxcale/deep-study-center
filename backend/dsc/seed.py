@@ -15,7 +15,7 @@ from .db import DB, dumps, now
 
 TABLES = ("goals", "tracks", "modules", "concepts", "cards", "prose", "renditions", "signals", "evidence",
           "feedback", "notes", "diffs", "chats", "reviews", "routes", "jobs", "meta", "lesson_versions", "lesson_heads",
-          "lesson_reverts", "guidelines")
+          "lesson_reverts", "guidelines", "lesson_plans")
 
 # Routes added after the demo data was exported; ensure_routes() adds them to older workspaces too.
 EXTRA_ROUTES = [
@@ -23,6 +23,9 @@ EXTRA_ROUTES = [
     {"role": "Reflection", "description": "Weekly reflection over your feedback", "provider": "claude", "model": "opus"},
     {"role": "Card refresh", "description": "Re-check older cards for errors and better sources", "provider": "claude", "model": "opus"},
     {"role": "Feedback", "description": "Sort your feedback and apply it to a lesson", "provider": "claude", "model": "sonnet"},
+    {"role": "Lesson planner", "description": "Plan each lesson for you: angles, briefs, which graphs and questions to remake", "provider": "claude", "model": "opus"},
+    {"role": "Lesson assets", "description": "Make graphs and quiz questions for you", "provider": "claude", "model": "sonnet"},
+    {"role": "Lesson review", "description": "Check each new lesson against your guidelines and feedback", "provider": "claude", "model": "sonnet"},
 ]
 
 VECTORS_EXPLAIN = {"s-ops": {
@@ -164,7 +167,8 @@ def init_empty(db: DB) -> None:
 
 
 PER_CONCEPT_TABLES = ("cards", "prose", "renditions", "evidence", "feedback", "notes", "chats", "reviews", "gradings",
-                      "card_proposals", "runner_approvals", "activity", "lesson_versions", "lesson_heads", "lesson_reverts")
+                      "card_proposals", "runner_approvals", "activity", "lesson_versions", "lesson_heads", "lesson_reverts",
+                      "lesson_plans")
 
 
 def delete_goal(db: DB, goal_id: str) -> None:

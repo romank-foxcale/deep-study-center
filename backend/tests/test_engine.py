@@ -89,3 +89,27 @@ def test_fsrs_first_review_is_a_day_later_and_pass_extends():
     assert due2 > "2026-10-04"
     _, due3 = engine.review(card2, False, "2026-10-10T11:00:00+00:00")
     assert due3 < due2 or due3 < "2026-10-12"
+
+
+def test_choose_angles_mixes_angles_by_fit_and_playbook():
+    from dsc import engine
+    pb = {"entries": [{"dimension": "angle", "value": "geometric", "score": 0.74, "verdict": "works", "evidence": 2},
+                      {"dimension": "angle", "value": "computational", "score": 0.6, "verdict": "trying", "evidence": 1},
+                      {"dimension": "angle", "value": "algebraic", "score": 0.5, "verdict": "trying", "evidence": 1}]}
+    three = ["geometric", "algebraic", "computational"]
+    secs = [{"id": f"s{i}", "angles": three} for i in range(5)]
+    out = engine.choose_angles(secs, pb, {})
+    counts = {a: list(out.values()).count(a) for a in three}
+    assert counts["geometric"] >= 2 and len([a for a in three if counts[a]]) >= 2
+    # a section's best fit (listed first) wins when the playbook has no strong preference
+    flat = {"entries": []}
+    fit = engine.choose_angles([{"id": "a", "angles": ["algebraic", "geometric"]}, {"id": "b", "angles": ["computational", "geometric"]}], flat, {})
+    assert fit == {"a": "algebraic", "b": "computational"}
+    # an avoided angle is never chosen when there is another; pins are kept
+    avoid = {"entries": [{"dimension": "angle", "value": "geometric", "score": 0.9, "verdict": "avoid", "evidence": 3}]}
+    out = engine.choose_angles(secs, avoid, {"s0": "geometric"})
+    assert out["s0"] == "geometric" and all(v != "geometric" for k, v in out.items() if k != "s0")
+    # one angle everywhere is broken up when the sections allow it
+    same = engine.choose_angles([{"id": "a", "angles": ["geometric", "algebraic"]}, {"id": "b", "angles": ["geometric", "algebraic"]}],
+                                {"entries": [{"dimension": "angle", "value": "geometric", "score": 0.95, "verdict": "works", "evidence": 5}]}, {})
+    assert set(same.values()) == {"geometric", "algebraic"}

@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import engine, guidelines, library, ohtani, progress, providers, runner, state, versions, viz
+from . import engine, guidelines, library, ohtani, progress, providers, runner, state, versions, viz, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
@@ -26,6 +26,8 @@ def prompt(name: str, **fields: object) -> str:
     text = resources.files("dsc").joinpath(f"prompts/{name}.md").read_text(encoding="utf-8")
     rules = resources.files("dsc").joinpath("prompts/_rules.md").read_text(encoding="utf-8")
     fields.setdefault("rules", rules)
+    if "{widgets}" in text:
+        fields.setdefault("widgets", resources.files("dsc").joinpath("prompts/_widgets.md").read_text(encoding="utf-8").strip())
     # Plain replacement (not str.format) so braces in learner text or LaTeX are safe.
     for k, v in fields.items():
         text = text.replace("{" + k + "}", str(v))
@@ -119,24 +121,17 @@ RENDER_SCHEMA = {"type": "object", "required": ["sections"], "properties": {"sec
 
 
 def run_render(jobs: Jobs, jid: int, d: dict) -> dict:
-    db = jobs.db
-    card = state.latest_card(db, d["concept_id"])
-    pb, g = state.playbook(db), _goal(db)
+    """A whole lesson goes through the writing steps (``writer.write_lesson``: plan, graphs and questions, prose,
+    review). Single sections ("explain differently", a pin) get only new prose, with the stored plan's brief."""
+    if d.get("full"):
+        return writer.write_lesson(jobs, jid, d)
+    db, cid = jobs.db, d["concept_id"]
     want = {s["id"]: s["angle"] for s in d["sections"]}
-    heads = {s["id"]: s for s in card["sections"]}
-    lines = "\n".join(f'- {sid} "{heads[sid]["heading"]}" ({heads[sid].get("purpose", "")}) -> angle: {a}' for sid, a in want.items())
-    out = jobs.call(jid, "Renditions", Call(
-        prompt=prompt("render", card=_card_text(card), goal=g["title"], profile=g["profile"],
-                      playbook=state.playbook_text(pb), sections=lines, guidelines=guidelines.text(db), **pb["adjust"]),
-        schema=RENDER_SCHEMA, model="sonnet", timeout=300))
-    written = 0
-    for s in out.get("sections", []):
-        if s["id"] in want and s["body"].strip():
-            db.x("INSERT OR REPLACE INTO prose VALUES(?,?,?,?,?,?,?,?)",
-                 (d["concept_id"], d["card_version"], s["id"], want[s["id"]], d["style"], s["body"].strip(), "llm", now()))
-            written += 1
+    p = writer.current_plan(db, cid, d["card_version"])
+    briefs = {s["id"]: s["brief"] for s in (p or {}).get("plan", {}).get("sections", [])}
+    written = writer.write_prose(jobs, jid, cid, d["card_version"], d["style"], want, briefs)
     jobs.progress(jid, f"rendered {written} section(s)")
-    v = versions.sync(db, d["concept_id"])
+    v = versions.sync(db, cid, by_writer=True, rewrite=bool(d.get("rewrite")))
     if v:
         jobs.progress(jid, f"saved as lesson version v{v}")
     return {"written": written}

@@ -10,7 +10,7 @@ Rules (docs/SPEC.md §2.3):
 
 from __future__ import annotations
 
-from . import engine, progress, remedial, state, versions, viz
+from . import engine, progress, remedial, state, versions, viz, writer
 from .db import DB, dumps
 from .jobs import Jobs
 
@@ -53,7 +53,8 @@ def refresh(db: DB, jobs: Jobs, cid: str, by_learner: bool = False) -> None:
     angles = engine.choose_angles(card["sections"], pb, r["pinned"])
     db.x("UPDATE renditions SET card_version=?, playbook_version=?, style=?, section_angles=? WHERE concept_id=?",
          (card["version"], pb["version"], engine.style_key(pb["adjust"]), dumps(angles), cid))
-    ensure_prose(db, jobs, cid)
+    # "Refresh for current me" writes the whole lesson again (in steps, if Settings say so), not only the missing sections
+    ensure_prose(db, jobs, cid, rewrite=by_learner)
 
 
 def open_lesson(db: DB, jobs: Jobs, cid: str) -> dict:
@@ -70,19 +71,22 @@ def open_lesson(db: DB, jobs: Jobs, cid: str) -> dict:
     return {**view(db, cid), "refreshed": refreshed}
 
 
-def ensure_prose(db: DB, jobs: Jobs, cid: str) -> None:
-    """Queue one render job for every section whose exact prose isn't cached yet."""
+def ensure_prose(db: DB, jobs: Jobs, cid: str, rewrite: bool = False) -> None:
+    """Queue one render job for every section whose exact prose isn't cached yet (``rewrite``: every section)."""
     r = state.rendition_row(db, cid)
     if not r:
         return
     h = versions.head(db, cid)
     missing = [{"id": sid, "angle": a} for sid, a in r["section_angles"].items()
-               if versions.section_from_head(h, r, sid) is None
+               if rewrite or (versions.section_from_head(h, r, sid) is None
                and not db.one("SELECT 1 FROM prose WHERE concept_id=? AND card_version=? AND section_id=? AND angle=? AND style=?",
-                              (cid, r["card_version"], sid, a, r["style"]))]
+                              (cid, r["card_version"], sid, a, r["style"])))]
     if missing and not jobs.active("render", concept_id=cid, style=r["style"]):
-        jobs.enqueue("render", "Render lesson", {"concept_id": cid, "card_version": r["card_version"],
-                                                 "style": r["style"], "sections": missing})
+        # the whole lesson, written in steps (plan, graphs and questions, prose, review) unless Settings say one call
+        full = len(missing) == len(r["section_angles"]) and db.meta("lesson_writing", "steps") == "steps"
+        jobs.enqueue("render", "Write lesson" if full else "Render lesson",
+                     {"concept_id": cid, "card_version": r["card_version"], "style": r["style"], "sections": missing, "full": full,
+                      "rewrite": rewrite})
 
 
 def view(db: DB, cid: str) -> dict:
@@ -99,7 +103,7 @@ def view(db: DB, cid: str) -> dict:
     failed = next((j["error"] for j in state.jobs(db) if j["kind"] == "render" and j["status"] == "failed"
                    and j["input"].get("concept_id") == cid), None)
     sections = []
-    for s in (card or {}).get("sections", []):
+    for s in writer.effective_sections(db, cid, card):
         angle = (r or {}).get("section_angles", {}).get(s["id"]) or (s.get("angles") or ["geometric"])[0]
         kept = versions.section_from_head(h, r, s["id"]) if r else None
         exact = {"body": kept} if kept is not None else r and db.one(
@@ -115,7 +119,9 @@ def view(db: DB, cid: str) -> dict:
             "check": state.strip_check(s["check"]) if s.get("check") else None, "code": s.get("code"),
             "explain": state.strip_explain(s["explain"]) if s.get("explain") else None,
             "viz": viz.validate(s.get("viz")),  # re-validated on every read: only safe widget specs reach the page
+            "vizMine": s["vizMine"], "checkMine": s["checkMine"],
         })
+    p = writer.current_plan(db, cid, card["version"]) if card else None
     return {
         "conceptId": cid, "card": state.public_card(card) if card else None, "sections": sections,
         "rendering": rendering, "renderError": failed if not rendering else None,
@@ -123,6 +129,9 @@ def view(db: DB, cid: str) -> dict:
                             "studied": _studied(db, cid, r), "stale": state.is_stale(r, card, pb),
                             "shaped": bool(h and h["chosen"])},
         "head": h["version"] if h else None,
+        "plan": p and {"summary": p["plan"].get("summary", ""),
+                       "briefs": {x["id"]: x["brief"] for x in p["plan"].get("sections", []) if x.get("brief")},
+                       "review": p["review"] or None},
         "remedial": remedial.offer(db, cid),
         "extraLessons": [{"id": x["id"], "title": x["title"]} for x in remedial.extra_lessons(db, cid)],
         "versions": [versions.summary(v) for v in versions.all_versions(db, cid)][::-1],

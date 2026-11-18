@@ -37,6 +37,7 @@ What you may change (the fact guard):
 - If a feedback item says the material is wrong, do not "fix" the fact in prose. Give it kind "fact" in `items` and make no change for it; it goes to the card check instead.
 - Scope. Feedback with target "whole lesson" may change any section. Feedback about a section, or about a quoted part of it (text, a formula, or an interactive graph), changes that part. Change another section only when it is directly relevant to that feedback or has the same issue (for example the same abstract wording, the same missing step), and then say why in `related_because`. Leave `related_because` empty for changes inside the target section.
 - Interactive graphs are fixed widgets from the card: you cannot change a graph, but you can change the text that introduces and explains it.
+- Python code blocks (```python) are editable and run in the learner's browser (Pyodide: the standard library and NumPy; no PyTorch, files or network), sharing one namespace in lesson order. A block must run as it is; never tell the learner to copy code elsewhere.
 - Return only the sections you changed, each with its complete new text (Markdown, $math$).
 
 For each change, return one entry in `changes`: the section id, the feedback ids that caused it, `why` (which part of the feedback it answers, in one sentence), `how` (what you did, in one sentence, e.g. "Replaced the abstract definition with a worked 2D example first"), and `technique` (2-4 words naming the approach, e.g. "worked example first", "code before formula", "cooking analogy").

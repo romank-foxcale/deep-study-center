@@ -139,7 +139,7 @@ function FeedbackItem({ f, selectable, selected, onToggle, onShowVersion, lesson
   )
 }
 
-const tagId = (label: string) => FEEDBACK_TAGS.find(t => t.label === label)?.id ?? label
+const tagId = (label: string) => FEEDBACK_TAGS.find(t => t.label === label || t.old === label)?.id ?? label
 
 function EditFeedback({ f, onDone }: { f: Feedback; onDone: () => void }) {
   const { dispatch } = useStore()
@@ -176,19 +176,27 @@ export function RefQuote({ r }: { r: FeedbackRef }) {
   )
 }
 
+const KIND_HINTS: Record<FeedbackKind, string> = {
+  lesson: 'Rewrites this lesson when you apply it. Your other lessons stay as they are.',
+  me: 'Also changes your playbook (pace, length, formality, kind of explanation), so all future lessons follow it.',
+  fact: 'Sends it to the fact check of the source card. Your lesson text does not change.',
+}
+
 export function KindPicker({ value, onChange, allowAuto }: {
   value: FeedbackKind | 'auto'; onChange: (k: FeedbackKind) => void; allowAuto?: (k: 'auto') => void
 }) {
   return (
-    <div className="kind-picker" role="radiogroup" aria-label="Kind of feedback">
+    <fieldset className="kind-picker" role="radiogroup" aria-label="What should this change?">
+      <legend className="small"><strong>What should this change?</strong></legend>
       {allowAuto && (
         <label><input type="radio" checked={value === 'auto'} onChange={() => allowAuto('auto')} /> Let the agent decide</label>
       )}
       {KINDS.map(k => (
-        <label key={k} title={{ lesson: 'Changes only this lesson', me: 'Also changes your playbook, so all lessons adapt', fact: 'Goes to the fact check of the source card' }[k]}>
-          <input type="radio" checked={value === k} onChange={() => onChange(k)} /> {KIND_LABELS[k]}
+        <label key={k}>
+          <input type="radio" checked={value === k} onChange={() => onChange(k)} />
+          <span>{KIND_LABELS[k]} <span className="muted small">{KIND_HINTS[k]}</span></span>
         </label>
       ))}
-    </div>
+    </fieldset>
   )
 }

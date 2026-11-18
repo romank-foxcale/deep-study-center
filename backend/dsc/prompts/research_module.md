@@ -24,11 +24,8 @@ Process:
    - 2-3 angles chosen from geometric / algebraic / computational, each with a one-line summary;
    - example bank tagged by domain (include ML/AI examples), 1-3 misconceptions;
    - 1-3 canonical sources (title, URL you actually found, kind, why it is the best);
-   - a lesson plan of 4-6 sections. Each section: id (s-...), heading, purpose (what it must convey), angles it can be taught through, and optionally one multiple-choice check (prompt, 4 options, answer index, explanation) and, for at most one section, a Python exercise (prompt, starter code, tests as plain asserts that print "All tests passed"; standard library only, or numpy). Set the exercise's runtime to "local" only if it truly needs PyTorch (it then runs on the learner's machine);
+   - a lesson plan of 4-6 sections. Each section: id (s-...), heading, purpose (what it must convey), angles it can be taught through (best fit for this section's purpose first; a lesson should mix angles: for example a picture for the idea, symbols for the rule, code for using it), and optionally one multiple-choice check (prompt, 4 options, answer index, explanation) and, for at most one section, a Python exercise (prompt, starter code, tests as plain asserts that print "All tests passed"; standard library only, or numpy). Set the exercise's runtime to "local" only if it truly needs PyTorch (it then runs on the learner's machine);
 otherwise "pyodide" (in the browser: standard library and numpy). Where seeing something move is the point, give a section one
-interactive visual (viz) from these built-in widgets: vectors2d (up to 4 draggable arrows, optional tip-to-tail sum), lincomb2d
-(sliders for a and b in a*u + b*v, optional target point), matrix2d (a 2x2 matrix transforming a grid and the unit square),
-plot (a function of x with up to 3 slider parameters; expr uses + - * / ^, sin cos tan exp log sqrt abs tanh sigmoid relu max min,
-e.g. "a*sin(b*x)"). Keep numbers within -10..10 and add a one-line caption. Most sections need no visual. For conceptual concepts, give exactly one section an explain-back item: a question asking the learner to explain the idea in their own words (the "why", not a definition), with a rubric of 2-4 required ideas.
+interactive visual (viz) from these built-in widgets: {widgets} Most sections need no visual. For conceptual concepts, give exactly one section an explain-back item: a question asking the learner to explain the idea in their own words (the "why", not a definition), with a rubric of 2-4 required ideas.
 Keep it 80/20: what matters most for the goal, fully covered.
 Return JSON matching the schema.

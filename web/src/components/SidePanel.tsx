@@ -139,6 +139,6 @@ export function SourceCardView({ card }: { card?: SourceCard | null }) {
 function FeedbackLog({ conceptId, onShowVersion }: { conceptId: string; onShowVersion?: (version: number) => void }) {
   const { s } = useStore()
   const items = s.feedback.filter(f => f.conceptId === conceptId)
-  if (!items.length) return <p className="muted">No feedback on this lesson yet. Use “Give feedback” any time, even before you've answered anything.</p>
+  if (!items.length) return <p className="muted">No feedback on this lesson yet. Use “Add lesson feedback” any time, even before you've answered anything.</p>
   return <FeedbackItems items={items} conceptId={conceptId} onShowVersion={onShowVersion} />
 }

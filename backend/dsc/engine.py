@@ -101,13 +101,57 @@ def style_key(adjust: dict) -> str:
     return "p{pace}d{depth}r{rigor}".format(**{k: adjust.get(k, 0) for k in ADJUST_KEYS})
 
 
+# Angle mix: a section's first listed angle is the one that fits its purpose best (the card lists best fit first);
+# the playbook score says how well an angle works for this learner; every earlier use of an angle in the same lesson
+# lowers its value, so a liked angle gets more sections but not all of them.
+FIT_BONUS = (0.12, 0.04)
+REPEAT_PENALTY = 0.15
+
+
 def choose_angles(sections: list[dict], playbook: dict, pinned: dict[str, str]) -> dict[str, str]:
+    """One angle per section: a mix that follows each section's best fit and the learner's playbook.
+
+    Pinned sections keep their angle. Angles the playbook marks "avoid" are used only when a section offers nothing
+    else. A lesson of two or more sections uses at least two angles when its sections offer them."""
+    by = {e["value"]: e for e in playbook["entries"] if e["dimension"] == "angle"}
+    avoid = {a for a, e in by.items() if e["verdict"] == "avoid"}
+    score = {a: (by[a]["score"] if a in by else 0.5) for a in ANGLES}
     ranking = angle_ranking(playbook)
-    out = {}
-    for sec in sections:
+    used: dict[str, int] = {}
+    out: dict[str, str] = {}
+
+    def options(sec: dict) -> list[str]:
+        avail = [a for a in (sec.get("angles") or list(ANGLES)) if a in ANGLES] or list(ANGLES)
+        return [a for a in avail if a not in avoid] or avail
+
+    def value(sec: dict, a: str) -> float:
         avail = sec.get("angles") or list(ANGLES)
+        fit = FIT_BONUS[avail.index(a)] if a in avail and avail.index(a) < len(FIT_BONUS) else 0.0
+        return score[a] + fit - REPEAT_PENALTY * used.get(a, 0)
+
+    for sec in sections:
         pin = pinned.get(sec["id"])
-        out[sec["id"]] = pin if pin in avail else next((a for a in ranking if a in avail), avail[0])
+        if pin and pin in (sec.get("angles") or ANGLES):
+            out[sec["id"]] = pin
+        else:
+            opts = options(sec)
+            out[sec["id"]] = max(opts, key=lambda a: (value(sec, a), -ranking.index(a)))
+        used[out[sec["id"]]] = used.get(out[sec["id"]], 0) + 1
+
+    # At least two angles: switch the free section whose second-best angle loses the least.
+    if len(sections) >= 2 and len(set(out.values())) == 1:
+        only = next(iter(out.values()))
+        swaps = []
+        for sec in sections:
+            if pinned.get(sec["id"]) in (sec.get("angles") or ANGLES):
+                continue
+            alts = [a for a in options(sec) if a != only]
+            if alts:
+                best = max(alts, key=lambda a: (score[a], -ranking.index(a)))
+                swaps.append((score[only] - score[best], sections.index(sec), sec["id"], best))
+        if swaps:
+            _, _, sid, best = min(swaps)
+            out[sid] = best
     return out
 
 

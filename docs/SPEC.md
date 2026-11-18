@@ -319,3 +319,58 @@ setup page. An Ohtani table (Mandala Chart) is a 9x9 grid of nine 3x3 blocks:
   picked merge builds on are outlined. The detail panel shows the step's "done when", progress, requirements and a
   link to its lessons in the list below the grid.
 
+
+## 14. Angle mix and writing a lesson in steps (2026-11-18)
+**Angle mix** (`engine.choose_angles`). Each section gets one angle, chosen from the angles its card section allows.
+The card lists the best fit for the section's purpose first (research prompt). Value of an angle for a section =
+playbook score + fit bonus (0.12 first, 0.04 second) - 0.15 for every earlier section of the lesson that already uses
+it. So a liked angle gets more sections, but not all of them. "Avoid" angles are used only when a section offers nothing
+else; pinned sections keep their angle; a lesson of two or more sections uses at least two angles when its sections
+allow it. Before, the single best angle was used in every section.
+
+**Writing a lesson** (`writer.py`). A whole lesson (first write, refresh, new style) is one `render` job with
+`full: true`, in steps, each by its own agent (routes in Settings):
+1. **Lesson planner**: per section the angle (it may change the suggested mix, never a pinned section), a 1-3 line brief
+   for the writer, and whether the card's graph and quiz question fit this learner (`keep` / `new` / `none` for a graph,
+   `keep` / `new` for a question). It reads the playbook, the lesson guidelines and the recent feedback.
+2. **Lesson assets**: the graphs (built-in widgets only, `viz.validate`) and quiz questions the planner asked for, made
+   from the card with the guidelines. A question made for the learner has its own id `p-<section>` and key.
+3. **Renditions** (prose writer): the text of each section, with its brief and the graph it shows.
+4. **Lesson review**: checks the lesson against the guidelines, playbook and recent feedback, and checks the new graphs
+   and questions against the card. Sections with a text problem are rewritten once with the fix; a new graph or question
+   with a problem is dropped (the card's one is shown).
+Only the prose writer is required: without a model for another step, the lesson is written without it. Single-section
+renders ("explain differently", a pin) run only the prose writer, with the stored brief. The plan, the learner's assets
+and the review are stored per (lesson, card version) in `lesson_plans`; the card never changes. The lesson view, grading
+(`actions._card_item`), revealed answers and the extra-lesson brief use the learner's questions; spaced reviews and the
+Anki deck keep the card's questions. While a writing job runs, only that job snapshots a lesson version, so a draft
+before the reviewer's fixes never becomes a version. The lesson page shows "How this lesson was written for you" (plan,
+review, fixes) and "made for you" on graphs and questions. Not yet: code exercises are not remade per learner, and the
+Change log shows text changes only (not graph or question changes).
+
+## 15. Runnable code, IDE-style code, annotated formulas (2026-11-18)
+- **Runnable code**: every ```python block in lesson text is an editor with Run (Pyodide in the browser, standard library
+  and NumPy; packages a block imports are loaded first). The blocks of one lesson share one namespace, like notebook cells:
+  running a block first runs the earlier blocks that have not run yet. "Restart" clears the namespace. The text writer
+  and the apply-feedback agent are told this, so they write blocks that run as they are.
+- **IDE look**: code (blocks, runnable blocks, exercises) uses a dark editor theme with line numbers and a small Python
+  highlighter (`highlight.ts`, no dependency): a transparent text field over the colored code. Run buttons are green.
+- **Explorable formula** (`viz` type `formula`, `Formula.tsx`): `tex` with `{{id}}` per part; each part has its own TeX
+  (it may contain other parts), a label in plain words and a color. Hovering a part shows its label (no arrows); a legend
+  under the formula lists every part in its color, with a slider for each parameter (parameter parts can also be dragged
+  in the formula). Every change is explained: the formula again with the learner's values (parentheses where a value
+  follows a number or is negative) and `resultExpr` as its result; a line "σ went from 1.0 to 1.6 (when it grows: …)"
+  from the parameter's `effect`, with the result before and after; and a plot of `plotExpr` over x or over one parameter
+  (`plotVar`, with a dot at its value), the starting curve dashed. `viz.validate` accepts only safe TeX (no `\html…`,
+  `\href`, `\url`, macros), known parts and safe expressions; KaTeX trusts only the `\htmlClass` the widget adds itself.
+  Research, the planner and the asset writer are told to give every key formula such a widget, with a result or a plot.
+- **"What if" in a formula**: the learner clicks a colored part in the legend and types another form for it (shown as
+  TeX by `expr.toTex`); every valid change shows at once. A part can have `expr` (its calculator form; a parameter part
+  uses its name, and an edit replaces that name everywhere) and 2-4 `variants` (`tex`, `expr`, `why`): suggested forms
+  shown as hints, whose `why` appears when the learner types one. `plotExpr`/`resultExpr` refer to a part as `[id]`, so
+  an edit changes the plot and the result. When something is edited, the real formula ("real") and the learner's
+  ("yours") are shown side by side with a separator, or one above the other when they do not fit; the plot shows both
+  curves with a real/yours legend. `checks` (`area` = integral of the plot over its range, `peak`, `at`,
+  `result`; optional `expect`) are measured live for the real formula and the changed one (✓/✗), the variant's `why`
+  says what breaks, the real curve is dashed, and "Ask the tutor why" puts the question, with the check numbers, into
+  the tutor chat. The reviewer checks that every `why` agrees with the checks.
