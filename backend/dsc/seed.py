@@ -99,7 +99,7 @@ def seed_demo(db: DB) -> None:
         db.conn.execute("INSERT INTO meta(key, value) VALUES('active_goal', ?)", (g["id"],))
         db.conn.execute("INSERT INTO meta(key, value) VALUES(?, '1')", (f"placement_done:{g['id']}",))  # see diffs
         for i, t in enumerate(d["tracks"]):
-            db.conn.execute("INSERT INTO tracks VALUES(?,?,?,?,?)", (t["id"], g["id"], i, t["title"], t["summary"]))
+            db.conn.execute("INSERT INTO tracks(id, goal_id, ord, title, summary) VALUES(?,?,?,?,?)", (t["id"], g["id"], i, t["title"], t["summary"]))
         for i, m in enumerate(d["modules"]):
             db.conn.execute("INSERT INTO modules(id, track_id, ord, title, research, planned) VALUES(?,?,?,?,?,?)",
                             (m["id"], m["trackId"], i, m["title"], "ready" if m["research"] == "ready" else "outline",

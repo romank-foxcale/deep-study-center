@@ -132,7 +132,7 @@ def plan_week(db: DB, start: date | None = None) -> dict:
     upcoming = []
     for g in goals:
         m = db.one("""SELECT m.id, m.title, m.research FROM modules m JOIN tracks t ON t.id = m.track_id
-                      WHERE t.goal_id = ? AND m.known = 0 AND m.research != 'ready' ORDER BY t.ord, m.ord LIMIT 1""", (g["id"],))
+                      WHERE t.goal_id = ? AND m.known = 0 AND m.research != 'ready' ORDER BY m.seq, t.ord, m.ord LIMIT 1""", (g["id"],))
         if m:
             upcoming.append({"goalId": g["id"], "moduleId": m["id"], "title": m["title"], "research": m["research"]})
 

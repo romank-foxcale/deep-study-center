@@ -321,3 +321,51 @@ a.concept:hover { background: var(--surface-2); text-decoration: none; }
 .viz-block { display: flex; flex-direction: column; gap: 2px; }
 .viz-tools { display: flex; gap: 14px; justify-content: flex-end; }
 .guidelines { margin: 6px 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
+
+/* Ohtani table (Mandala Chart): nine 3x3 blocks; a cell fills bottom-up as its lessons are learned. */
+.og-wrap { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; align-items: start; margin: 8px 0 24px; }
+.og { --og-gap: 6px; container-type: inline-size; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: var(--og-gap); width: 100%; aspect-ratio: 1; }
+.og-block { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 3px; min-width: 0; min-height: 0; }
+.og-cell {
+  --fill: 0%; --fill-color: var(--ok-soft);
+  position: relative; min-width: 0; min-height: 0; padding: 3px; border-radius: 5px; border: 1px solid var(--border);
+  background: linear-gradient(to top, var(--fill-color) var(--fill), var(--surface) var(--fill));
+  color: var(--text); font: inherit; font-size: clamp(0.45rem, 1.3cqi, 0.72rem); line-height: 1.15; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; overflow: hidden;
+}
+.og-cell:hover { border-color: var(--accent); }
+.og-cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.og-label { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; hyphens: auto; }
+.og-empty { cursor: default; background: transparent; border-style: dashed; }
+.og-area { font-weight: 700; --fill-color: var(--accent-soft); border-color: var(--accent); }
+.og-merge { --fill-color: var(--accent-soft); border-style: dashed; border-color: var(--accent); }
+.og-goal { --fill-color: var(--accent); background: linear-gradient(to top, var(--accent) var(--fill), var(--accent-soft) var(--fill));
+  font-weight: 700; border: 2px solid var(--accent); }
+.og-pct { font-size: clamp(0.6rem, 1.8cqi, 0.85rem); font-weight: 700; margin-top: 2px; }
+.og-done { --fill-color: var(--ok-soft); border-color: var(--ok); }
+.og-done.og-merge { border-style: solid; }
+.og-locked { color: var(--muted); opacity: 0.6; }
+.og-current { box-shadow: 0 0 0 2px var(--warn); }
+.og-needed { box-shadow: 0 0 0 2px var(--accent); }
+.og-picked { outline: 2px solid var(--text); outline-offset: 1px; }
+/* no padding: the center block's cells keep the same size as all others; the tint sits in the gaps and around */
+.og-block-center { border-radius: 5px; background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent-soft); }
+.og-detail { position: sticky; top: 16px; }
+.og-detail h2 { margin-top: 2px; }
+.og-steps { margin: 4px 0 12px; padding-left: 20px; }
+.link-btn { background: none; border: none; padding: 0; font: inherit; color: var(--accent); cursor: pointer; text-align: left; }
+.link-btn:hover { text-decoration: underline; }
+.layout-pick { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.layout-pick fieldset { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 12px; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.layout-pick label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.layout-pick input { margin-top: 5px; }
+@media (max-width: 900px) {
+  .og-wrap { grid-template-columns: 1fr; }
+  .og-detail { position: static; }
+}
+@media (max-width: 560px) {
+  .og { --og-gap: 3px; }
+  .og-block { gap: 2px; }
+  .og-cell { padding: 1px; border-radius: 3px; }
+  .og-step .og-label, .og-merge .og-label { display: none; }
+}

@@ -18,13 +18,35 @@ def playbook(db: DB) -> dict:
 
 def concepts_raw(db: DB, goal_id: str) -> list[dict]:
     rows = db.q("""SELECT c.* FROM concepts c JOIN modules m ON m.id = c.module_id JOIN tracks t ON t.id = m.track_id
-                   WHERE t.goal_id = ? ORDER BY t.ord, m.ord, c.ord""", (goal_id,))
+                   WHERE t.goal_id = ? ORDER BY m.seq, t.ord, m.ord, c.ord""", (goal_id,))
     bodies = {r["concept_id"]: loads(r["body"]) for r in db.q(
         """SELECT c.concept_id, c.body FROM cards c WHERE c.version = (SELECT MAX(version) FROM cards WHERE concept_id = c.concept_id)""")}
     for r in rows:
         r["prereqs"] = loads(r["prereqs"], [])
         r["explain_items"] = [s["explain"]["id"] for s in bodies.get(r["id"], {}).get("sections", []) if s.get("explain")]
+    _add_module_requires(db, goal_id, rows)
     return rows
+
+
+def _add_module_requires(db: DB, goal_id: str, rows: list[dict]) -> None:
+    """A module with ``requires`` (an Ohtani merge step) stays locked until every concept of those modules
+    is learned. A required module that is not researched yet adds a placeholder prerequisite, so it stays
+    locked; one that placement marked as known adds nothing."""
+    mods = db.q("""SELECT m.id, m.requires, m.known FROM modules m JOIN tracks t ON t.id = m.track_id
+                   WHERE t.goal_id = ?""", (goal_id,))
+    known = {m["id"] for m in mods if m["known"]}
+    by_module: dict[str, list[str]] = {}
+    for r in rows:
+        by_module.setdefault(r["module_id"], []).append(r["id"])
+    for m in mods:
+        extra = []
+        for rm in loads(m["requires"], []):
+            if rm not in known:
+                extra += by_module.get(rm) or [f"module:{rm}"]
+        if extra:
+            for r in rows:
+                if r["module_id"] == m["id"]:
+                    r["prereqs"] = r["prereqs"] + [p for p in extra if p not in r["prereqs"]]
 
 
 def concept_states(db: DB, goal_id: str) -> tuple[list[dict], dict[str, engine.ConceptState]]:
@@ -147,7 +169,7 @@ def snapshot(db: DB) -> dict:
 
     g = db.one("SELECT * FROM goals WHERE id=?", (gid,))
     tracks = db.q("SELECT * FROM tracks WHERE goal_id=? ORDER BY ord", (gid,))
-    modules = db.q("""SELECT m.* FROM modules m JOIN tracks t ON t.id = m.track_id WHERE t.goal_id=? ORDER BY t.ord, m.ord""", (gid,))
+    modules = db.q("""SELECT m.* FROM modules m JOIN tracks t ON t.id = m.track_id WHERE t.goal_id=? ORDER BY m.seq, t.ord, m.ord""", (gid,))
     concepts, states = concept_states(db, gid)
     ids = [c["id"] for c in concepts]
     cards = [c for c in (latest_card(db, i) for i in ids) if c]
@@ -164,14 +186,15 @@ def snapshot(db: DB) -> dict:
     return {
         **base,
         "goal": {"id": g["id"], "title": g["title"], "why": g["why"], "doneLooksLike": g["done"],
-                 "hoursPerWeek": g["hours"], "profile": g["profile"]},
-        "tracks": [{"id": t["id"], "title": t["title"], "summary": t["summary"],
+                 "hoursPerWeek": g["hours"], "profile": g["profile"], "layout": g["layout"]},
+        "tracks": [{"id": t["id"], "title": t["title"], "summary": t["summary"], "pos": t["pos"],
                     "moduleIds": [m["id"] for m in modules if m["track_id"] == t["id"]]} for t in tracks],
         "modules": [{"id": m["id"], "trackId": m["track_id"], "title": m["title"], "research": m["research"], "known": bool(m["known"]),
-                     "summary": m["summary"], "plannedConcepts": m["planned"],
+                     "summary": m["summary"], "plannedConcepts": m["planned"], "ord": m["ord"],
+                     "requires": loads(m["requires"], []), "doneWhen": m["done_when"],
                      "conceptIds": [c["id"] for c in concepts if c["module_id"] == m["id"]]} for m in modules],
         "concepts": [{"id": c["id"], "moduleId": c["module_id"], "title": c["title"], "objective": c["objective"],
-                      "minutes": c["minutes"], "prereqs": c["prereqs"], "state": states[c["id"]].state,
+                      "minutes": c["minutes"], "prereqs": [p for p in c["prereqs"] if p in states], "state": states[c["id"]].state,
                       "mastery": states[c["id"]].mastery} for c in concepts],
         "cards": [public_card(c) for c in cards],
         "renditions": rends,

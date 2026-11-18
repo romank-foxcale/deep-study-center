@@ -144,8 +144,9 @@ def test_new_goal_outline_then_first_module_research(env):
          "card": {"bloom": "understand", "core": "c", "formal": "f", "why": "w", "angles": [], "examples": [],
                   "misconceptions": [], "sources": [], "sections": [{"id": "s-1", "heading": "H", "purpose": "p", "angles": ["algebraic"]}]}}]}
     runner.responses["Fact-check"] = {"results": []}
-    s = act(db, jobs, type="createGoal", answers=[{"q": "goal", "a": "learn RL"}, {"q": "know", "a": "python"},
-                                                   {"q": "why", "a": "job"}, {"q": "time", "a": "6 hours"}])
+    s = act(db, jobs, type="createGoal", layout="list", answers=[{"q": "goal", "a": "learn RL"}, {"q": "know", "a": "python"},
+                                                                  {"q": "why", "a": "job"}, {"q": "time", "a": "6 hours"}])
+    assert s["goal"]["layout"] == "list"
     assert s["goal"]["title"] == "Learn RL" and s["goal"]["hoursPerWeek"] == 6
     assert s["modules"][0]["research"] == "ready"
     states = {c["title"]: c["state"] for c in s["concepts"]}

@@ -13,9 +13,14 @@ export interface Goal {
   doneLooksLike: string
   hoursPerWeek: number
   profile: string
+  /** list: classic tracks → modules roadmap. ohtani: 9×9 Mandala grid (8 areas × 8 steps + 8 merges). */
+  layout: 'list' | 'ohtani'
 }
 
-export interface Track { id: string; title: string; summary: string; moduleIds: string[] }
+/** Ohtani grid block of a track: an area on the ring (clockwise from top left) or C for the merge steps. */
+export type GridPos = 'TL' | 'TM' | 'TR' | 'MR' | 'BR' | 'BM' | 'BL' | 'ML' | 'C' | ''
+
+export interface Track { id: string; title: string; summary: string; pos: GridPos; moduleIds: string[] }
 
 export interface Module {
   id: string
@@ -27,6 +32,12 @@ export interface Module {
   known: boolean
   conceptIds: string[]
   plannedConcepts: number
+  /** Position inside its track. */
+  ord: number
+  /** Modules that must be learned first (Ohtani merge steps). */
+  requires: string[]
+  /** The step's concrete completion check ('' for classic roadmaps). */
+  doneWhen: string
 }
 
 export interface Concept {

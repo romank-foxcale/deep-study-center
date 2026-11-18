@@ -52,7 +52,18 @@ units you already know, and the post weekday. See [docs/ROADMAP.md](docs/ROADMAP
 
 ## Status
 
-**Personal lessons** (current): feedback on any part of a lesson, lessons that learn from your feedback, and extra
+**Ohtani table** (current): a new goal can be built as an Ohtani table (a Mandala Chart), the default shape.
+
+- The goal is in the middle of a 9x9 grid. 8 areas (for example Linear Algebra, Statistics) sit around it, each with
+  8 steps; every step has as many lessons as it needs.
+- The 8 cells around the goal are merge steps: each joins two neighbouring areas in one task toward the goal (top-left
+  merges the top-left and top-middle areas). The outline orders the areas so that neighbours combine well.
+- A merge step unlocks when the steps it builds on are learned. Steps are learned wave by wave across the areas.
+- The Roadmap page shows the grid. A cell fills as you pass its lessons' checks; the current step has a ring. Pick a
+  cell for its "done when" check, what it builds on, and its lessons.
+- The classic roadmap (3-7 tracks) is still available on the goal setup page.
+
+**Personal lessons** added: feedback on any part of a lesson, lessons that learn from your feedback, and extra
 lessons when you are stuck.
 
 - Select text, or point at a formula or an interactive graph, to give feedback on exactly that part (or add a note).

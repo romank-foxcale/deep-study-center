@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import engine, guidelines, library, progress, providers, runner, state, versions, viz
+from . import engine, guidelines, library, ohtani, progress, providers, runner, state, versions, viz
 from . import feedback as fb
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
@@ -216,30 +216,43 @@ OUTLINE_SCHEMA = {"type": "object", "required": ["title", "why", "done", "tracks
 def run_outline(jobs: Jobs, jid: int, d: dict) -> dict:
     db = jobs.db
     answers = d["answers"]
+    layout = "ohtani" if d.get("layout") == "ohtani" else "list"
     out = jobs.call(jid, "Curriculum", Call(
-        prompt=prompt("outline", answers="\n".join(f"Q: {a['q']}\nA: {a['a']}" for a in answers)),
-        schema=OUTLINE_SCHEMA, model="opus", timeout=600))
+        prompt=prompt("outline_ohtani" if layout == "ohtani" else "outline",
+                      answers="\n".join(f"Q: {a['q']}\nA: {a['a']}" for a in answers)),
+        schema=ohtani.SCHEMA if layout == "ohtani" else OUTLINE_SCHEMA, model="opus", timeout=600))
     gid = f"g-{slug(out['title'], 24)}-{secrets.token_hex(2)}"
     profile = "\n".join(a["a"] for a in answers[1:] if a["a"].strip() and a["a"] != "(skipped)")
     hours = next((float(x) for x in re.findall(r"\d+(?:\.\d+)?", answers[3]["a"] if len(answers) > 3 else "")), 5.0)
-    first_module = None
-    with db.tx():
-        db.conn.execute("INSERT INTO goals(id, title, why, done, hours, profile, created_at) VALUES(?,?,?,?,?,?,?)",
-                        (gid, out["title"], out["why"], out["done"], hours, profile, now()))
+    if layout == "ohtani":
+        tracks, modules = ohtani.build(gid, out)
+    else:
+        tracks, modules = [], []
         for ti, t in enumerate(out["tracks"]):
             tid = f"{gid}-t{ti}"
-            db.conn.execute("INSERT INTO tracks VALUES(?,?,?,?,?)", (tid, gid, ti, t["title"], t["summary"]))
-            for mi, m in enumerate(t["modules"]):
-                mid = f"{tid}-m{mi}"
-                first_module = first_module or mid
-                db.conn.execute("INSERT INTO modules(id, track_id, ord, title, research, planned, summary) VALUES(?,?,?,?,?,?,?)",
-                                (mid, tid, mi, m["title"], "outline", m["planned"], m["summary"]))
+            tracks.append({"id": tid, "ord": ti, "title": t["title"], "summary": t["summary"], "pos": ""})
+            modules += [{"id": f"{tid}-m{mi}", "track_id": tid, "ord": mi, "title": m["title"], "summary": m["summary"],
+                         "planned": m["planned"], "done_when": "", "requires": [], "seq": 0} for mi, m in enumerate(t["modules"])]
+    with db.tx():
+        db.conn.execute("INSERT INTO goals(id, title, why, done, hours, profile, created_at, layout) VALUES(?,?,?,?,?,?,?,?)",
+                        (gid, out["title"], out["why"], out["done"], hours, profile, now(), layout))
+        for t in tracks:
+            db.conn.execute("INSERT INTO tracks(id, goal_id, ord, title, summary, pos) VALUES(?,?,?,?,?,?)",
+                            (t["id"], gid, t["ord"], t["title"], t["summary"], t["pos"]))
+        for m in modules:
+            db.conn.execute("""INSERT INTO modules(id, track_id, ord, title, research, planned, summary, seq, requires, done_when)
+                               VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                            (m["id"], m["track_id"], m["ord"], m["title"], "outline", m["planned"], m["summary"], m["seq"],
+                             dumps(m["requires"]), m["done_when"]))
         db.conn.execute("INSERT INTO meta(key, value) VALUES('active_goal', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (gid,))
-    jobs.progress(jid, f"roadmap: {len(out['tracks'])} tracks; writing a placement quiz and researching the first module")
+    first_module = db.one("""SELECT m.id FROM modules m JOIN tracks t ON t.id = m.track_id WHERE t.goal_id=?
+                             ORDER BY m.seq, t.ord, m.ord LIMIT 1""", (gid,))
+    what = f"{len(tracks) - 1} areas x 8 steps and 8 merges" if layout == "ohtani" else f"{len(tracks)} tracks"
+    jobs.progress(jid, f"roadmap: {what}; writing a placement quiz and researching the first module")
     jobs.enqueue("placement_bank", "Write placement quiz", {"goal_id": gid})
     if first_module:
-        db.x("UPDATE modules SET research='researching' WHERE id=?", (first_module,))
-        jobs.enqueue("research_module", "Research first module", {"module_id": first_module})
+        db.x("UPDATE modules SET research='researching' WHERE id=?", (first_module["id"],))
+        jobs.enqueue("research_module", "Research first module", {"module_id": first_module["id"]})
     return {"goal_id": gid}
 
 
@@ -282,13 +295,20 @@ def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
     t = db.one("SELECT * FROM tracks WHERE id=?", (m["track_id"],))
     g = db.one("SELECT * FROM goals WHERE id=?", (t["goal_id"],))
     earlier = db.q("""SELECT m.title FROM modules m JOIN tracks t ON t.id=m.track_id WHERE t.goal_id=?
-                      AND (t.ord < ? OR (t.ord = ? AND m.ord < ?)) ORDER BY t.ord, m.ord""", (g["id"], t["ord"], t["ord"], m["ord"]))
+                      AND (m.seq, t.ord, m.ord) < (?, ?, ?) ORDER BY m.seq, t.ord, m.ord""", (g["id"], m["seq"], t["ord"], m["ord"]))
     db.x("UPDATE modules SET research='researching' WHERE id=?", (m["id"],))
+    summary = m["summary"] or "no summary"
+    if m["done_when"]:
+        summary += f". Done when: {m['done_when']}"
+    required = loads(m["requires"], [])
+    if required:  # an Ohtani merge step: it joins what these steps taught
+        titles = [r["title"] for r in db.q(f"SELECT title FROM modules WHERE id IN ({','.join('?' * len(required))})", required)]
+        summary += f". It merges what these steps taught: {', '.join(titles)}"
     target = d.get("concept")  # single inserted concept: research just that one
     out = jobs.call(jid, "Research", Call(
         prompt=prompt("research_module", goal=g["title"], profile=g["profile"], track=t["title"],
                       module=target["title"] if target else m["title"],
-                      summary=target["detail"] if target else (m["summary"] or "no summary"),
+                      summary=target["detail"] if target else summary,
                       earlier=", ".join(e["title"] for e in earlier) or "none",
                       planned=1 if target else (m["planned"] or 8), library=library.index_text(db)),
         schema=RESEARCH_SCHEMA, model="opus", tools=("WebSearch", "WebFetch"), timeout=1800, max_turns=60))
@@ -409,7 +429,7 @@ def run_placement_bank(jobs: Jobs, jid: int, d: dict) -> dict:
     db = jobs.db
     g = db.one("SELECT * FROM goals WHERE id=?", (d["goal_id"],))
     mods = db.q("""SELECT m.id, m.title, m.summary FROM modules m JOIN tracks t ON t.id = m.track_id
-                   WHERE t.goal_id=? ORDER BY t.ord, m.ord""", (g["id"],))
+                   WHERE t.goal_id=? AND m.requires='[]' ORDER BY m.seq, t.ord, m.ord""", (g["id"],))
     out = jobs.call(jid, "Placement", Call(
         prompt=prompt("placement", goal=g["title"], profile=g["profile"],
                       modules="\n".join(f'{m["id"]}: {m["title"]} - {m["summary"] or ""}' for m in mods)),

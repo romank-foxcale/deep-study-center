@@ -45,7 +45,7 @@ def test_plan_shares_time_between_goals_and_skips_known_modules(env):
     db, jobs, _ = env
     # a second goal with one researched module of three 20-minute lessons
     db.x("INSERT INTO goals(id, title, hours, created_at) VALUES('g-rl', 'Learn RL', 5, '2026-10-15')")
-    db.x("INSERT INTO tracks VALUES('t-rl', 'g-rl', 0, 'RL', '')")
+    db.x("INSERT INTO tracks(id, goal_id, ord, title, summary) VALUES('t-rl', 'g-rl', 0, 'RL', '')")
     db.x("INSERT INTO modules(id, track_id, ord, title, research, planned) VALUES('m-mdp', 't-rl', 0, 'MDPs', 'ready', 3)")
     for i in range(3):
         db.x("INSERT INTO concepts VALUES(?,?,?,?,?,?,?,?,0)", (f"rl{i}", "m-mdp", i, f"RL {i}", "o", 20, dumps([]), 0.1))

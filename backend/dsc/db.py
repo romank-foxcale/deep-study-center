@@ -20,12 +20,16 @@ CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
 CREATE TABLE IF NOT EXISTS goals (
   id TEXT PRIMARY KEY, title TEXT NOT NULL, why TEXT NOT NULL DEFAULT '', done TEXT NOT NULL DEFAULT '',
-  hours REAL NOT NULL DEFAULT 5, profile TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL);
+  hours REAL NOT NULL DEFAULT 5, profile TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
+  layout TEXT NOT NULL DEFAULT 'list');
 CREATE TABLE IF NOT EXISTS tracks (
-  id TEXT PRIMARY KEY, goal_id TEXT NOT NULL, ord INTEGER NOT NULL, title TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '');
+  id TEXT PRIMARY KEY, goal_id TEXT NOT NULL, ord INTEGER NOT NULL, title TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '',
+  pos TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS modules (
   id TEXT PRIMARY KEY, track_id TEXT NOT NULL, ord INTEGER NOT NULL, title TEXT NOT NULL,
-  research TEXT NOT NULL DEFAULT 'outline', planned INTEGER NOT NULL DEFAULT 0, summary TEXT NOT NULL DEFAULT '');
+  research TEXT NOT NULL DEFAULT 'outline', planned INTEGER NOT NULL DEFAULT 0, summary TEXT NOT NULL DEFAULT '',
+  known INTEGER NOT NULL DEFAULT 0, seq INTEGER NOT NULL DEFAULT 0, requires TEXT NOT NULL DEFAULT '[]',
+  done_when TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS concepts (
   id TEXT PRIMARY KEY, module_id TEXT NOT NULL, ord INTEGER NOT NULL, title TEXT NOT NULL,
   objective TEXT NOT NULL, minutes INTEGER NOT NULL DEFAULT 20, prereqs TEXT NOT NULL DEFAULT '[]',
@@ -135,6 +139,11 @@ CREATE TABLE IF NOT EXISTS jobs (
 MIGRATIONS = [
     ("evidence", "score", "REAL"),                         # soft evidence (0..1), e.g. graded explain-back
     ("modules", "known", "INTEGER NOT NULL DEFAULT 0"),    # placement showed the learner knows it
+    ("goals", "layout", "TEXT NOT NULL DEFAULT 'list'"),   # list (classic roadmap) | ohtani (9x9 Mandala grid)
+    ("tracks", "pos", "TEXT NOT NULL DEFAULT ''"),         # ohtani: grid block of this area (TL..ML) or C (merges)
+    ("modules", "seq", "INTEGER NOT NULL DEFAULT 0"),      # global learning order across tracks (0 = track order)
+    ("modules", "requires", "TEXT NOT NULL DEFAULT '[]'"), # module ids that must be learned first (ohtani merges)
+    ("modules", "done_when", "TEXT NOT NULL DEFAULT ''"),  # the step's concrete completion check
     ("cards", "refreshed_at", "TEXT"),                     # last time a refresh job reviewed this version
     ("feedback", "kind", "TEXT NOT NULL DEFAULT 'me'"),    # lesson | me | fact (SPEC §11)
     ("feedback", "kind_source", "TEXT NOT NULL DEFAULT 'auto'"),  # auto (rules) | agent | learner
