@@ -318,7 +318,9 @@ a.concept:hover { background: var(--surface-2); text-decoration: none; }
 .guidelines { margin: 6px 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
 
 /* Ohtani table (Mandala Chart): nine 3x3 blocks; a cell fills bottom-up as its lessons are learned. */
-.og-wrap { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; align-items: start; margin: 8px 0 24px; }
+/* the goal / picked-cell card on top, the table below it at full width */
+.og-wrap { display: flex; flex-direction: column; gap: 16px; margin: 8px 0 24px; }
+.og-wrap > .og { max-width: 980px; width: 100%; align-self: center; }
 .og { --og-gap: 6px; container-type: inline-size; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: var(--og-gap); width: 100%; aspect-ratio: 1; }
 .og-block { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 3px; min-width: 0; min-height: 0; }
 .og-cell {
@@ -345,7 +347,7 @@ a.concept:hover { background: var(--surface-2); text-decoration: none; }
 .og-picked { outline: 2px solid var(--text); outline-offset: 1px; }
 /* no padding: the center block's cells keep the same size as all others; the tint sits in the gaps and around */
 .og-block-center { border-radius: 5px; background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent-soft); }
-.og-detail { position: sticky; top: 16px; }
+.og-detail { order: -1; }
 .og-detail h2 { margin-top: 2px; }
 .og-steps { margin: 4px 0 12px; padding-left: 20px; }
 .link-btn { background: none; border: none; padding: 0; font: inherit; color: var(--accent); cursor: pointer; text-align: left; }
@@ -484,3 +486,14 @@ pre.code-output.bad { color: #f48771; }
 .formula-fold > summary { cursor: pointer; color: var(--muted); font-size: 0.82rem; user-select: none; }
 .formula-fold > summary:hover { color: var(--text); }
 .formula-fold .katex-display { margin: 0.3em 0; }
+
+/* Markdown tables in lessons (GitHub-style Markdown) */
+.md table { border-collapse: collapse; margin: 10px 0; font-size: 0.92rem; display: block; overflow-x: auto; max-width: 100%; }
+.md th, .md td { border: 1px solid var(--border); padding: 4px 10px; text-align: left; }
+.md th { background: var(--surface-2); font-weight: 600; }
+.md td { font-variant-numeric: tabular-nums; }
+
+/* what the app fixed or removed in a graph after computing it */
+.viz-notes { font-size: 0.82rem; color: var(--muted); border-left: 3px solid var(--warn); padding: 2px 10px; margin-top: 4px; }
+.viz-notes summary { cursor: pointer; color: var(--warn); }
+.viz-notes ul { margin: 4px 0; padding-left: 18px; }

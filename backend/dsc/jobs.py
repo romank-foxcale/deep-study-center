@@ -314,6 +314,19 @@ def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
             c = {**c, "card": reused, "reused": True}
         if c.get("card"):
             concepts.append(c)
+    # Compute every graph as the page will; one fix round with an agent for a graph that does not work.
+    for c in concepts:
+        if c.get("reused"):
+            continue
+        for s in c["card"].get("sections", []):
+            if s.get("viz"):
+                spec, notes = writer.check_viz(jobs, jid, {**c["card"], "objective": c["objective"]}, s, s["viz"])
+                if spec:
+                    s["viz"] = spec
+                else:
+                    s.pop("viz", None)
+                if notes:
+                    s["vizNotes"] = notes
     keymap = {c["key"]: (target["id"] if target else f'{m["id"]}-{slug(c["key"], 30)}') for c in concepts}
     base_ord = db.one("SELECT COALESCE(MAX(ord), -1) AS o FROM concepts WHERE module_id=?", (m["id"],))["o"] + 1
     ts = now()
@@ -523,9 +536,13 @@ def run_refresh_card(jobs: Jobs, jid: int, d: dict) -> dict:
             if s.get(kind):  # keep item ids stable so past answers still line up
                 s[kind]["id"] = prev.get(kind, {}).get("id") or f'{prefix}-{s["id"]}'
         if "viz" in s:
-            s["viz"] = viz.validate(s["viz"])
-            if not s["viz"]:
+            spec, notes = writer.check_viz(jobs, jid, new, s, s["viz"])
+            if spec:
+                s["viz"] = spec
+            else:
                 del s["viz"]
+            if notes:
+                s["vizNotes"] = notes
         if s.get("code") and s["code"].get("runtime") not in ("pyodide", "local"):
             s["code"]["runtime"] = "pyodide"
     db.x("UPDATE card_proposals SET status='superseded' WHERE concept_id=? AND status='pending'", (cid,))

@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import re
 
+from . import texexpr, vizcheck
+
 LIMIT = 10.0
 FUNCTIONS = {"sin", "cos", "tan", "exp", "log", "sqrt", "abs", "tanh", "sigmoid", "relu", "max", "min"}
 _TOKEN = re.compile(r"\s*(?:(\d+\.?\d*|\.\d+)|([a-z_][a-z0-9_]*)|(\*\*|[-+*/^(),]))")
@@ -70,7 +72,7 @@ def expr_ok(expr: str, names: set[str]) -> bool:
     return True
 
 
-def validate(spec) -> dict | None:
+def validate(spec, numeric: bool = True) -> dict | None:
     if not isinstance(spec, dict):
         return None
     t, caption = spec.get("type"), str(spec.get("caption") or "")[:200]
@@ -110,7 +112,7 @@ def validate(spec) -> dict | None:
             xmin, xmax = -5.0, 5.0
         return {"type": t, "caption": caption, "expr": expr, "xmin": xmin, "xmax": xmax, "params": params}
     if t == "formula":
-        return _formula(spec, caption)
+        return _formula(spec, caption, numeric)
     return None
 
 
@@ -126,22 +128,38 @@ def _tex_ok(tex: object, limit: int) -> bool:
     return isinstance(tex, str) and 0 < len(tex) <= limit and not _UNSAFE_TEX.search(tex)
 
 
-def _formula(spec: dict, caption: str) -> dict | None:
+def _formula(spec: dict, caption: str, numeric: bool = True) -> dict | None:
     """An annotated formula: colored parts with labels; parts bound to a parameter can be dragged to change it, and an
     optional plot of `plotExpr` follows the parameters (with the starting curve dashed)."""
     tex = spec.get("tex")
     if not _tex_ok(tex, 400):
         return None
     params = []
-    for p in (spec.get("formulaParams") or [])[:3]:
+    # Agents write `formulaParams`; a validated spec (stored, then validated again on every read) has `params`.
+    # `x` may be a parameter too: it is then the value the learner sets, and a plot over x marks it.
+    for p in (spec.get("formulaParams") or spec.get("params") or [])[:3]:
         name = str(p.get("name", "")) if isinstance(p, dict) else ""
-        if not re.fullmatch(r"[a-z][a-z0-9]{0,7}", name) or name in FUNCTIONS | {"x", "e", "pi"}:
+        if not re.fullmatch(r"[a-z][a-z0-9]{0,7}", name) or name in FUNCTIONS | {"e", "pi"}:
             continue
         lo, hi, val = _num(p.get("min"), -100, 100), _num(p.get("max"), -100, 100), _num(p.get("value"), -100, 100)
         if None not in (lo, hi, val) and lo < hi:
             params.append({"name": name, "min": lo, "max": hi, "value": max(lo, min(hi, val)),
-                           "effect": " ".join(str(p.get("effect") or "").split())[:140]})
+                           "effect": " ".join(str(p.get("effect") or "").split())[:140],
+                           "label": " ".join(str(p.get("label") or "").split())[:60]})
     names = {p["name"] for p in params}
+    # A plot over x whose x the learner cannot set: make x a value with a slider over the plot's range, so the
+    # result and the checks can use it (lessons written before x could be a parameter).
+    implicit_x = False
+    plot_raw = str(spec.get("plotExpr") or "").strip().lower()
+    if "x" not in names and str(spec.get("plotVar") or "x") in ("x", "") and \
+            re.search(r"(?<![a-z0-9_])x(?![a-z0-9_])", _REF.sub("", plot_raw)) and len(params) < 3:
+        lo, hi = _num(spec.get("xmin"), -100, 100), _num(spec.get("xmax"), -100, 100)
+        if lo is None or hi is None or lo >= hi:
+            lo, hi = -5.0, 5.0
+        params.append({"name": "x", "min": lo, "max": hi, "value": round(lo + 0.8 * (hi - lo), 1), "effect": "",
+                       "label": "x: the value across the plot"})
+        names.add("x")
+        implicit_x = True
     parts, seen = [], set()
     for i, p in enumerate((spec.get("parts") or [])[:6]):
         if not isinstance(p, dict) or not _PART_ID.fullmatch(str(p.get("id", ""))) or p["id"] in seen or not _tex_ok(p.get("tex"), 200):
@@ -153,6 +171,8 @@ def _formula(spec: dict, caption: str) -> dict | None:
                 "param": p.get("param") if p.get("param") in names else None}
         # The part in calculator form, so the widget can compute with it, and "what if" variants of it.
         pexpr = str(p.get("expr") or "").strip().lower()
+        if not pexpr:  # so the learner edits the whole colored part (x^2, not only x): read it from simple TeX
+            pexpr = texexpr.tex_to_expr(p["tex"]) or ""
         if pexpr and expr_ok(pexpr, names):
             part["expr"] = pexpr
             variants = []
@@ -165,6 +185,21 @@ def _formula(spec: dict, caption: str) -> dict | None:
             if variants:
                 part["variants"] = variants
         parts.append(part)
+    # Only the formula's own variables can be changed, through the part that shows them: a value without a part gets
+    # the part whose TeX shows its symbol (y in "y^2", \sigma in "\sigma\sqrt{2\pi}" when no other part is \sigma).
+    for prm in params:
+        if any(p["param"] == prm["name"] for p in parts):
+            continue
+        sym = rf"\\{prm['name']}(?![a-zA-Z])" if len(prm["name"]) > 1 else rf"(?<![\\a-zA-Z]){prm['name']}(?![a-zA-Z])"
+        host = next((p for p in parts if not p["param"] and not _PLACEHOLDER.search(p["tex"]) and re.search(sym, p["tex"])), None)
+        if host:
+            host["param"] = prm["name"]
+    if implicit_x and not any(p["param"] == "x" for p in parts):
+        params.pop()  # an x slider only when a part of the formula shows x
+        names.discard("x")
+        implicit_x = False
+    elif implicit_x:
+        params[-1]["label"] = ""
     used = set(_PLACEHOLDER.findall(tex)) | {x for p in parts for x in _PLACEHOLDER.findall(p["tex"])}
     if not parts or not used <= seen or not set(_PLACEHOLDER.findall(tex)):
         return None
@@ -180,7 +215,8 @@ def _formula(spec: dict, caption: str) -> dict | None:
 
     # The live result: a number computed from the parameters ("‖v‖ = 5.00"), shown with the formula filled in.
     result = str(spec.get("resultExpr") or "").strip().lower()
-    if result and ok(result) and _tex_ok(spec.get("resultTex") or "y", 80):
+    free_x = "x" not in names and re.search(r"(?<![a-z0-9_])x(?![a-z0-9_])", _REF.sub("", result))
+    if result and ok(result) and not free_x and _tex_ok(spec.get("resultTex") or "y", 80):  # a number needs every value set
         out.update(resultExpr=result, resultTex=spec.get("resultTex") or "")
     # The plot: y over x, or over one parameter (plotVar) with a dot at its current value.
     expr = str(spec.get("plotExpr") or "").strip().lower()
@@ -212,7 +248,36 @@ def _formula(spec: dict, caption: str) -> dict | None:
         checks.append(item)
     if checks:
         out["checks"] = checks
-    return out
+    # Compute it as the page will: remove a result, plot, check or variant that cannot work (vizcheck).
+    return vizcheck.inspect(out)[0] if numeric else out
+
+
+def inspect(spec) -> tuple[dict | None, list[str]]:
+    """Validate a widget and say in plain words what was removed and why (for the agent that wrote it, and for the
+    learner's warning). Problems are counted against the agent's raw spec, so silent drops are reported too."""
+    out = validate(spec)
+    if not isinstance(spec, dict) or spec.get("type") != "formula":
+        return out, ([] if out or not spec else ["the graph is not valid and was removed"])
+    if out is None:
+        return None, ["the formula widget is not valid (unsafe or empty TeX, a {{part}} that does not exist, or no parts), so it was removed"]
+    syntax = validate(spec, numeric=False)
+    raw = vizcheck.inspect(syntax)[1] if syntax else []
+    problems = list(dict.fromkeys(raw))
+    raw_parts = {p.get("id"): p for p in spec.get("parts") or [] if isinstance(p, dict)}
+    kept = {p["id"]: p for p in out["parts"]}
+    for pid, p in raw_parts.items():
+        if pid not in kept:
+            problems.append(f'part “{pid}” was removed (bad id or unsafe TeX)')
+            continue
+        if p.get("param") and not kept[pid].get("param"):
+            problems.append(f'part “{pid}”: its param “{p["param"]}” is not one of the values, so it has no slider')
+        lost = len(p.get("variants") or []) - len(kept[pid].get("variants") or [])
+        if lost > 0 and not any(f'of part “{pid}”' in x for x in problems):
+            problems.append(f'part “{pid}”: {lost} variant(s) were removed (bad TeX or expression, or the same as the real form)')
+    if len(spec.get("checks") or []) > len(out.get("checks") or []) and not any(x.startswith("check") for x in problems):
+        problems.append("some checks were removed (unknown kind, or they need a plot or result the widget does not have)")
+    return out, problems
+
 
 
 _REF = re.compile(r"\[([a-z][a-z0-9_]{0,15})\]")

@@ -6,6 +6,7 @@
 // the markers.
 
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 
@@ -85,7 +86,7 @@ function rehypeMarks() {
 export default function DiffMarkdown({ tokens }: { tokens: Token[] }) {
   return (
     <div className="md">
-      <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex, rehypeMarks]}>{source(tokens)}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeMarks]}>{source(tokens)}</ReactMarkdown>
     </div>
   )
 }

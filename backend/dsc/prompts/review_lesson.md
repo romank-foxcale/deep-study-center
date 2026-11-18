@@ -24,7 +24,7 @@ The lesson, section by section (angle, text, graph, quiz question; "made for you
 
 Report a problem only when it is real and concrete:
 - `prose`: the text breaks a guideline, repeats a problem the learner gave feedback about, contradicts the card, or does not fit its angle.
-- `viz`: a graph made for this learner that is wrong, confusing, or goes against the guidelines. For a formula widget, also check that every variant's `why` is true and agrees with its checks (for example, if a "why" says the area is no longer 1, the real formula's area check must expect 1 and the variant must change the area), and that the labels say what each part does.
+- `viz`: a graph made for this learner that is wrong, confusing, or goes against the guidelines. For a formula widget, use its "Graph numbers" (computed exactly as the page shows them): check that every variant's `why` is true and agrees with those numbers (for example, if a "why" says the area is no longer 1, the real formula's area check must expect 1 and the variant must change the area), and that the labels say what each part does.
 - `check`: a quiz question made for this learner whose marked answer is not correct by the card, has two correct options, or tests something the section does not teach.
 For each problem give the section id, the part, the problem in one sentence, the fix in one sentence, and the guideline or feedback it comes from (empty if it is a correctness problem). Do not report matters of taste. An empty list is a good result.
 In `summary`, say in one sentence what you found.

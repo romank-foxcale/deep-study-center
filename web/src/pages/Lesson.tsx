@@ -248,6 +248,12 @@ export default function Lesson() {
                     <button className="link small" onClick={() => feedbackOn({ kind: 'viz', quote: sec.viz!.caption, sectionId: sec.id })}>Feedback on this graph</button>
                     <button className="link small" onClick={() => noteOn({ kind: 'viz', quote: sec.viz!.caption, sectionId: sec.id })}>Note</button>
                   </div>
+                  {sec.vizNotes.length > 0 && (
+                    <details className="viz-notes">
+                      <summary>The app checked this graph and adjusted it ({sec.vizNotes.length} note{sec.vizNotes.length > 1 ? 's' : ''})</summary>
+                      <ul>{sec.vizNotes.map((n, i) => <li key={i}>{n}</li>)}</ul>
+                    </details>
+                  )}
                 </div>
               )}
               {sec.approximate && <p className="muted small">{sec.pending ? 'Showing the closest earlier version while your new one is written.' : 'Closest earlier version.'}</p>}

@@ -374,3 +374,20 @@ Change log shows text changes only (not graph or question changes).
   `result`; optional `expect`) are measured live for the real formula and the changed one (✓/✗), the variant's `why`
   says what breaks, the real curve is dashed, and "Ask the tutor why" puts the question, with the check numbers, into
   the tutor chat. The reviewer checks that every `why` agrees with the checks.
+
+## 16. Widgets are computed before they are shown (2026-11-18)
+- `vizcheck.py` computes a formula widget exactly as `Formula.tsx` does (same expression language, no `eval`): the
+  result, the plot (400 points), every check and every "what if" variant, at the start values. `viz.validate` removes
+  what cannot work: a result or plot that cannot be computed, a check the real formula fails, a variant that changes
+  nothing visible. Validation is stable: validating a validated widget changes nothing (tested on every real widget).
+- Each value is tied to the part that shows its symbol (y in "y^2"); x becomes a value when a plot runs over x and a
+  part shows x. A value inside a larger part gets its own slider row. Each simple part gets its calculator form from
+  its TeX (`texexpr.py`: x² → `x^2`, σ√2π → `sigma*sqrt(2*pi)`), so the learner edits the whole colored part.
+- `viz.inspect` lists the problems in plain words. `writer.check_viz` sends a widget with problems back to an agent
+  once ("Lesson assets" route, `fix_widget.md`) and keeps the better version; this runs for research, card refresh and
+  graphs made for the learner. Remaining notes are stored with the graph (`vizNotes`) and shown under it ("The app
+  checked this graph and adjusted it").
+- The lesson reviewer gets "Graph numbers" (`vizcheck.describe`): the start values, the result, each check and each
+  variant's numbers, so it can check every "why" against them.
+- `tests/fixtures/formula_widgets_real.json` holds the widgets the real model wrote; `test_vizcheck.py` checks each one
+  (stable, computable, passes its own checks, every variant changes something, every value is shown).

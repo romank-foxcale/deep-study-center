@@ -190,3 +190,66 @@ def test_formula_variants_part_references_and_checks():
     assert [c["kind"] for c in out["checks"]] == ["area", "at"]  # "result" needs a resultExpr
     assert "plotExpr" not in viz.validate({**spec, "plotExpr": "exp(-x)/[nope]"})  # unknown part reference
     assert "checks" not in viz.validate({**spec, "plotExpr": None})  # area needs a plot
+
+
+def test_formula_validation_is_stable_and_x_can_be_a_parameter():
+    from dsc import viz
+    spec = {"type": "formula", "caption": "c", "tex": r"\lVert v \rVert = ( {{px}} + {{py}} )^{1/2}",
+            "parts": [{"id": "px", "tex": "x^2", "label": "first", "param": "x"}, {"id": "py", "tex": "y^2", "label": "second", "param": "y"}],
+            "formulaParams": [{"name": "x", "min": -5, "max": 5, "value": 3}, {"name": "y", "min": -5, "max": 5, "value": 4}],
+            "resultExpr": "(x^2 + y^2)^0.5", "plotExpr": "(x^2 + y^2)^0.5", "plotVar": "x",
+            "checks": [{"kind": "result", "label": "(3, 4) has length 5", "expect": 5}]}
+    once = viz.validate(spec)
+    assert [p["name"] for p in once["params"]] == ["x", "y"] and once["resultExpr"] and once["checks"]
+    assert viz.validate(once) == once  # validated again on every read: nothing may be lost
+
+
+def test_formula_plot_over_x_gets_an_x_slider():
+    from dsc import viz
+    spec = {"type": "formula", "caption": "c", "tex": r"\lVert v \rVert = ( {{px}} + {{py}} )^{1/2}",
+            "parts": [{"id": "px", "tex": "x^2", "label": "first"}, {"id": "py", "tex": "y^2", "label": "second", "param": "y"}],
+            "params": [{"name": "y", "min": -5, "max": 5, "value": 4}],
+            "resultExpr": "(x^2 + y^2)^0.5", "plotExpr": "(x^2 + y^2)^0.5", "plotVar": "x",
+            "checks": [{"kind": "result", "label": "(3, 4) has length 5", "expect": 5}, {"kind": "at", "label": "at 0", "at": 0, "expect": 4}]}
+    out = viz.validate(spec)
+    # x is made a value with a slider over the plot range (starting at 3), so the result and its check work
+    x = next(p for p in out["params"] if p["name"] == "x")
+    assert (x["min"], x["max"], x["value"]) == (-5, 5, 3.0) and out["resultExpr"]
+    assert next(p for p in out["parts"] if p["id"] == "px")["param"] == "x"  # the slider belongs to the part x^2
+    # a formula whose parts do not show x gets no x slider
+    bell = viz.validate({**spec, "tex": r"p = {{py}} + {{pw}}", "parts": [spec["parts"][1], {"id": "pw", "tex": "1/2", "label": "w"}],
+                         "resultExpr": "y^2"})
+    assert [p["name"] for p in bell["params"]] == ["y"]
+    assert [c["kind"] for c in out["checks"]] == ["result", "at"] and out["plotExpr"]
+    assert viz.validate(out) == out
+
+
+def test_a_broken_graph_goes_back_to_the_writer_once_and_the_fix_is_kept(env):
+    db, jobs, runner = env
+    card = state.latest_card(db, CID)
+    target = card["sections"][0]["id"]
+    broken = {"type": "formula", "caption": "c", "tex": r"y = {{a}} \cdot 2",
+              "parts": [{"id": "a", "tex": "a", "label": "a value", "param": "a"}],
+              "formulaParams": [{"name": "a", "min": 0, "max": 5, "value": 1}], "resultExpr": "a*2",
+              "checks": [{"kind": "result", "label": "a = 1 gives 3", "expect": 3}]}
+    fixed = {**broken, "checks": [{"kind": "result", "label": "a = 1 gives 2", "expect": 2}]}
+    seen = []
+
+    def assets(call):
+        seen.append(call.prompt)
+        if call.prompt.startswith("You fix one interactive widget"):
+            assert "gives 2 for the real formula, not 3" in call.prompt
+            return fixed
+        return {"sections": [{"id": target, "why": "w", "viz": broken}]}
+
+    runner.responses["Lesson planner"] = plan_reply(card, **{target: {"viz": "new"}})
+    runner.responses["Lesson assets"] = assets
+    runner.responses["Renditions"] = prose_reply()
+    runner.responses["Lesson review"] = {"summary": "fine", "issues": []}
+    v = lesson.open_lesson(db, jobs, CID)
+    sec = next(s for s in v["sections"] if s["id"] == target)
+    assert len(seen) == 2 and sec["vizMine"]
+    assert [c["label"] for c in sec["viz"]["checks"]] == ["a = 1 gives 2"]
+    assert sec["vizNotes"][0].startswith("The app found 1 problem(s) in this graph and the writer fixed 1")
+    review = [c for r, c in runner.calls if r == "Lesson review"][0].prompt
+    assert "Graph numbers (computed as the page shows them): Start values: a = 1. Result a*2 = 2." in review

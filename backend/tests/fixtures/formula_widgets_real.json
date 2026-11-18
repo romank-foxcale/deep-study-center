@@ -1,0 +1,586 @@
+[
+ {
+  "source": "0-m0-la-dot-product/s-formula",
+  "widget": {
+   "type": "formula",
+   "caption": "Change the lengths and the angle θ (radians). The curve shows a·b over θ from 0 to π.",
+   "tex": "\\mathbf{a}\\cdot\\mathbf{b} = {{na}}\\,{{nb}}\\,{{cs}}",
+   "parts": [
+    {
+     "id": "na",
+     "tex": "\\lVert\\mathbf{a}\\rVert",
+     "label": "length of vector a",
+     "color": "blue",
+     "side": "above",
+     "param": "a"
+    },
+    {
+     "id": "nb",
+     "tex": "\\lVert\\mathbf{b}\\rVert",
+     "label": "length of vector b",
+     "color": "green",
+     "side": "below",
+     "param": "b"
+    },
+    {
+     "id": "cs",
+     "tex": "\\cos\\theta",
+     "label": "alignment: 1 same way, −1 opposite",
+     "color": "orange",
+     "side": "above",
+     "param": "t",
+     "expr": "cos(t)",
+     "variants": [
+      {
+       "tex": "\\sin\\theta",
+       "expr": "sin(t)",
+       "why": "Parallel vectors (θ = 0) would give 0, and perpendicular vectors would give the maximum. The dot product must be largest when the vectors point the same way."
+      },
+      {
+       "tex": "\\cos^2\\theta",
+       "expr": "cos(t)^2",
+       "why": "The sign is lost. Opposite vectors (θ = π) would give +6 instead of −6, so anti-correlated series would look like correlated ones."
+      }
+     ]
+    }
+   ],
+   "params": [
+    {
+     "name": "a",
+     "min": 0.0,
+     "max": 5.0,
+     "value": 2.0,
+     "effect": "longer a: the dot product grows in proportion"
+    },
+    {
+     "name": "b",
+     "min": 0.0,
+     "max": 5.0,
+     "value": 3.0,
+     "effect": "longer b: the dot product grows in proportion"
+    },
+    {
+     "name": "t",
+     "min": 0.0,
+     "max": 3.1416,
+     "value": 1.0,
+     "effect": "larger angle: the dot product falls, is 0 at 90°, and is negative after that"
+    }
+   ],
+   "resultExpr": "a*b*[cs]",
+   "resultTex": "\\mathbf{a}\\cdot\\mathbf{b}",
+   "plotExpr": "a*b*[cs]",
+   "plotVar": "t",
+   "xmin": 0.0,
+   "xmax": 3.1416,
+   "checks": [
+    {
+     "kind": "at",
+     "label": "same direction: a·b = |a||b| = 6",
+     "at": 0.0,
+     "expect": 6.0
+    },
+    {
+     "kind": "at",
+     "label": "perpendicular: a·b = 0",
+     "at": 1.5708,
+     "expect": 0.0
+    },
+    {
+     "kind": "at",
+     "label": "opposite: a·b = −|a||b| = −6",
+     "at": 3.1416,
+     "expect": -6.0
+    }
+   ]
+  }
+ },
+ {
+  "source": "0-m0-la-norms/s-pythagoras",
+  "widget": {
+   "type": "formula",
+   "caption": "Set the two components of v. The curve shows the length as x changes, with y fixed.",
+   "tex": "\\lVert\\mathbf{v}\\rVert_2 = \\left( {{px}} + {{py}} \\right)^{ {{pw}} }",
+   "parts": [
+    {
+     "id": "px",
+     "tex": "x^2",
+     "label": "squared first component",
+     "color": "blue",
+     "side": "above",
+     "param": null
+    },
+    {
+     "id": "py",
+     "tex": "y^2",
+     "label": "squared second component",
+     "color": "green",
+     "side": "below",
+     "param": "y"
+    },
+    {
+     "id": "pw",
+     "tex": "1/2",
+     "label": "square root: back to data units",
+     "color": "orange",
+     "side": "above",
+     "param": null,
+     "expr": "0.5",
+     "variants": [
+      {
+       "tex": "1",
+       "expr": "1",
+       "why": "Without the root, (3, 4) gets 25, not 5, and doubling the vector makes the 'length' 4 times larger. A length must scale by the same factor as the vector."
+      },
+      {
+       "tex": "1/3",
+       "expr": "1/3",
+       "why": "(3, 4) gets about 2.92, not 5. The components are squared, so only the square root undoes it and matches Pythagoras."
+      }
+     ]
+    }
+   ],
+   "params": [
+    {
+     "name": "y",
+     "min": -5.0,
+     "max": 5.0,
+     "value": 4.0,
+     "effect": "larger |y|: the vector gets longer"
+    }
+   ],
+   "resultExpr": "(x^2 + y^2)^[pw]",
+   "resultTex": "\\lVert\\mathbf{v}\\rVert_2",
+   "plotExpr": "(x^2 + y^2)^[pw]",
+   "plotVar": "x",
+   "xmin": -5.0,
+   "xmax": 5.0,
+   "checks": [
+    {
+     "kind": "result",
+     "label": "(3, 4) has length 5",
+     "expect": 5.0
+    },
+    {
+     "kind": "at",
+     "label": "(0, 4) has length 4",
+     "at": 0.0,
+     "expect": 4.0
+    },
+    {
+     "kind": "at",
+     "label": "(−3, 4): the sign does not change the length",
+     "at": -3.0,
+     "expect": 5.0
+    }
+   ]
+  }
+ },
+ {
+  "source": "0-m0-la-cosine-similarity/s-definition",
+  "widget": {
+   "type": "formula",
+   "caption": "Here a = (2, 1) and b = (1, 2). Scale a by k. The dot product grows, but the cosine stays at 0.8.",
+   "tex": "\\cos({{kk}}\\,\\mathbf{a}, \\mathbf{b}) = \\frac{ {{dot}} }{ {{nrm}} }",
+   "parts": [
+    {
+     "id": "kk",
+     "tex": "k",
+     "label": "scale factor on series a",
+     "color": "purple",
+     "side": "above",
+     "param": "k"
+    },
+    {
+     "id": "dot",
+     "tex": "(k\\mathbf{a})\\cdot\\mathbf{b}",
+     "label": "dot product: grows with k",
+     "color": "blue",
+     "side": "below",
+     "param": null,
+     "expr": "4*k"
+    },
+    {
+     "id": "nrm",
+     "tex": "\\lVert k\\mathbf{a}\\rVert\\,\\lVert\\mathbf{b}\\rVert",
+     "label": "product of lengths: cancels the scale",
+     "color": "orange",
+     "side": "above",
+     "param": null,
+     "expr": "5*abs(k)",
+     "variants": [
+      {
+       "tex": "\\lVert\\mathbf{b}\\rVert^2",
+       "expr": "5",
+       "why": "The scale of a is not removed. The value grows with k and passes 1, so it is no longer a cosine."
+      },
+      {
+       "tex": "\\lVert k\\mathbf{a}\\rVert^2\\,\\lVert\\mathbf{b}\\rVert^2",
+       "expr": "25*k^2",
+       "why": "Squared lengths over-correct. The value falls as k grows, so the same shape gets different scores at different scales."
+      },
+      {
+       "tex": "\\lVert k\\mathbf{a}\\rVert + \\lVert\\mathbf{b}\\rVert",
+       "expr": "sqrt(5)*abs(k) + sqrt(5)",
+       "why": "A sum does not cancel a product. The value changes with k, so the score depends on the units of the series."
+      }
+     ]
+    }
+   ],
+   "params": [
+    {
+     "name": "k",
+     "min": 0.1,
+     "max": 5.0,
+     "value": 2.0,
+     "effect": "larger k: a gets longer, but the cosine stays 0.8"
+    }
+   ],
+   "resultExpr": "[dot]/[nrm]",
+   "resultTex": "\\cos(k\\mathbf{a},\\mathbf{b})",
+   "plotExpr": "[dot]/[nrm]",
+   "plotVar": "k",
+   "xmin": 0.1,
+   "xmax": 5.0,
+   "checks": [
+    {
+     "kind": "result",
+     "label": "k = 2: cos = 0.8",
+     "expect": 0.8
+    },
+    {
+     "kind": "at",
+     "label": "k = 1: cos = 0.8",
+     "at": 1.0,
+     "expect": 0.8
+    },
+    {
+     "kind": "at",
+     "label": "k = 4: still 0.8; scale does not matter",
+     "at": 4.0,
+     "expect": 0.8
+    }
+   ]
+  }
+ },
+ {
+  "source": "3-m0-debate-voting/s-vote",
+  "widget": {
+   "type": "formula",
+   "caption": "Majority vote of 3 independent agents. Move p and try other coefficients.",
+   "tex": "P_{\\text{maj}} = {{all}} + {{k}}\\,p^2\\,{{wrong}}",
+   "parts": [
+    {
+     "id": "all",
+     "tex": "p^3",
+     "label": "all three agents are correct",
+     "color": "green",
+     "side": "above",
+     "param": null
+    },
+    {
+     "id": "k",
+     "tex": "3",
+     "label": "number of ways to pick the dissenter",
+     "color": "purple",
+     "side": "below",
+     "param": null,
+     "expr": "3",
+     "variants": [
+      {
+       "tex": "1",
+       "expr": "1",
+       "why": "Counts only one of the three orders of who is wrong. At p = 0.5 the vote gives 0.25, worse than one coin-flip agent, which is wrong by symmetry."
+      },
+      {
+       "tex": "2",
+       "expr": "2",
+       "why": "Misses one arrangement. At p = 0.5 the result is 0.375, not 0.5, so the formula breaks the symmetry between right and wrong."
+      },
+      {
+       "tex": "6",
+       "expr": "6",
+       "why": "Overcounts arrangements. At p = 0.5 it gives 0.875, and at p = 0.9 it gives more than 1, which is not a probability."
+      }
+     ]
+    },
+    {
+     "id": "wrong",
+     "tex": "(1-p)",
+     "label": "the one dissenter is wrong",
+     "color": "orange",
+     "side": "above",
+     "param": null
+    }
+   ],
+   "params": [
+    {
+     "name": "p",
+     "min": 0.0,
+     "max": 1.0,
+     "value": 0.7,
+     "effect": "larger p: each agent is more accurate and the vote gains even more"
+    }
+   ],
+   "resultExpr": "p^3 + [k]*p^2*(1-p)",
+   "resultTex": "P_{\\text{maj}}",
+   "plotExpr": "p^3 + [k]*p^2*(1-p)",
+   "plotVar": "p",
+   "xmin": 0.0,
+   "xmax": 1.0,
+   "checks": [
+    {
+     "kind": "at",
+     "label": "coin-flip agents give a coin-flip vote",
+     "at": 0.5,
+     "expect": 0.5
+    },
+    {
+     "kind": "at",
+     "label": "perfect agents give a perfect vote",
+     "at": 1.0,
+     "expect": 1.0
+    },
+    {
+     "kind": "result",
+     "label": "p = 0.7 gives 0.784, better than one agent",
+     "expect": 0.784
+    }
+   ]
+  }
+ },
+ {
+  "source": "3-m0-routing-cascades/s-cascade-cost",
+  "widget": {
+   "type": "formula",
+   "caption": "Expected cost of a 2-stage cascade, small model cost = 1. Move the acceptance rate a and the large-model cost r.",
+   "tex": "\\mathbb{E}[C] = {{cs}} + {{defer}}\\,{{cl}}",
+   "parts": [
+    {
+     "id": "cs",
+     "tex": "c_s",
+     "label": "small model always runs first",
+     "color": "green",
+     "side": "above",
+     "param": null,
+     "expr": "1",
+     "variants": [
+      {
+       "tex": "0",
+       "expr": "0",
+       "why": "Forgets that the small model runs on every query. The cascade then never costs more than the large model, which hides the real overhead at a = 0."
+      }
+     ]
+    },
+    {
+     "id": "defer",
+     "tex": "(1-a)",
+     "label": "fraction escalated to the large model",
+     "color": "orange",
+     "side": "below",
+     "param": null,
+     "expr": "(1-a)",
+     "variants": [
+      {
+       "tex": "a",
+       "expr": "a",
+       "why": "Pays the large model on accepted queries instead of rejected ones. Cost would rise as the small model gets better, which is backwards."
+      },
+      {
+       "tex": "(1-a)^2",
+       "expr": "(1-a)^2",
+       "why": "There is no reason to square the escalation rate; each rejected query calls the large model exactly once."
+      }
+     ]
+    },
+    {
+     "id": "cl",
+     "tex": "r",
+     "label": "cost of the large model",
+     "color": "purple",
+     "side": "above",
+     "param": "r"
+    }
+   ],
+   "params": [
+    {
+     "name": "a",
+     "min": 0.0,
+     "max": 1.0,
+     "value": 0.6,
+     "effect": "larger a: more queries stop at the small model, cost falls"
+    },
+    {
+     "name": "r",
+     "min": 1.0,
+     "max": 10.0,
+     "value": 10.0,
+     "effect": "larger r: escalation is more expensive, a good scorer matters more"
+    }
+   ],
+   "resultExpr": "[cs] + [defer]*r",
+   "resultTex": "\\mathbb{E}[C]",
+   "plotExpr": "[cs] + [defer]*r",
+   "plotVar": "a",
+   "xmin": 0.0,
+   "xmax": 1.0,
+   "checks": [
+    {
+     "kind": "at",
+     "label": "all escalated: costs more than the large model (10)",
+     "at": 0.0,
+     "expect": 11.0
+    },
+    {
+     "kind": "at",
+     "label": "all accepted: only the small model's cost",
+     "at": 1.0,
+     "expect": 1.0
+    },
+    {
+     "kind": "result",
+     "label": "a = 0.6, r = 10 gives cost 5",
+     "expect": 5.0
+    }
+   ]
+  }
+ },
+ {
+  "source": "oken-switching/s-equal-compute",
+  "widget": {
+   "type": "formula",
+   "caption": "Compute of a swap run (T = 1, prefill ignored). Change model sizes and the swap point s.",
+   "tex": "C = 2T\\,\\big({{sa}} + {{sb}}\\big)",
+   "parts": [
+    {
+     "id": "sa",
+     "tex": "s\\,N_A",
+     "label": "model A writes the first part",
+     "color": "blue",
+     "side": "above",
+     "param": null
+    },
+    {
+     "id": "sb",
+     "tex": "(1-s)\\,N_B",
+     "label": "model B writes the rest",
+     "color": "pink",
+     "side": "below",
+     "param": null,
+     "expr": "(1-s)*nb",
+     "variants": [
+      {
+       "tex": "s\\,N_B",
+       "expr": "s*nb",
+       "why": "Charges B for A's share of tokens. At s = 0 (B writes everything) B would cost nothing, which is wrong."
+      },
+      {
+       "tex": "N_B",
+       "expr": "nb",
+       "why": "Charges B for the whole output even when A wrote part of it. The swap point then has no effect on B's cost."
+      }
+     ]
+    }
+   ],
+   "params": [
+    {
+     "name": "s",
+     "min": 0.0,
+     "max": 1.0,
+     "value": 0.3,
+     "effect": "larger s: A writes more of the output"
+    },
+    {
+     "name": "na",
+     "min": 1.0,
+     "max": 10.0,
+     "value": 3.0,
+     "effect": "larger N_A: each token of A costs more"
+    },
+    {
+     "name": "nb",
+     "min": 1.0,
+     "max": 10.0,
+     "value": 7.0,
+     "effect": "larger N_B: each token of B costs more"
+    }
+   ],
+   "resultExpr": "2*(s*na + [sb])",
+   "resultTex": "C",
+   "plotExpr": "2*(s*na + [sb])",
+   "plotVar": "s",
+   "xmin": 0.0,
+   "xmax": 1.0,
+   "checks": [
+    {
+     "kind": "at",
+     "label": "s = 0: B alone, 2·N_B",
+     "at": 0.0,
+     "expect": 14.0
+    },
+    {
+     "kind": "at",
+     "label": "s = 1: A alone, 2·N_A",
+     "at": 1.0,
+     "expect": 6.0
+    }
+   ]
+  }
+ },
+ {
+  "source": "3-m0-latent-kv-communication/s-cipher",
+  "widget": {
+   "type": "formula",
+   "caption": "Two-token soft message: weight on token 1. Change the logit gap and the temperature.",
+   "tex": "w_1 = \\sigma\\!\\left(\\frac{{{gap}}}{{{temp}}}\\right)",
+   "parts": [
+    {
+     "id": "gap",
+     "tex": "\\ell_1 - \\ell_2",
+     "label": "logit gap between the two tokens",
+     "color": "teal",
+     "side": "above",
+     "param": "d"
+    },
+    {
+     "id": "temp",
+     "tex": "T",
+     "label": "temperature: how soft the message is",
+     "color": "orange",
+     "side": "below",
+     "param": "t"
+    }
+   ],
+   "params": [
+    {
+     "name": "d",
+     "min": -5.0,
+     "max": 5.0,
+     "value": 1.0,
+     "effect": "larger gap: the message moves toward token 1's embedding"
+    },
+    {
+     "name": "t",
+     "min": 0.1,
+     "max": 5.0,
+     "value": 1.0,
+     "effect": "larger T: the message becomes a more even mix of both tokens"
+    }
+   ],
+   "resultExpr": "sigmoid(d/t)",
+   "resultTex": "w_1",
+   "plotExpr": "sigmoid(d/t)",
+   "plotVar": "d",
+   "xmin": -5.0,
+   "xmax": 5.0,
+   "checks": [
+    {
+     "kind": "at",
+     "label": "equal logits give an even mix",
+     "at": 0.0,
+     "expect": 0.5
+    }
+   ]
+  }
+ }
+]
