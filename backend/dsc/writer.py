@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-from . import engine, guidelines, state, versions, viz
+from . import engine, guidelines, state, versions, viz, vizcheck
 from .db import DB, dumps, loads, now
 from .providers import Call
 
@@ -78,6 +78,7 @@ def effective_sections(db: DB, cid: str, card: dict | None) -> list[dict]:
         s["vizMine"] = s["checkMine"] = False
         if mine.get("viz"):
             s["viz"], s["vizMine"] = mine["viz"], True
+            s["vizNotes"] = mine.get("vizNotes") or []
         elif plan.get(s["id"], {}).get("viz") == "none":
             s.pop("viz", None)
         if mine.get("check"):
@@ -186,6 +187,32 @@ def plan(jobs: Jobs, jid: int, cid: str, card: dict, r: dict) -> dict | None:
     return {"summary": (out.get("summary") or "")[:400], "sections": clean}
 
 
+def check_viz(jobs: Jobs, jid: int, card: dict, section: dict, raw: dict) -> tuple[dict | None, list[str]]:
+    """Compute a widget as the page will (viz.inspect). If something cannot work, send the widget and the exact
+    problems back to an agent once, and keep the better version. Returns (widget or None, notes for the learner):
+    the notes say what the app had to fix or remove, so the learner's lesson can show it."""
+    from .jobs import prompt
+    clean, problems = viz.inspect(raw)
+    if not problems:
+        return clean, []
+    jobs.progress(jid, f'graph in “{section.get("heading", section.get("id"))}”: {len(problems)} problem(s), asking for a fix')
+    try:
+        fixed = jobs.call(jid, "Lesson assets", Call(
+            prompt=prompt("fix_widget", card=_card_text(card) if card.get("sections") else json.dumps(card, ensure_ascii=False)[:4000],
+                          section=section.get("heading", ""), purpose=section.get("purpose", ""),
+                          widget=json.dumps(raw, ensure_ascii=False, indent=1), problems="\n".join(f"- {p}" for p in problems)),
+            schema=viz.SCHEMA, model="sonnet", timeout=240))
+        clean2, problems2 = viz.inspect(fixed)
+    except Exception as e:  # noqa: BLE001 - without a fix the cleaned widget is still shown
+        jobs.progress(jid, f"graph fix skipped ({str(e)[:100]})")
+        clean2, problems2 = None, problems
+    if clean2 is not None and (clean is None or len(problems2) < len(problems)):
+        notes = [f"The app found {len(problems)} problem(s) in this graph and the writer fixed "
+                 f"{len(problems) - len(problems2)}."] + problems2
+        return clean2, notes
+    return clean, problems
+
+
 def make_assets(jobs: Jobs, jid: int, cid: str, card: dict, plan_: dict) -> dict:
     from .jobs import prompt
     db = jobs.db
@@ -209,9 +236,11 @@ def make_assets(jobs: Jobs, jid: int, cid: str, card: dict, plan_: dict) -> dict
             continue
         item: dict = {"why": (a.get("why") or "")[:300]}
         if p["viz"] == "new" and a.get("viz"):
-            spec = viz.validate(a["viz"])
+            spec, notes = check_viz(jobs, jid, card, by[p["id"]], a["viz"])
             if spec:
                 item["viz"] = spec
+                if notes:
+                    item["vizNotes"] = notes
         c = a.get("check")
         if p["check"] == "new" and c and isinstance(c.get("options"), list) and 2 <= len(c["options"]) <= 5 \
                 and isinstance(c.get("answer"), int) and 0 <= c["answer"] < len(c["options"]):
@@ -234,6 +263,9 @@ def review(jobs: Jobs, jid: int, cid: str, card: dict, r: dict) -> dict:
         block = [f'## {s["id"]} "{s["heading"]}" (angle: {a})', (body or {}).get("body") or "(not written)"]
         if s.get("viz"):
             block.append(f'Graph{" (made for you)" if s["vizMine"] else ""}: {json.dumps(s["viz"], ensure_ascii=False)}')
+            numbers = vizcheck.describe(s["viz"])
+            if numbers:  # what the page will show, computed: the reviewer checks each "why" against these
+                block.append(f"Graph numbers (computed as the page shows them): {numbers}")
         if s.get("check"):
             c = s["check"]
             block.append(f'Quiz{" (made for you)" if s["checkMine"] else ""}: {c["prompt"]} Options: '

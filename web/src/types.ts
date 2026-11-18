@@ -69,7 +69,7 @@ export type VizSpec =
       parts: { id: string; tex: string; label: string; color: string; side: 'above' | 'below'; param: string | null
         expr?: string; variants?: { tex: string; expr: string; why: string }[] }[]
       checks?: { kind: 'area' | 'peak' | 'at' | 'result'; label: string; at?: number; expect?: number }[]
-      params: { name: string; min: number; max: number; value: number; effect: string }[]
+      params: { name: string; min: number; max: number; value: number; effect: string; label?: string }[]
       resultExpr?: string; resultTex?: string; plotExpr?: string; plotVar?: string; xmin?: number; xmax?: number }
 
 export interface PlanItem { kind: 'review' | 'lesson'; goalId: string; conceptId: string; title: string; minutes: number; note: string }
@@ -190,6 +190,8 @@ export interface LessonSectionView {
   viz: VizSpec | null
   /** The graph / quiz question was made for this learner by the lesson writer (not the card's one). */
   vizMine: boolean
+  /** What the app had to fix or remove in this graph after computing it (empty when it works as written). */
+  vizNotes: string[]
   checkMine: boolean
 }
 

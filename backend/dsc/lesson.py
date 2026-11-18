@@ -89,6 +89,16 @@ def ensure_prose(db: DB, jobs: Jobs, cid: str, rewrite: bool = False) -> None:
                       "rewrite": rewrite})
 
 
+def _viz_notes(s: dict) -> list[str]:
+    """What the app had to fix or remove in this section's graph: notes stored when it was written, and what a
+    check of the stored graph finds now (for graphs written before the checks existed)."""
+    notes = list(s.get("vizNotes") or [])
+    if s.get("viz"):
+        notes += [p for p in viz.inspect(s["viz"])[1] if p not in notes]
+    # A value without a colored part still gets its own slider row on the page: a note for the agent, not the learner.
+    return [n for n in notes if "has no colored part" not in n]
+
+
 def view(db: DB, cid: str) -> dict:
     """Lesson as the page shows it: the head version's text where it fits the rendition, else cached prose.
     Missing prose falls back to the same angle in another style (marked approximate) while a render job runs.
@@ -120,6 +130,7 @@ def view(db: DB, cid: str) -> dict:
             "explain": state.strip_explain(s["explain"]) if s.get("explain") else None,
             "viz": viz.validate(s.get("viz")),  # re-validated on every read: only safe widget specs reach the page
             "vizMine": s["vizMine"], "checkMine": s["checkMine"],
+            "vizNotes": _viz_notes(s),
         })
     p = writer.current_plan(db, cid, card["version"]) if card else None
     return {

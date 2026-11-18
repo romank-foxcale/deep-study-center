@@ -1,4 +1,5 @@
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import RunnableCode from './RunnableCode'
@@ -16,7 +17,7 @@ const textOf = (n: HastNode): string => n.value ?? (n.children ?? []).map(textOf
 export default function Markdown({ children, inline, runnable }: { children: string; inline?: boolean; runnable?: string }) {
   return (
     <div className={inline ? 'md md-inline' : 'md'}>
-      <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}
         components={runnable ? {
           pre: ({ node, children: body, ...props }) => {
             const code = (node as HastNode | undefined)?.children?.find(c => c.tagName === 'code')

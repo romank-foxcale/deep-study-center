@@ -90,8 +90,13 @@ export default function Formula({ spec }: { spec: Spec }) {
       if (!e) return null
       let s = resolveRefs(e, id => (yours ? edits[id]?.expr : undefined) ?? spec.parts.find(p => p.id === id)?.expr)
       if (yours) {
+        s = s.replace(/\s+/g, '')
         for (const p of spec.parts) {
-          if (p.param && edits[p.id]) s = s.replace(new RegExp(`\\b${p.param}\\b`, 'g'), `(${edits[p.id].expr})`)
+          if (!edits[p.id] || e.includes(`[${p.id}]`)) continue
+          // the edited part is written out in the expression (x^2 in "(x^2+y^2)^0.5"): replace that whole form
+          const real = p.expr ? norm(p.expr) : ''
+          if (real && s.includes(real)) s = s.split(real).join(`(${edits[p.id].expr})`)
+          else if (p.param && (!p.expr || norm(p.expr) === p.param)) s = s.replace(new RegExp(`\\b${p.param}\\b`, 'g'), `(${edits[p.id].expr})`)
         }
       }
       return compile(s)
@@ -100,10 +105,21 @@ export default function Formula({ spec }: { spec: Spec }) {
       result: build(spec.resultExpr, true), resultReal: build(spec.resultExpr, false) }
   }, [spec, edits])
   const swap = (p: Part) => edits[p.id]?.tex ?? null
-  const showValue = (yours: boolean) => (p: Part) => {
-    if (!p.param) return null
-    if (yours && edits[p.id]) return fmt(calc(compile(edits[p.id].expr), values), paramOf(p.param))
-    return fmt(values[p.param], paramOf(p.param))
+  /** The formula's TeX with every parameter symbol replaced by its value: y^2 → 4.0^2, 2\sigma → 2(1.6), x - \mu → x - (-1.0). */
+  const fillValues = (tex: string) => {
+    let out = tex
+    for (const p of spec.params) {
+      const v = fmt(values[p.name], p)
+      // \sigma for Greek names, a lone letter for one-letter names (not inside \exp, \mathbf, or a #hex color)
+      const re = p.name.length > 1
+        ? new RegExp(`\\\\${p.name}(?![a-zA-Z])`, 'g')
+        : new RegExp(`(?<![\\\\a-zA-Z0-9#])${p.name}(?![a-zA-Z0-9])`, 'g')
+      out = out.replace(re, (_m, at: number, whole: string) => {
+        const before = whole.slice(0, at).trimEnd()
+        return v.startsWith('-') || /[0-9}]$/.test(before) ? `\\left(${v}\\right)` : `{${v}}`
+      })
+    }
+    return out
   }
 
   const realHtml = useMemo(() => tex2html(expand(spec.tex, spec.parts, () => null, true), true), [spec])
@@ -112,7 +128,7 @@ export default function Formula({ spec }: { spec: Spec }) {
     [spec, edits, anyEdit])
   const result = calc(trees.result, values)
   const filled = useMemo(() => {
-    const tex = expand(spec.tex, spec.parts, showValue(true), false, swap)
+    const tex = fillValues(expand(spec.tex, spec.parts, () => null, false, swap))
     return tex2html(spec.resultExpr ? `${tex} = ${fmtResult(result)}` : tex, true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spec, values, result, edits])
@@ -223,7 +239,7 @@ export default function Formula({ spec }: { spec: Spec }) {
     const px = (x: number) => ((x - xmin) / (xmax - xmin)) * W
     const py = (y: number) => H - 8 - ((y - ymin) / (ymax - ymin || 1)) * (H - 16)
     const d = (pts: [number, number][]) => pts.map((p, i) => `${i ? 'L' : 'M'}${px(p[0]).toFixed(1)},${py(p[1]).toFixed(1)}`).join('')
-    const dotX = v !== 'x' ? values[v] : null
+    const dotX = v in values ? values[v] : null  // the plot runs over a value the learner sets: mark where it is now
     const dotY = dotX !== null ? calc(trees.plot, { ...values, x: dotX }) : NaN
     const color = COLORS[partFor(v)?.color ?? 'pink'] ?? COLORS.pink
     return { W, H, now: d(now), ref: d(ref), axisY: py(0), axisX: xmin < 0 && xmax > 0 ? px(0) : null, color,
@@ -317,6 +333,18 @@ export default function Formula({ spec }: { spec: Spec }) {
             </div>
           )
         })}
+        {spec.params.filter(p => !partFor(p.name)).map(p => (
+          // a variable of the formula that is inside a larger colored part (e.g. p in p^3 + 3p^2(1-p)): its own slider
+          <div key={p.name} className="formula-row" style={{ '--c': 'var(--muted)' } as React.CSSProperties}>
+            <span className="formula-sym" dangerouslySetInnerHTML={{ __html: tex2html(p.name.length === 1 ? p.name : `\\mathrm{${p.name}}`) }} />
+            <span className="formula-desc">{p.label || (p.effect ? `when it grows: ${p.effect}` : 'a value in the formula')}</span>
+            <span className="formula-control">
+              <input type="range" min={p.min} max={p.max} step={(p.max - p.min) / 100} value={values[p.name]}
+                aria-label={p.label || p.name} onChange={e => set(p.name, Number(e.target.value))} />
+              <span className="formula-val">{fmt(values[p.name], p)}</span>
+            </span>
+          </div>
+        ))}
         {!anyEdit && spec.parts.some(p => realExpr(p)) && <span className="muted small">Click a colored part above to change it and see why the formula is as it is.</span>}
       </div>
 
