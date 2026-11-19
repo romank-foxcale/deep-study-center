@@ -15,6 +15,8 @@ export interface Goal {
   profile: string
   /** list: classic tracks → modules roadmap. ohtani: 9×9 Mandala grid (8 areas × 8 steps + 8 merges). */
   layout: 'list' | 'ohtani'
+  /** goal: a normal goal. book: the 80/20 core of chosen sources (SPEC §18). */
+  kind: 'goal' | 'book'
 }
 
 /** Ohtani grid block of a track: an area on the ring (clockwise from top left) or C for the merge steps. */
@@ -96,6 +98,13 @@ export interface CardProposal {
 export interface LibraryCard { key: string; title: string; objective: string; version: number; sourceConcept: string; promotedAt: string; uses: number }
 
 /** A book, article or post the learner uploaded as a PDF (SPEC §17). */
+/** One ranked chapter of a book goal's sources. core and supporting are kept; skip is left out until brought back. */
+export interface BookCut {
+  id: number; sourceId: string; sourceTitle: string; chapter: string; pages: string
+  rank: 'core' | 'supporting' | 'skip'; why: string; moduleId: string | null
+  status: 'kept' | 'cut' | 'restored'; conceptId: string | null
+}
+
 export interface SourceDoc {
   id: string; title: string; author: string; kind: 'book' | 'article' | 'post' | 'other'; filename: string
   pages: number; status: 'reading' | 'ready' | 'no_text' | 'error'; addedAt: string; goalIds: string[]; outline: number
@@ -407,4 +416,5 @@ export interface State {
   firstRun: boolean
   shareSuggestions: string[]
   ankiExport: string | null
+  bookCuts: BookCut[]
 }

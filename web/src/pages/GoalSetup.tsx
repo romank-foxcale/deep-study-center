@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useStore } from '../store'
 import type { ChatMessage } from '../types'
 import { AddSources, SourceStatus } from '../components/Sources'
+import BuildProgress from '../components/BuildProgress'
 
 const QUESTIONS = [
   "What's the ultimate goal? Dream big; we'll break it down together.",
@@ -38,11 +38,6 @@ export default function GoalSetup() {
     dispatch({ type: 'createGoal', layout, sourceIds: picked, answers: QUESTIONS.map((q, i) => ({ q, a: answers[i] ?? '' })) })
   }
 
-  const jobs = submitted
-    ? s.jobs.filter(j => ['outline', 'research_module', 'fact_check', 'placement_bank'].includes(j.kind) && j.updatedAt >= submitted.at.slice(0, 19))
-    : []
-  const created = submitted && s.goal && s.goal.id !== submitted.goalBefore
-
   return (
     <div className="page page-narrow">
       <h1>New goal</h1>
@@ -50,21 +45,7 @@ export default function GoalSetup() {
       <div className="chat chat-page">
         <div className="chat-log" ref={logRef}>
           {log.map((m, i) => <div key={i} className={`msg ${m.role}`}>{m.text}</div>)}
-          {submitted && (
-            <div className="pipeline">
-              {jobs.length === 0 && <div className="pipe-step active"><span className="pipe-dot" />Starting…</div>}
-              {[...jobs].reverse().map(j => (
-                <div key={j.id} className={`pipe-step ${j.status === 'done' ? 'done' : j.status === 'failed' ? 'failed' : 'active'}`}>
-                  <span className="pipe-dot" />
-                  <span>{j.label}{j.status === 'failed' ? `: failed (${j.error})` : ''}
-                    {j.progress.length > 0 && j.status !== 'failed' && <span className="muted small"> · {j.progress.slice(-1)[0]}</span>}</span>
-                </div>
-              ))}
-              {created && <p>Your roadmap is ready. <Link to="/placement" className="link">Take the placement quiz →</Link> to skip
-                what you already know, or <Link to="/roadmap" className="link">open the roadmap</Link>. The first module's lessons appear
-                when its research finishes.</p>}
-            </div>
-          )}
+          {submitted && <BuildProgress since={submitted.at} goalBefore={submitted.goalBefore} />}
         </div>
         {!doneAsking ? (
           <div className="chat-input">

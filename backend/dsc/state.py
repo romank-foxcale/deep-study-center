@@ -154,7 +154,7 @@ def placement(db: DB, goal_id: str) -> dict:
 def snapshot(db: DB) -> dict:
     gid = active_goal(db)
     pb = playbook(db)
-    from . import library, sources
+    from . import books, library, sources
     from . import guidelines
     base = {"playbook": pb, "guidelines": guidelines.current(db), "providers": providers.status(), "routes": routes(db), "jobs": jobs(db),
             "library": library.listing(db),
@@ -167,7 +167,8 @@ def snapshot(db: DB) -> dict:
     if not gid:
         return {**base, "goal": None, "tracks": [], "modules": [], "concepts": [], "cards": [], "renditions": [],
                 "feedback": [], "notes": [], "diffs": [], "chats": {}, "answers": {}, "reviews": [], "gradings": {},
-                "placement": None, "reflections": reflections(db), "settings": settings(db), "cardProposals": [], "shareSuggestions": []}
+                "placement": None, "reflections": reflections(db), "settings": settings(db), "cardProposals": [], "shareSuggestions": [],
+                "bookCuts": []}
 
     g = db.one("SELECT * FROM goals WHERE id=?", (gid,))
     tracks = db.q("SELECT * FROM tracks WHERE goal_id=? ORDER BY ord", (gid,))
@@ -188,7 +189,8 @@ def snapshot(db: DB) -> dict:
     return {
         **base,
         "goal": {"id": g["id"], "title": g["title"], "why": g["why"], "doneLooksLike": g["done"],
-                 "hoursPerWeek": g["hours"], "profile": g["profile"], "layout": g["layout"]},
+                 "hoursPerWeek": g["hours"], "profile": g["profile"], "layout": g["layout"], "kind": g["kind"]},
+        "bookCuts": books.listing(db, gid),
         "tracks": [{"id": t["id"], "title": t["title"], "summary": t["summary"], "pos": t["pos"],
                     "moduleIds": [m["id"] for m in modules if m["track_id"] == t["id"]]} for t in tracks],
         "modules": [{"id": m["id"], "trackId": m["track_id"], "title": m["title"], "research": m["research"], "known": bool(m["known"]),

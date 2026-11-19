@@ -52,7 +52,12 @@ units you already know, and the post weekday. See [docs/ROADMAP.md](docs/ROADMAP
 
 ## Status
 
-**Lessons written in steps** (current): a whole lesson is planned, its graphs and quiz questions are made for you,
+**Book goals** (current): no time to read whole books? In the Source library, "Understand books (80/20)" builds a goal
+from one or more of your PDFs. Tick them or drag them into the goal basket, answer two questions, and an agent ranks every
+chapter as core, supporting or left out. The roadmap (Ohtani table or classic) teaches only the core, with lessons that
+cite the pages; the Roadmap page lists what was left out, and "Bring back" adds a chapter again. See SPEC §18.
+
+**Lessons written in steps**: a whole lesson is planned, its graphs and quiz questions are made for you,
 its text is written, and a reviewer checks it against your lesson guidelines and feedback before you see it (one round
 of fixes). Each section's angle is a mix that follows the section's purpose and your playbook, not one angle everywhere.
 The lesson page shows how it was written; graphs and questions made for you are marked.
@@ -184,6 +189,7 @@ backend/dsc/
   feedback.py           feedback kinds, the playbook signals each item owns, edit and delete
   guidelines.py         lesson guidelines distilled from feedback patterns (versioned, editable)
   remedial.py           struggle signals and extra lessons ("Vectors (b)")
+  books.py              book goals: the 80/20 cut of chosen sources, bringing a chapter back
   jobs.py               agent jobs (research, outline, render, tutor, roadmap review, fact-check,
                         grading, placement quiz, reflection) + offline fallbacks
   progress.py           evidence recording, research one module ahead
