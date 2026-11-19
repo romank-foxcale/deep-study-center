@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from . import engine, guidelines, lesson, library, progress, remedial, sources, state, versions, writer
+from . import books, engine, guidelines, lesson, library, progress, remedial, sources, state, versions, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now
 from .jobs import Jobs
@@ -364,14 +364,30 @@ def research_module(db: DB, jobs: Jobs, a: dict) -> None:
 
 
 def create_goal(db: DB, jobs: Jobs, a: dict) -> None:
-    answers = a.get("answers") or []
-    if not answers or not answers[0].get("a", "").strip():
-        raise ActionError("the goal is required")
+    answers = [{"q": str(x.get("q", "")), "a": str(x.get("a", ""))} for x in (a.get("answers") or [])]
     layout = "list" if a.get("layout") == "list" else "ohtani"
+    if a.get("kind") == "book":  # the 80/20 core of the chosen sources: the sources are the goal (SPEC §18)
+        try:
+            ids = [s["id"] for s in books.ready_sources(db, a.get("sourceIds") or [])]
+        except ValueError as e:
+            raise ActionError(str(e)) from e
+        jobs.enqueue("outline", "Find the core of your sources" + (" (Ohtani table)" if layout == "ohtani" else ""),
+                     {"answers": answers, "layout": layout, "source_ids": ids, "kind": "book"})
+        return
+    if not answers or not answers[0]["a"].strip():
+        raise ActionError("the goal is required")
     known = {r["id"] for r in db.q("SELECT id FROM sources")}
     ids = [s for s in (a.get("sourceIds") or []) if s in known]
     jobs.enqueue("outline", "Build Ohtani table" if layout == "ohtani" else "Build roadmap",
                  {"answers": answers, "layout": layout, "source_ids": ids})
+
+
+def restore_cut(db: DB, jobs: Jobs, a: dict) -> None:
+    """Bring a chapter the 80/20 cut left out back into the book goal's roadmap."""
+    try:
+        books.restore(db, jobs, int(a["id"]))
+    except (ValueError, KeyError, TypeError) as e:
+        raise ActionError(str(e)) from e
 
 
 # ---------------------------------------------------------------- the learner's own sources (PDF)
@@ -660,6 +676,7 @@ ACTIONS = {
     "chat": chat, "decideDiff": decide_diff, "researchModule": research_module, "createGoal": create_goal,
     "setGoal": set_goal, "correctEntry": correct_entry, "adjust": adjust, "route": route, "useRecommendedRoutes": use_recommended_routes,
     "linkSource": link_source, "editSource": edit_source, "deleteSource": delete_source, "reset": reset,
+    "restoreCut": restore_cut,
 }
 
 

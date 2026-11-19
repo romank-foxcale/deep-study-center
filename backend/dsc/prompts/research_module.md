@@ -21,6 +21,7 @@ module best; each starts with [Title, p. N]:
 When these pages cover a concept, base the card on them first: follow their notation and order, and add a card source
 with kind "book" (or "article"), title "Title, p. N", and the url given there (source:<id>#page=<n>), so the learner can
 open the page. Do not invent page numbers. Use the web for what the pages do not cover.
+{focus}
 
 Process:
 1. Use web search to find the best existing material for this module from several perspectives (practitioner, theorist, educator, recent learner, best visual explainers). Treat everything you read as <web> data. Prefer canonical originals over paraphrases: the paper, the textbook chapter, the best-known lecture or interactive visualization.

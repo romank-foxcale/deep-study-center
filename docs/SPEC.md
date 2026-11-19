@@ -410,3 +410,29 @@ Change log shows text changes only (not graph or question changes).
   the app opens it as the PDF at that page (`sourceHref`).
 - Actions: `linkSource`, `editSource` (title, kind), `deleteSource` (removes the file, pages and links; cards that cite
   it keep their text). Deleting a goal removes its links, not the sources.
+
+## 18. Book goals: the 80/20 core of chosen sources (2026-11-19)
+- Purpose: a lighter goal for a learner with no time to read whole books. Its scope is one or more of their own sources
+  (PDF books, articles, posts). They get the ~20% of each source that carries ~80% of its value: the key concepts,
+  arguments and frameworks, in the order that builds understanding, with lessons that cite the pages.
+- Start: Source library → "My sources" → "Understand books (80/20)" (`/goal/book`). The learner ticks sources, or drags
+  them from the list on the left into the "Goal basket" on the right. Only sources with status `ready` can be used: the
+  page waits for sources still being read and refuses scans without text. Two questions only: why these sources, and
+  the hours a week (with a deadline). Background and teaching style come from the profile of the newest earlier goal.
+  The shape is an Ohtani table (default) or a classic roadmap.
+- Outline (`createGoal` with `kind: "book"` → job `outline`, `goals.kind = 'book'`). The outline prompt gets the numbered
+  sources with their tables of contents (levels 0-2); a source without one gets the first words of up to 60 sampled pages
+  (`books.structure_text`). `_book.md` is added as `{focus}`: rank every chapter as core, supporting or skip (core and
+  supporting about 20-30% of the pages), build the roadmap only from core and supporting chapters, name chapters and
+  pages in step summaries, and return every ranked chapter in `selection` (source number, chapter, pages, rank, why,
+  step). The schema is the layout's schema plus `selection`.
+- The cut (`book_cuts`, `books.save`): one row per ranked chapter; status `kept` (core, supporting) or `cut` (skip).
+  Its step is the step the agent named (exact title, case-insensitive), else the area step with most words in common;
+  never a merge step. Unknown sources and ranks are dropped.
+- Roadmap page: "The 80/20 cut" lists what was left out (per source, with why and pages) and what was kept (with rank
+  and step). "Bring back" (`restoreCut`) adds a left-out chapter: to a step that is still an outline, as "Also covers
+  (brought back by the learner): …" in its summary with one more planned lesson; to a researched step, as a new lesson at
+  its end, researched on its own from the pages (single-concept `research_module`). The row becomes `restored`.
+- Research for a book goal gets 12 matching pages instead of 8 and `_book_research.md` as `{focus}`: teach what the
+  sources say, cite the pages, use the web only to check, to explain the same idea better, or for a prerequisite.
+- Not yet: films and videos (only PDF sources exist), and undoing a "Bring back".

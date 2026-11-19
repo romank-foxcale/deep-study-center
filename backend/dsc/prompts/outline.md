@@ -11,5 +11,7 @@ The learner's own sources for this goal (tables of contents of the books and art
 If there are sources, build the roadmap around them: follow their order of topics where it suits the goal, name the
 chapters a module uses in its summary (for example "Ch. 3 of Title"), and add only what the goal needs beyond them.
 
+{focus}
+
 Design a roadmap: 3-7 tracks, each with 3-8 modules, ordered so prerequisites come first. Each module gets a one-line summary and an estimate of how many small, testable concepts it will contain (typically 5-12). Cover what is genuinely needed for the goal at the level described; skip what the learner already clearly knows (mention it in the module summary if you compress it). Also restate the goal as a crisp title, why it matters to them, and what "done" looks like (concrete, checkable).
 Return JSON matching the schema.

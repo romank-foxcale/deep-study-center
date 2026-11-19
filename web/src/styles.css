@@ -497,3 +497,21 @@ pre.code-output.bad { color: #f48771; }
 .viz-notes { font-size: 0.82rem; color: var(--muted); border-left: 3px solid var(--warn); padding: 2px 10px; margin-top: 4px; }
 .viz-notes summary { cursor: pointer; color: var(--warn); }
 .viz-notes ul { margin: 4px 0; padding-left: 18px; }
+
+/* Book goal (SPEC §18): sources on the left, the goal basket on the right */
+.basket-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 12px 0 16px; }
+.basket-title { margin: 0; }
+.basket { border-style: dashed; border-width: 2px; min-height: 180px; transition: border-color 0.15s, background 0.15s; }
+.basket.over { border-color: var(--accent); background: var(--accent-soft); }
+.basket-empty { text-align: center; padding: 40px 0; }
+.basket-list { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
+.basket-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.basket-item[draggable="true"] { cursor: grab; }
+.basket-item.in { background: var(--accent-soft); }
+.basket-item label { display: flex; gap: 8px; align-items: baseline; flex: 1; cursor: inherit; }
+.book-questions { display: flex; flex-direction: column; gap: 12px; }
+.book-questions .field { display: flex; flex-direction: column; gap: 4px; }
+.cut-list { list-style: none; padding: 0; margin: 6px 0 12px; display: flex; flex-direction: column; gap: 6px; }
+.cut-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+@media (max-width: 760px) { .basket-wrap { grid-template-columns: 1fr; } }

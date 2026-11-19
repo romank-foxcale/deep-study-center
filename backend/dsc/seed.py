@@ -15,7 +15,7 @@ from .db import DB, dumps, now
 
 TABLES = ("goals", "tracks", "modules", "concepts", "cards", "prose", "renditions", "signals", "evidence",
           "feedback", "notes", "diffs", "chats", "reviews", "routes", "jobs", "meta", "lesson_versions", "lesson_heads",
-          "lesson_reverts", "guidelines", "lesson_plans")
+          "lesson_reverts", "guidelines", "lesson_plans", "book_cuts")
 
 # Routes added after the demo data was exported; ensure_routes() adds them to older workspaces too.
 EXTRA_ROUTES = [
@@ -181,7 +181,7 @@ def delete_goal(db: DB, goal_id: str) -> None:
             db.conn.executemany(f"DELETE FROM {t} WHERE concept_id = ?", [(c,) for c in concept_ids])
         db.conn.execute("DELETE FROM concepts WHERE module_id IN (SELECT m.id FROM modules m JOIN tracks t ON t.id = m.track_id WHERE t.goal_id = ?)", (goal_id,))
         db.conn.execute("DELETE FROM modules WHERE track_id IN (SELECT id FROM tracks WHERE goal_id = ?)", (goal_id,))
-        for t in ("tracks", "diffs", "placement_items", "placement_answers", "goal_sources"):
+        for t in ("tracks", "diffs", "placement_items", "placement_answers", "goal_sources", "book_cuts"):
             db.conn.execute(f"DELETE FROM {t} WHERE goal_id = ?", (goal_id,))
         db.conn.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
         db.conn.execute("DELETE FROM meta WHERE key = ?", (f"placement_done:{goal_id}",))

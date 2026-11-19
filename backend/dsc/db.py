@@ -144,6 +144,11 @@ CREATE TABLE IF NOT EXISTS source_pages (
   source_id TEXT NOT NULL, page INTEGER NOT NULL, text TEXT NOT NULL, PRIMARY KEY (source_id, page));
 CREATE VIRTUAL TABLE IF NOT EXISTS source_fts USING fts5(source_id UNINDEXED, page UNINDEXED, text);
 CREATE TABLE IF NOT EXISTS goal_sources (goal_id TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY (goal_id, source_id));
+-- Book goals (SPEC §18): the 80/20 cut of the chosen sources. rank core | supporting | skip; status kept | cut | restored.
+CREATE TABLE IF NOT EXISTS book_cuts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL, ord INTEGER NOT NULL, source_id TEXT NOT NULL,
+  chapter TEXT NOT NULL, pages TEXT NOT NULL DEFAULT '', rank TEXT NOT NULL, why TEXT NOT NULL DEFAULT '',
+  module_id TEXT, status TEXT NOT NULL, restored_at TEXT, concept_id TEXT);
 
 CREATE TABLE IF NOT EXISTS routes (
   role TEXT PRIMARY KEY, ord INTEGER NOT NULL, description TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL);
@@ -157,6 +162,7 @@ MIGRATIONS = [
     ("evidence", "score", "REAL"),                         # soft evidence (0..1), e.g. graded explain-back
     ("modules", "known", "INTEGER NOT NULL DEFAULT 0"),    # placement showed the learner knows it
     ("goals", "layout", "TEXT NOT NULL DEFAULT 'list'"),   # list (classic roadmap) | ohtani (9x9 Mandala grid)
+    ("goals", "kind", "TEXT NOT NULL DEFAULT 'goal'"),     # goal | book (the 80/20 core of chosen sources, SPEC §18)
     ("tracks", "pos", "TEXT NOT NULL DEFAULT ''"),         # ohtani: grid block of this area (TL..ML) or C (merges)
     ("modules", "seq", "INTEGER NOT NULL DEFAULT 0"),      # global learning order across tracks (0 = track order)
     ("modules", "requires", "TEXT NOT NULL DEFAULT '[]'"), # module ids that must be learned first (ohtani merges)

@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import engine, guidelines, library, ohtani, progress, providers, runner, sources, state, versions, viz, writer
+from . import books, engine, guidelines, library, ohtani, progress, providers, runner, sources, state, versions, viz, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
@@ -212,14 +212,29 @@ def run_outline(jobs: Jobs, jid: int, d: dict) -> dict:
     db = jobs.db
     answers = d["answers"]
     layout = "ohtani" if d.get("layout") == "ohtani" else "list"
-    own = sources.contents_text(db, ids=d.get("source_ids") or [])
+    book = d.get("kind") == "book"  # the 80/20 core of the chosen sources (SPEC §18)
+    ids = d.get("source_ids") or []
+    base = ohtani.SCHEMA if layout == "ohtani" else OUTLINE_SCHEMA
+    lines = [f"Q: {a['q']}\nA: {a['a']}" for a in answers]
+    if book:
+        # Two questions only (why these sources, time); background and teaching style come from earlier goals.
+        last = db.one("SELECT profile FROM goals WHERE profile != '' ORDER BY created_at DESC LIMIT 1")
+        if last:
+            lines.append(f"From the learner's earlier goals (background, how they like to learn):\n{last['profile']}")
+        why = answers[0]["a"] if answers and answers[0]["a"] not in ("", "(skipped)") else ""
+        profile = "\n".join(x for x in (why, last["profile"] if last else "") if x.strip())
+        own, focus, schema = books.structure_text(db, ids), prompt("_book"), books.schema(base)
+        time_answer = answers[1]["a"] if len(answers) > 1 else ""
+    else:
+        profile = "\n".join(a["a"] for a in answers[1:] if a["a"].strip() and a["a"] != "(skipped)")
+        own, focus, schema = sources.contents_text(db, ids=ids), "", base
+        time_answer = answers[3]["a"] if len(answers) > 3 else ""
     out = jobs.call(jid, "Curriculum", Call(
         prompt=prompt("outline_ohtani" if layout == "ohtani" else "outline",
-                      answers="\n".join(f"Q: {a['q']}\nA: {a['a']}" for a in answers), sources=own or "(none)"),
-        schema=ohtani.SCHEMA if layout == "ohtani" else OUTLINE_SCHEMA, model="opus", timeout=600))
+                      answers="\n".join(lines), sources=own or "(none)", focus=focus),
+        schema=schema, model="opus", timeout=900 if book else 600))
     gid = f"g-{slug(out['title'], 24)}-{secrets.token_hex(2)}"
-    profile = "\n".join(a["a"] for a in answers[1:] if a["a"].strip() and a["a"] != "(skipped)")
-    hours = next((float(x) for x in re.findall(r"\d+(?:\.\d+)?", answers[3]["a"] if len(answers) > 3 else "")), 5.0)
+    hours = next((float(x) for x in re.findall(r"\d+(?:\.\d+)?", time_answer)), 5.0)
     if layout == "ohtani":
         tracks, modules = ohtani.build(gid, out)
     else:
@@ -230,8 +245,8 @@ def run_outline(jobs: Jobs, jid: int, d: dict) -> dict:
             modules += [{"id": f"{tid}-m{mi}", "track_id": tid, "ord": mi, "title": m["title"], "summary": m["summary"],
                          "planned": m["planned"], "done_when": "", "requires": [], "seq": 0} for mi, m in enumerate(t["modules"])]
     with db.tx():
-        db.conn.execute("INSERT INTO goals(id, title, why, done, hours, profile, created_at, layout) VALUES(?,?,?,?,?,?,?,?)",
-                        (gid, out["title"], out["why"], out["done"], hours, profile, now(), layout))
+        db.conn.execute("INSERT INTO goals(id, title, why, done, hours, profile, created_at, layout, kind) VALUES(?,?,?,?,?,?,?,?,?)",
+                        (gid, out["title"], out["why"], out["done"], hours, profile, now(), layout, "book" if book else "goal"))
         for t in tracks:
             db.conn.execute("INSERT INTO tracks(id, goal_id, ord, title, summary, pos) VALUES(?,?,?,?,?,?)",
                             (t["id"], gid, t["ord"], t["title"], t["summary"], t["pos"]))
@@ -241,11 +256,16 @@ def run_outline(jobs: Jobs, jid: int, d: dict) -> dict:
                             (m["id"], m["track_id"], m["ord"], m["title"], "outline", m["planned"], m["summary"], m["seq"],
                              dumps(m["requires"]), m["done_when"]))
         db.conn.execute("INSERT INTO meta(key, value) VALUES('active_goal', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (gid,))
-        for sid in d.get("source_ids") or []:
+        for sid in ids:
             db.conn.execute("INSERT OR IGNORE INTO goal_sources(goal_id, source_id) VALUES(?,?)", (gid, sid))
+        if book:
+            books.save(db, gid, out.get("selection") or [], ids, [m for m in modules if not m["requires"]])
     first_module = db.one("""SELECT m.id FROM modules m JOIN tracks t ON t.id = m.track_id WHERE t.goal_id=?
                              ORDER BY m.seq, t.ord, m.ord LIMIT 1""", (gid,))
     what = f"{len(tracks) - 1} areas x 8 steps and 8 merges" if layout == "ohtani" else f"{len(tracks)} tracks"
+    if book:
+        cuts = db.q("SELECT status FROM book_cuts WHERE goal_id=?", (gid,))
+        what += f"; {sum(c['status'] == 'kept' for c in cuts)} chapter(s) kept, {sum(c['status'] == 'cut' for c in cuts)} left out"
     jobs.progress(jid, f"roadmap: {what}; writing a placement quiz and researching the first module")
     jobs.enqueue("placement_bank", "Write placement quiz", {"goal_id": gid})
     if first_module:
@@ -304,7 +324,8 @@ def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
         summary += f". It merges what these steps taught: {', '.join(titles)}"
     target = d.get("concept")  # single inserted concept: research just that one
     topic = f'{target["title"]} {target.get("detail", "")}' if target else f'{m["title"]} {m["summary"] or ""} {m["done_when"] or ""}'
-    own = sources.excerpts(db, g["id"], topic)
+    book = g["kind"] == "book"
+    own = sources.excerpts(db, g["id"], topic, k=books.RESEARCH_EXCERPTS if book else 8)
     if own:
         jobs.progress(jid, f"using {len(own)} page(s) of your sources")
     out = jobs.call(jid, "Research", Call(
@@ -313,7 +334,7 @@ def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
                       summary=target["detail"] if target else summary,
                       earlier=", ".join(e["title"] for e in earlier) or "none",
                       planned=1 if target else (m["planned"] or 8), library=library.index_text(db),
-                      sources=sources.excerpts_text(own)),
+                      sources=sources.excerpts_text(own), focus=prompt("_book_research") if book else ""),
         schema=RESEARCH_SCHEMA, model="opus", tools=("WebSearch", "WebFetch"), timeout=1800, max_turns=60))
     concepts = []
     for c in (out["concepts"][:1] if target else out["concepts"]):

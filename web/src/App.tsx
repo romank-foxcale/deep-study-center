@@ -3,6 +3,7 @@ import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-d
 import { useStore } from './store'
 import Home from './pages/Home'
 import GoalSetup from './pages/GoalSetup'
+import BookGoal from './pages/BookGoal'
 import Roadmap from './pages/Roadmap'
 import Lesson from './pages/Lesson'
 import Me from './pages/Me'
@@ -69,6 +70,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/goal/new" element={<GoalSetup />} />
+          <Route path="/goal/book" element={<BookGoal />} />
           <Route path="/roadmap" element={<Roadmap />} />
           <Route path="/review" element={<Review />} />
           <Route path="/placement" element={<Placement />} />

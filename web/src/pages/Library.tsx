@@ -24,6 +24,10 @@ export default function Library() {
         </div>
         <span className="spacer" />
         {tab === 'mine' && <AddSources link={!!s.goal} />}
+        {tab === 'mine' && (
+          <Link className="btn btn-primary" to="/goal/book" title="A goal built from the 80/20 core of the sources you choose">
+            Understand books (80/20)</Link>
+        )}
         {suggested.size > 0 && (
           <button className="btn" title="Fact-checked cards for concepts you've learned"
             onClick={() => dispatch({ type: 'promoteSuggested' })}>Share {suggested.size} suggested</button>
