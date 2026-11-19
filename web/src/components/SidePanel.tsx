@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { jobActive, useStore } from '../store'
+import { jobActive, sourceHref, useStore } from '../store'
 import type { SourceCard } from '../types'
 import Markdown from './Markdown'
 import FeedbackItems from './FeedbackItems'
@@ -129,7 +129,7 @@ export function SourceCardView({ card }: { card?: SourceCard | null }) {
       <h4>Canonical sources</h4>
       <ul className="sources">
         {card.sources.map(src => (
-          <li key={src.url}><a href={src.url} target="_blank" rel="noreferrer">{src.title}</a> <span className="pill">{src.kind}</span><div className="muted small">{src.why}</div></li>
+          <li key={src.url}><a href={sourceHref(src.url)} target="_blank" rel="noreferrer">{src.title}</a> <span className="pill">{src.kind}</span><div className="muted small">{src.why}</div></li>
         ))}
       </ul>
     </div>

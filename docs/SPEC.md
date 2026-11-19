@@ -391,3 +391,22 @@ Change log shows text changes only (not graph or question changes).
   variant's numbers, so it can check every "why" against them.
 - `tests/fixtures/formula_widgets_real.json` holds the widgets the real model wrote; `test_vizcheck.py` checks each one
   (stable, computable, passes its own checks, every variant changes something, every value is shown).
+
+## 17. The learner's own sources: books, articles and posts as PDF (2026-11-19)
+- Purpose: the learner can base a goal on books, articles or posts they choose. The roadmap follows their chapters, and
+  cards cite their pages ("Title, p. 42"), with a link that opens the PDF at that page.
+- Upload: Source library → "My sources" → "Add PDF", or "Your own sources" in the new-goal setup. The file goes to
+  `POST /api/sources?filename=&kind=&link=` as the raw body (no multipart). It is saved as `<workspace>/sources/<id>.pdf`
+  (200 MB at most). `GET /api/sources/<id>/file` serves it, so `…/file#page=N` opens a page in the browser.
+- Reading (`sources.py`, job `ingest_source`, pypdf): the text of each page (`source_pages`), a full-text index
+  (`source_fts`, SQLite FTS5), the PDF outline as the table of contents, and the title and author from the metadata
+  (a title the learner set wins). A PDF with text on fewer than 1 in 5 pages is "no text" (a scan); there is no OCR.
+- Use per goal (`goal_sources`): a source added in the library is used for the current goal at once; the learner ticks
+  or unticks it per goal. Sources chosen in the goal setup are linked to the new goal.
+- Roadmap: the outline prompts (`outline.md`, `outline_ohtani.md`) get the tables of contents and build the roadmap
+  around them, with the chapters named in module summaries.
+- Research: `research_module` gets the 8 pages of the goal's sources that match the module best (bm25 over title,
+  summary and "done when"; at most 900 characters each). Cards based on them cite the url `source:<id>#page=<n>`;
+  the app opens it as the PDF at that page (`sourceHref`).
+- Actions: `linkSource`, `editSource` (title, kind), `deleteSource` (removes the file, pages and links; cards that cite
+  it keep their text). Deleting a goal removes its links, not the sources.

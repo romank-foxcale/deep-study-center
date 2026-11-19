@@ -8,6 +8,7 @@ dependencies = [
   "uvicorn==0.32.1",
   "fsrs==5.1.3",
   "genanki==0.13.1",
+  "pypdf==6.10.2",
 ]
 
 [project.optional-dependencies]

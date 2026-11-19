@@ -2,7 +2,7 @@
 // /api/action and return the next snapshot. While agent jobs run, the snapshot is polled.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Angle, FeedbackKind, FeedbackRef, LessonDiff, LessonView, Plan, RunResult, SearchHit, State, Verdict } from './types'
+import type { Angle, FeedbackKind, FeedbackRef, LessonDiff, LessonView, Plan, RunResult, SearchHit, SourceDoc, State, Verdict } from './types'
 
 export type Action =
   | { type: 'answer'; conceptId: string; checkId: string; angle?: Angle; choice?: number; correct?: boolean }
@@ -24,7 +24,10 @@ export type Action =
   | { type: 'chat'; conceptId: string; text: string; sectionHeading?: string }
   | { type: 'decideDiff'; id: number; approve: boolean }
   | { type: 'researchModule'; moduleId: string }
-  | { type: 'createGoal'; answers: { q: string; a: string }[]; layout: 'ohtani' | 'list' }
+  | { type: 'createGoal'; answers: { q: string; a: string }[]; layout: 'ohtani' | 'list'; sourceIds?: string[] }
+  | { type: 'linkSource'; sourceId: string; goalId?: string; on: boolean }
+  | { type: 'editSource'; id: string; title?: string; kind?: SourceDoc['kind'] }
+  | { type: 'deleteSource'; id: string }
   | { type: 'setGoal'; id: string }
   | { type: 'correctEntry'; id: string; verdict: Verdict | 'remove' }
   | { type: 'adjust'; key: 'pace' | 'depth' | 'rigor'; value: number }
@@ -85,6 +88,15 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 export const getLesson = (id: string) => api<LessonView>(`/api/lesson/${encodeURIComponent(id)}`)
 export const postActivity = (conceptId: string, seconds: number) =>
   api<{ ok: boolean }>('/api/activity', { method: 'POST', body: JSON.stringify({ conceptId, seconds }) })
+/** Upload a PDF as the raw request body; the server reads its text in a background job. */
+export const uploadSource = (file: File, opts: { kind?: string; link?: boolean } = {}) =>
+  api<State>(`/api/sources?filename=${encodeURIComponent(file.name)}&kind=${opts.kind ?? 'book'}&link=${opts.link ? 1 : 0}`,
+    { method: 'POST', body: file, headers: { 'Content-Type': 'application/pdf' } })
+/** A card source url "source:<id>#page=N" points into an uploaded PDF; open it at that page. */
+export const sourceHref = (url: string) => {
+  const m = /^source:([\w-]+)(?:#page=(\d+))?$/.exec(url)
+  return m ? `/api/sources/${m[1]}/file${m[2] ? `#page=${m[2]}` : ''}` : url
+}
 export const getPlan = () => api<Plan>('/api/plan')
 export const searchAll = (q: string) => api<SearchHit[]>(`/api/search?q=${encodeURIComponent(q)}`)
 export const runLocal = (body: { conceptId: string; itemId: string; code: string; angle?: Angle; approve?: boolean }) =>

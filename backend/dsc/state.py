@@ -154,10 +154,11 @@ def placement(db: DB, goal_id: str) -> dict:
 def snapshot(db: DB) -> dict:
     gid = active_goal(db)
     pb = playbook(db)
-    from . import library
+    from . import library, sources
     from . import guidelines
     base = {"playbook": pb, "guidelines": guidelines.current(db), "providers": providers.status(), "routes": routes(db), "jobs": jobs(db),
             "library": library.listing(db),
+            "sources": sources.listing(db),
             "runner": runner_status(db),
             "backups": {"folder": str(workspace() / "backups"), "last": db.meta("last_backup"), "items": _backups()[:5]},
             "firstRun": db.meta("first_run") == "1" and not db.one("SELECT 1 FROM goals LIMIT 1"),

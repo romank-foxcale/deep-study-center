@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useStore } from '../store'
+import { sourceHref, useStore } from '../store'
+import { AddSources, SourcesTable } from '../components/Sources'
 
 export default function Library() {
   const { s, dispatch } = useStore()
-  const [tab, setTab] = useState<'goal' | 'shared'>('goal')
+  const [tab, setTab] = useState<'goal' | 'shared' | 'mine'>('goal')
   const shared = new Set(s.library.map(l => l.sourceConcept))
   const refreshing = new Set(s.jobs.filter(j => j.kind === 'refresh_card' && (j.status === 'queued' || j.status === 'running'))
     .map(j => j.input.concept_id ?? ''))
@@ -19,16 +20,18 @@ export default function Library() {
         <div className="tabs tabs-inline" role="tablist">
           <button role="tab" aria-selected={tab === 'goal'} className={`tab ${tab === 'goal' ? 'on' : ''}`} onClick={() => setTab('goal')}>This goal ({s.cards.length})</button>
           <button role="tab" aria-selected={tab === 'shared'} className={`tab ${tab === 'shared' ? 'on' : ''}`} onClick={() => setTab('shared')}>Shared library ({s.library.length})</button>
+          <button role="tab" aria-selected={tab === 'mine'} className={`tab ${tab === 'mine' ? 'on' : ''}`} onClick={() => setTab('mine')}>My sources ({s.sources.length})</button>
         </div>
         <span className="spacer" />
+        {tab === 'mine' && <AddSources link={!!s.goal} />}
         {suggested.size > 0 && (
           <button className="btn" title="Fact-checked cards for concepts you've learned"
             onClick={() => dispatch({ type: 'promoteSuggested' })}>Share {suggested.size} suggested</button>
         )}
-        <a className="btn" href="/api/export/anki" download>Export Anki deck</a>
-        {exported && <span className="muted small">last export: {exported[1]} cards, {new Date(exported[0]).toLocaleDateString()}</span>}
+        {tab !== 'mine' && <a className="btn" href="/api/export/anki" download>Export Anki deck</a>}
+        {tab !== 'mine' && exported && <span className="muted small">last export: {exported[1]} cards, {new Date(exported[0]).toLocaleDateString()}</span>}
       </div>
-      <p className="muted small">The Anki deck holds the questions and explain-back prompts of the concepts you've learned.</p>
+      {tab !== 'mine' && <p className="muted small">The Anki deck holds the questions and explain-back prompts of the concepts you've learned.</p>}
 
       {s.cardProposals.map(p => {
         const concept = s.concepts.find(c => c.id === p.conceptId)
@@ -70,7 +73,7 @@ export default function Library() {
                     {suggested.has(c.conceptId) && <> <span className="pill pill-ok" title="You've learned it and it's fact-checked">suggested to share</span></>}</td>
                   <td>v{c.version}</td>
                   <td><span className={`pill ${c.factCheck === 'passed' ? 'pill-ok' : 'pill-warn'}`}>{c.factCheck}</span></td>
-                  <td>{c.sources.map(src => <div key={src.url}><a href={src.url} target="_blank" rel="noreferrer">{src.title}</a></div>)}</td>
+                  <td>{c.sources.map(src => <div key={src.url}><a href={sourceHref(src.url)} target="_blank" rel="noreferrer">{src.title}</a></div>)}</td>
                   <td className="row">
                     <button className="btn btn-small" disabled={refreshing.has(c.conceptId)}
                       onClick={() => dispatch({ type: 'refreshCard', conceptId: c.conceptId })}>
@@ -88,6 +91,13 @@ export default function Library() {
           </tbody>
         </table>
       )}
+      {tab === 'mine' && (
+        <>
+          <p className="muted small">Your own books, articles and posts (PDF). A new PDF is used for the current goal at once; tick or
+            untick it per goal. Research uses the pages that match each step and cites them as “Title, p. N”.</p>
+          <SourcesTable />
+        </>
+      )}
       {tab === 'shared' && (s.library.length === 0
         ? <p className="muted">Nothing shared yet. Add fact-checked cards from “This goal”; research for any goal reuses them instead of rewriting.</p>
         : (
@@ -98,7 +108,7 @@ export default function Library() {
             ))}</tbody>
           </table>
         ))}
-      <p className="muted small">{s.modules.reduce((n, m) => n + (m.research === 'ready' ? 0 : m.plannedConcepts ?? 0), 0)} more concepts are outlined and will get cards as you approach them.</p>
+      {tab !== 'mine' && <p className="muted small">{s.modules.reduce((n, m) => n + (m.research === 'ready' ? 0 : m.plannedConcepts ?? 0), 0)} more concepts are outlined and will get cards as you approach them.</p>}
     </div>
   )
 }
