@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useStore } from '../store'
 import type { ChatMessage } from '../types'
 import { AddSources, SourceStatus } from '../components/Sources'
@@ -14,12 +14,21 @@ const QUESTIONS = [
 
 export default function GoalSetup() {
   const { s, dispatch } = useStore()
-  const [log, setLog] = useState<ChatMessage[]>([{ role: 'tutor', text: QUESTIONS[0] }])
+  const [params] = useSearchParams()
+  // "Learn" in the library: a goal built on these sources (?sources=id1,id2)
+  const [basis] = useState(() => {
+    const ids = (params.get('sources') ?? '').split(',').filter(id => s.sources.some(x => x.id === id))
+    return { ids, titles: ids.map(id => s.sources.find(x => x.id === id)!.title) }
+  })
+  const fromBooks = basis.ids.length > 0
+  const [log, setLog] = useState<ChatMessage[]>([{ role: 'tutor', text: fromBooks
+    ? `You want to learn ${basis.titles.map(t => `“${t}”`).join(' and ')}. The roadmap will follow ${basis.ids.length > 1 ? 'their' : 'its'} chapters. What should you be able to do when you finish? (Or press Send to keep the suggestion.)`
+    : QUESTIONS[0] }])
   const [answers, setAnswers] = useState<string[]>([])
-  const [text, setText] = useState('')
+  const [text, setText] = useState(() => fromBooks ? `Learn ${basis.titles.join(' + ')} thoroughly` : '')
   const [submitted, setSubmitted] = useState<{ at: string; goalBefore?: string } | null>(null)
   const [layout, setLayout] = useState<'ohtani' | 'list'>('ohtani')
-  const [picked, setPicked] = useState<string[]>([])
+  const [picked, setPicked] = useState<string[]>(basis.ids)
   const logRef = useRef<HTMLDivElement>(null)
   useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }) }, [log.length, s.jobs])
 
@@ -35,7 +44,7 @@ export default function GoalSetup() {
 
   const build = () => {
     setSubmitted({ at: new Date().toISOString(), goalBefore: s.goal?.id })
-    dispatch({ type: 'createGoal', layout, sourceIds: picked, answers: QUESTIONS.map((q, i) => ({ q, a: answers[i] ?? '' })) })
+    dispatch({ type: 'createGoal', layout, sourceIds: picked, basis: fromBooks ? 'sources' : 'goal', answers: QUESTIONS.map((q, i) => ({ q, a: answers[i] ?? '' })) })
   }
 
   const jobs = submitted
@@ -45,7 +54,7 @@ export default function GoalSetup() {
 
   return (
     <div className="page page-narrow">
-      <h1>New goal</h1>
+      <h1>{fromBooks ? `Learn ${basis.titles.length > 1 ? `${basis.titles.length} sources` : `“${basis.titles[0]}”`}` : 'New goal'}</h1>
       <p className="lead">A short conversation, then agents research the field and build your roadmap. You can skip any question.</p>
       <div className="chat chat-page">
         <div className="chat-log" ref={logRef}>

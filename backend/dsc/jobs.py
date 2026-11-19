@@ -213,6 +213,10 @@ def run_outline(jobs: Jobs, jid: int, d: dict) -> dict:
     answers = d["answers"]
     layout = "ohtani" if d.get("layout") == "ohtani" else "list"
     own = sources.contents_text(db, ids=d.get("source_ids") or [])
+    if own and d.get("basis") == "sources":
+        own += ("\n\nThe learner's goal is to learn these sources themselves. Build the roadmap on them: follow their parts and "
+                "chapters in order (group chapters into areas or tracks), name the chapters and pages each module covers in "
+                "its summary, and add outside material only where a chapter needs a prerequisite the learner lacks.")
     out = jobs.call(jid, "Curriculum", Call(
         prompt=prompt("outline_ohtani" if layout == "ohtani" else "outline",
                       answers="\n".join(f"Q: {a['q']}\nA: {a['a']}" for a in answers), sources=own or "(none)"),

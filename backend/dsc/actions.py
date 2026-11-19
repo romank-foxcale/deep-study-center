@@ -371,7 +371,8 @@ def create_goal(db: DB, jobs: Jobs, a: dict) -> None:
     known = {r["id"] for r in db.q("SELECT id FROM sources")}
     ids = [s for s in (a.get("sourceIds") or []) if s in known]
     jobs.enqueue("outline", "Build Ohtani table" if layout == "ohtani" else "Build roadmap",
-                 {"answers": answers, "layout": layout, "source_ids": ids})
+                 {"answers": answers, "layout": layout, "source_ids": ids,
+                  "basis": "sources" if a.get("basis") == "sources" and ids else "goal"})
 
 
 # ---------------------------------------------------------------- the learner's own sources (PDF)
@@ -390,6 +391,14 @@ def edit_source(db: DB, jobs: Jobs, a: dict) -> None:
     title = " ".join(str(a.get("title") or row["title"]).split())[:200] or row["title"]
     kind = a.get("kind") if a.get("kind") in sources.KINDS else row["kind"]
     db.x("UPDATE sources SET title=?, kind=? WHERE id=?", (title, kind, a["id"]))
+
+
+def reread_source(db: DB, jobs: Jobs, a: dict) -> None:
+    row = db.one("SELECT * FROM sources WHERE id=?", (a["id"],))
+    if not row or not sources.file_path(a["id"]).exists():
+        raise ActionError("unknown source")
+    db.x("UPDATE sources SET status='reading' WHERE id=?", (a["id"],))
+    jobs.enqueue("ingest_source", f"Read {row['filename'] or row['title']}", {"source_id": a["id"]})
 
 
 def delete_source(db: DB, jobs: Jobs, a: dict) -> None:
@@ -659,7 +668,7 @@ ACTIONS = {
     "editGuidelines": edit_guidelines, "distillGuidelines": distill_guidelines, "refresh": refresh, "markStudied": mark_studied, "addNote": add_note, "deleteNote": delete_note,
     "chat": chat, "decideDiff": decide_diff, "researchModule": research_module, "createGoal": create_goal,
     "setGoal": set_goal, "correctEntry": correct_entry, "adjust": adjust, "route": route, "useRecommendedRoutes": use_recommended_routes,
-    "linkSource": link_source, "editSource": edit_source, "deleteSource": delete_source, "reset": reset,
+    "linkSource": link_source, "editSource": edit_source, "rereadSource": reread_source, "deleteSource": delete_source, "reset": reset,
 }
 
 

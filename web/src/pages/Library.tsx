@@ -1,11 +1,12 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { sourceHref, useStore } from '../store'
 import { AddSources, SourcesTable } from '../components/Sources'
 
 export default function Library() {
   const { s, dispatch } = useStore()
-  const [tab, setTab] = useState<'goal' | 'shared' | 'mine'>('goal')
+  const [params, setParams] = useSearchParams()
+  const tab = (['shared', 'mine'] as const).find(t => t === params.get('tab')) ?? 'goal'
+  const setTab = (t: 'goal' | 'shared' | 'mine') => setParams(t === 'goal' ? {} : { tab: t }, { replace: true })
   const shared = new Set(s.library.map(l => l.sourceConcept))
   const refreshing = new Set(s.jobs.filter(j => j.kind === 'refresh_card' && (j.status === 'queued' || j.status === 'running'))
     .map(j => j.input.concept_id ?? ''))
@@ -23,7 +24,7 @@ export default function Library() {
           <button role="tab" aria-selected={tab === 'mine'} className={`tab ${tab === 'mine' ? 'on' : ''}`} onClick={() => setTab('mine')}>My sources ({s.sources.length})</button>
         </div>
         <span className="spacer" />
-        {tab === 'mine' && <AddSources link={!!s.goal} />}
+        {tab === 'mine' && <AddSources link={false} />}
         {suggested.size > 0 && (
           <button className="btn" title="Fact-checked cards for concepts you've learned"
             onClick={() => dispatch({ type: 'promoteSuggested' })}>Share {suggested.size} suggested</button>
@@ -93,8 +94,8 @@ export default function Library() {
       )}
       {tab === 'mine' && (
         <>
-          <p className="muted small">Your own books, articles and posts (PDF). A new PDF is used for the current goal at once; tick or
-            untick it per goal. Research uses the pages that match each step and cites them as “Title, p. N”.</p>
+          <p className="muted small">Your own books, articles and posts (PDF). “Learn” makes a source its own goal, with its own
+            roadmap. To use a source for an existing goal, open that goal’s home page (“Sources for this goal”).</p>
           <SourcesTable />
         </>
       )}

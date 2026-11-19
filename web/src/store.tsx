@@ -24,7 +24,8 @@ export type Action =
   | { type: 'chat'; conceptId: string; text: string; sectionHeading?: string }
   | { type: 'decideDiff'; id: number; approve: boolean }
   | { type: 'researchModule'; moduleId: string }
-  | { type: 'createGoal'; answers: { q: string; a: string }[]; layout: 'ohtani' | 'list'; sourceIds?: string[] }
+  | { type: 'createGoal'; answers: { q: string; a: string }[]; layout: 'ohtani' | 'list'; sourceIds?: string[]; basis?: 'goal' | 'sources' }
+  | { type: 'rereadSource'; id: string }
   | { type: 'linkSource'; sourceId: string; goalId?: string; on: boolean }
   | { type: 'editSource'; id: string; title?: string; kind?: SourceDoc['kind'] }
   | { type: 'deleteSource'; id: string }
