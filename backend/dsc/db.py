@@ -134,6 +134,17 @@ CREATE TABLE IF NOT EXISTS lesson_plans (
   concept_id TEXT NOT NULL, card_version INTEGER NOT NULL, ts TEXT NOT NULL, plan TEXT NOT NULL DEFAULT '{}',
   assets TEXT NOT NULL DEFAULT '{}', review TEXT NOT NULL DEFAULT '{}', PRIMARY KEY (concept_id, card_version));
 
+-- The learner's own sources (SPEC §17): PDFs in workspace/sources/<id>.pdf, their text per page and a full-text
+-- index over it, and which goals use which source.
+CREATE TABLE IF NOT EXISTS sources (
+  id TEXT PRIMARY KEY, title TEXT NOT NULL, author TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL DEFAULT 'book',
+  filename TEXT NOT NULL DEFAULT '', bytes INTEGER NOT NULL DEFAULT 0, pages INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'reading', outline TEXT NOT NULL DEFAULT '[]', added_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS source_pages (
+  source_id TEXT NOT NULL, page INTEGER NOT NULL, text TEXT NOT NULL, PRIMARY KEY (source_id, page));
+CREATE VIRTUAL TABLE IF NOT EXISTS source_fts USING fts5(source_id UNINDEXED, page UNINDEXED, text);
+CREATE TABLE IF NOT EXISTS goal_sources (goal_id TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY (goal_id, source_id));
+
 CREATE TABLE IF NOT EXISTS routes (
   role TEXT PRIMARY KEY, ord INTEGER NOT NULL, description TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS jobs (

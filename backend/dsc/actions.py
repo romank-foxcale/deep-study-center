@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from . import engine, guidelines, lesson, library, progress, remedial, state, versions, writer
+from . import engine, guidelines, lesson, library, progress, remedial, sources, state, versions, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now
 from .jobs import Jobs
@@ -368,7 +368,34 @@ def create_goal(db: DB, jobs: Jobs, a: dict) -> None:
     if not answers or not answers[0].get("a", "").strip():
         raise ActionError("the goal is required")
     layout = "list" if a.get("layout") == "list" else "ohtani"
-    jobs.enqueue("outline", "Build Ohtani table" if layout == "ohtani" else "Build roadmap", {"answers": answers, "layout": layout})
+    known = {r["id"] for r in db.q("SELECT id FROM sources")}
+    ids = [s for s in (a.get("sourceIds") or []) if s in known]
+    jobs.enqueue("outline", "Build Ohtani table" if layout == "ohtani" else "Build roadmap",
+                 {"answers": answers, "layout": layout, "source_ids": ids})
+
+
+# ---------------------------------------------------------------- the learner's own sources (PDF)
+
+def link_source(db: DB, jobs: Jobs, a: dict) -> None:
+    gid = a.get("goalId") or state.active_goal(db)
+    if not gid or not db.one("SELECT 1 FROM sources WHERE id=?", (a["sourceId"],)):
+        raise ActionError("unknown source or goal")
+    sources.link(db, gid, a["sourceId"], bool(a.get("on", True)))
+
+
+def edit_source(db: DB, jobs: Jobs, a: dict) -> None:
+    row = db.one("SELECT * FROM sources WHERE id=?", (a["id"],))
+    if not row:
+        raise ActionError("unknown source")
+    title = " ".join(str(a.get("title") or row["title"]).split())[:200] or row["title"]
+    kind = a.get("kind") if a.get("kind") in sources.KINDS else row["kind"]
+    db.x("UPDATE sources SET title=?, kind=? WHERE id=?", (title, kind, a["id"]))
+
+
+def delete_source(db: DB, jobs: Jobs, a: dict) -> None:
+    if not db.one("SELECT 1 FROM sources WHERE id=?", (a["id"],)):
+        raise ActionError("unknown source")
+    sources.delete(db, a["id"])
 
 
 def set_goal(db: DB, jobs: Jobs, a: dict) -> None:
@@ -631,7 +658,8 @@ ACTIONS = {
     "revertLesson": revert_lesson, "addRemedial": add_remedial, "dismissRemedial": dismiss_remedial,
     "editGuidelines": edit_guidelines, "distillGuidelines": distill_guidelines, "refresh": refresh, "markStudied": mark_studied, "addNote": add_note, "deleteNote": delete_note,
     "chat": chat, "decideDiff": decide_diff, "researchModule": research_module, "createGoal": create_goal,
-    "setGoal": set_goal, "correctEntry": correct_entry, "adjust": adjust, "route": route, "useRecommendedRoutes": use_recommended_routes, "reset": reset,
+    "setGoal": set_goal, "correctEntry": correct_entry, "adjust": adjust, "route": route, "useRecommendedRoutes": use_recommended_routes,
+    "linkSource": link_source, "editSource": edit_source, "deleteSource": delete_source, "reset": reset,
 }
 
 

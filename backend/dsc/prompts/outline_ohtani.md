@@ -6,6 +6,11 @@ You are the curriculum architect of Deep Study Center. Build the roadmap for a l
 {answers}
 </learner>
 
+The learner's own sources for this goal (tables of contents of the books and articles they uploaded):
+{sources}
+If there are sources, build the roadmap around them: follow their order of topics where it suits the goal, name the
+chapters a module uses in its summary (for example "Ch. 3 of Title"), and add only what the goal needs beyond them.
+
 ## The table
 A 9x9 grid made of nine 3x3 blocks. The ring of outer blocks, clockwise from the top left, is TL, TM, TR, MR, BR, BM, BL, ML.
 

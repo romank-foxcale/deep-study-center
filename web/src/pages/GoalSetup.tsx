@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../store'
 import type { ChatMessage } from '../types'
+import { AddSources, SourceStatus } from '../components/Sources'
 
 const QUESTIONS = [
   "What's the ultimate goal? Dream big; we'll break it down together.",
@@ -18,6 +19,7 @@ export default function GoalSetup() {
   const [text, setText] = useState('')
   const [submitted, setSubmitted] = useState<{ at: string; goalBefore?: string } | null>(null)
   const [layout, setLayout] = useState<'ohtani' | 'list'>('ohtani')
+  const [picked, setPicked] = useState<string[]>([])
   const logRef = useRef<HTMLDivElement>(null)
   useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }) }, [log.length, s.jobs])
 
@@ -33,7 +35,7 @@ export default function GoalSetup() {
 
   const build = () => {
     setSubmitted({ at: new Date().toISOString(), goalBefore: s.goal?.id })
-    dispatch({ type: 'createGoal', layout, answers: QUESTIONS.map((q, i) => ({ q, a: answers[i] ?? '' })) })
+    dispatch({ type: 'createGoal', layout, sourceIds: picked, answers: QUESTIONS.map((q, i) => ({ q, a: answers[i] ?? '' })) })
   }
 
   const jobs = submitted
@@ -82,6 +84,18 @@ export default function GoalSetup() {
                 merge neighbouring areas. A grid you fill as you learn.</span></span></label>
               <label><input type="radio" name="layout" checked={layout === 'list'} onChange={() => setLayout('list')} />
                 <span><strong>Classic roadmap</strong> <span className="muted small">3–7 tracks of modules, sized to the goal.</span></span></label>
+            </fieldset>
+            <fieldset>
+              <legend className="small muted">Your own sources (optional)</legend>
+              <p className="muted small">Books, articles or posts as PDF. The roadmap follows their chapters, and lessons cite their pages.</p>
+              {s.sources.map(src => (
+                <label key={src.id}>
+                  <input type="checkbox" checked={picked.includes(src.id)}
+                    onChange={e => setPicked(p => e.target.checked ? [...p, src.id] : p.filter(x => x !== src.id))} />
+                  <span>{src.title} <span className="muted small">{src.kind}{src.pages ? `, ${src.pages} pages` : ''}</span> <SourceStatus src={src} /></span>
+                </label>
+              ))}
+              <AddSources link={false} label="Add PDF" onAdded={ids => setPicked(p => [...p, ...ids])} />
             </fieldset>
             <button className="btn btn-primary" onClick={build}>{layout === 'ohtani' ? 'Build my Ohtani table' : 'Build my roadmap'}</button>
           </div>

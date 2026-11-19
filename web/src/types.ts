@@ -95,6 +95,12 @@ export interface CardProposal {
 
 export interface LibraryCard { key: string; title: string; objective: string; version: number; sourceConcept: string; promotedAt: string; uses: number }
 
+/** A book, article or post the learner uploaded as a PDF (SPEC §17). */
+export interface SourceDoc {
+  id: string; title: string; author: string; kind: 'book' | 'article' | 'post' | 'other'; filename: string
+  pages: number; status: 'reading' | 'ready' | 'no_text' | 'error'; addedAt: string; goalIds: string[]; outline: number
+}
+
 export interface SearchHit { kind: 'note' | 'lesson' | 'card'; ref: string; conceptId: string; title: string; snippet: string }
 
 export type RunResult =
@@ -395,6 +401,7 @@ export interface State {
   settings: { autoResearch: boolean; autoRefresh: boolean; lessonWriting: 'steps' | 'single'; weeklyHours: number; studyDays: number[]; startTime: string }
   cardProposals: CardProposal[]
   library: LibraryCard[]
+  sources: SourceDoc[]
   runner: { setUp: boolean; packages: string[]; mode: 'local' | 'docker'; dockerReady: boolean }
   backups: { folder: string; last: string | null; items: { name: string; size: number; at: string }[] }
   firstRun: boolean

@@ -5,13 +5,13 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import Body, FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from fastapi.responses import Response
 
-from . import actions, backup, lesson, library, planner, progress, providers, runner, state, versions
+from . import actions, backup, lesson, library, planner, progress, providers, runner, sources, state, versions
 from .db import DB, workspace
 from .jobs import Jobs
 from .seed import ensure_routes, init_empty
@@ -105,6 +105,27 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
     @app.get("/api/search")
     def search(q: str = "") -> list[dict]:
         return library.search(db, q)
+
+    @app.post("/api/sources")
+    async def upload_source(request: Request, filename: str = "source.pdf", kind: str = "book") -> dict:
+        """Upload a PDF (the raw file as the body). Its text is read by a background job."""
+        data = await request.body()
+        try:
+            sid = sources.add(db, data, filename, kind)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        if request.query_params.get("link") == "1" and state.active_goal(db):
+            sources.link(db, state.active_goal(db), sid, True)
+        jobs.enqueue("ingest_source", f"Read {filename}", {"source_id": sid})
+        return state.snapshot(db)
+
+    @app.get("/api/sources/{sid}/file")
+    def source_file(sid: str):
+        """The PDF itself, so a citation link can open it at a page (…/file#page=42)."""
+        if not db.one("SELECT 1 FROM sources WHERE id=?", (sid,)) or not sources.file_path(sid).exists():
+            raise HTTPException(404, "no such source")
+        return FileResponse(sources.file_path(sid), media_type="application/pdf",
+                            headers={"Content-Disposition": "inline"})
 
     @app.get("/api/export/anki")
     def anki() -> FileResponse:

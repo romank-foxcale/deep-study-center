@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import engine, guidelines, library, ohtani, progress, providers, runner, state, versions, viz, writer
+from . import engine, guidelines, library, ohtani, progress, providers, runner, sources, state, versions, viz, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
@@ -212,9 +212,10 @@ def run_outline(jobs: Jobs, jid: int, d: dict) -> dict:
     db = jobs.db
     answers = d["answers"]
     layout = "ohtani" if d.get("layout") == "ohtani" else "list"
+    own = sources.contents_text(db, ids=d.get("source_ids") or [])
     out = jobs.call(jid, "Curriculum", Call(
         prompt=prompt("outline_ohtani" if layout == "ohtani" else "outline",
-                      answers="\n".join(f"Q: {a['q']}\nA: {a['a']}" for a in answers)),
+                      answers="\n".join(f"Q: {a['q']}\nA: {a['a']}" for a in answers), sources=own or "(none)"),
         schema=ohtani.SCHEMA if layout == "ohtani" else OUTLINE_SCHEMA, model="opus", timeout=600))
     gid = f"g-{slug(out['title'], 24)}-{secrets.token_hex(2)}"
     profile = "\n".join(a["a"] for a in answers[1:] if a["a"].strip() and a["a"] != "(skipped)")
@@ -240,6 +241,8 @@ def run_outline(jobs: Jobs, jid: int, d: dict) -> dict:
                             (m["id"], m["track_id"], m["ord"], m["title"], "outline", m["planned"], m["summary"], m["seq"],
                              dumps(m["requires"]), m["done_when"]))
         db.conn.execute("INSERT INTO meta(key, value) VALUES('active_goal', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (gid,))
+        for sid in d.get("source_ids") or []:
+            db.conn.execute("INSERT OR IGNORE INTO goal_sources(goal_id, source_id) VALUES(?,?)", (gid, sid))
     first_module = db.one("""SELECT m.id FROM modules m JOIN tracks t ON t.id = m.track_id WHERE t.goal_id=?
                              ORDER BY m.seq, t.ord, m.ord LIMIT 1""", (gid,))
     what = f"{len(tracks) - 1} areas x 8 steps and 8 merges" if layout == "ohtani" else f"{len(tracks)} tracks"
@@ -300,12 +303,17 @@ def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
         titles = [r["title"] for r in db.q(f"SELECT title FROM modules WHERE id IN ({','.join('?' * len(required))})", required)]
         summary += f". It merges what these steps taught: {', '.join(titles)}"
     target = d.get("concept")  # single inserted concept: research just that one
+    topic = f'{target["title"]} {target.get("detail", "")}' if target else f'{m["title"]} {m["summary"] or ""} {m["done_when"] or ""}'
+    own = sources.excerpts(db, g["id"], topic)
+    if own:
+        jobs.progress(jid, f"using {len(own)} page(s) of your sources")
     out = jobs.call(jid, "Research", Call(
         prompt=prompt("research_module", goal=g["title"], profile=g["profile"], track=t["title"],
                       module=target["title"] if target else m["title"],
                       summary=target["detail"] if target else summary,
                       earlier=", ".join(e["title"] for e in earlier) or "none",
-                      planned=1 if target else (m["planned"] or 8), library=library.index_text(db)),
+                      planned=1 if target else (m["planned"] or 8), library=library.index_text(db),
+                      sources=sources.excerpts_text(own)),
         schema=RESEARCH_SCHEMA, model="opus", tools=("WebSearch", "WebFetch"), timeout=1800, max_turns=60))
     concepts = []
     for c in (out["concepts"][:1] if target else out["concepts"]):
@@ -802,6 +810,8 @@ HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "tutor": (run_tutor, fallback_tutor),
     "roadmap_review": (run_roadmap_review, fallback_roadmap_review),
     "outline": (run_outline, None),
+    "ingest_source": (lambda jobs, jid, d: sources.ingest(jobs.db, d["source_id"], lambda m: jobs.progress(jid, m)),
+                      lambda jobs, jid, d: jobs.db.x("UPDATE sources SET status='error' WHERE id=?", (d["source_id"],))),
     "research_module": (run_research_module, fallback_research_module),
     "fact_check": (run_fact_check, None),
     "grade": (run_grade, fallback_grade),
