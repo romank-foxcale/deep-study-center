@@ -22,6 +22,13 @@ _STOP = {"the", "and", "for", "with", "from", "into", "that", "this", "what", "h
          "you", "of", "to", "in", "on", "a", "an", "is", "as", "by", "or", "at", "be", "it", "we", "using", "use", "via"}
 
 
+def clean(text: str) -> str:
+    """Text that SQLite can store: join split UTF-16 surrogate pairs, replace lone ones, and squeeze white space.
+    Some PDFs give math letters (U+1D400...) as two separate surrogates, which UTF-8 cannot encode."""
+    text = text.encode("utf-16", "surrogatepass").decode("utf-16", "replace")
+    return " ".join(text.replace("\x00", " ").split())
+
+
 def folder() -> Path:
     path = workspace() / "sources"
     path.mkdir(parents=True, exist_ok=True)
@@ -54,15 +61,15 @@ def ingest(db: DB, sid: str, progress=lambda msg: None) -> dict:
 
     reader = PdfReader(str(file_path(sid)))
     meta = reader.metadata or {}
-    title = str(getattr(meta, "title", None) or meta.get("/Title") or "").strip()
-    author = str(getattr(meta, "author", None) or meta.get("/Author") or "").strip()
+    title = clean(str(getattr(meta, "title", None) or meta.get("/Title") or ""))
+    author = clean(str(getattr(meta, "author", None) or meta.get("/Author") or ""))
     pages = []
     for i, page in enumerate(reader.pages):
         try:
             text = page.extract_text() or ""
         except Exception:  # noqa: BLE001 - one bad page must not stop the book
             text = ""
-        pages.append(" ".join(text.split()))
+        pages.append(clean(text))
         if (i + 1) % 50 == 0:
             progress(f"read {i + 1} of {len(reader.pages)} pages")
     outline = _outline(reader)
@@ -96,7 +103,7 @@ def _outline(reader) -> list[dict]:
                 page = reader.get_destination_page_number(it) + 1
             except Exception:  # noqa: BLE001
                 page = None
-            title = " ".join(str(getattr(it, "title", "") or "").split())
+            title = clean(str(getattr(it, "title", "") or ""))
             if title:
                 out.append({"title": title[:160], "page": page, "level": level})
             if len(out) >= 400:

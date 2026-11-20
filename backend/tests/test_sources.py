@@ -127,3 +127,17 @@ def test_new_goal_uses_its_sources_in_outline_and_research(env):
     # deleting the goal drops its links but keeps the source
     s = act(db, jobs, type="deleteGoal", id=gid)
     assert next(x for x in s["sources"] if x["id"] == sid)["goalIds"] == []
+
+
+def test_clean_joins_split_surrogates_and_drops_lone_ones():
+    pair = "\ud835\udc65"  # U+1D465 (math italic x) as two separate surrogates, as some PDFs give it
+    assert sources.clean(f"a  {pair}\n b \ud835 c") == "a \U0001d465 b \ufffd c"
+    sources.clean(pair).encode("utf-8")  # storable
+
+
+def test_read_again_after_an_error(env):
+    db, jobs, _ = env
+    sid = sources.add(db, PDF, "rl.pdf")
+    db.x("UPDATE sources SET status='error' WHERE id=?", (sid,))
+    s = act(db, jobs, type="rereadSource", id=sid)
+    assert next(x for x in s["sources"] if x["id"] == sid)["status"] == "ready"
