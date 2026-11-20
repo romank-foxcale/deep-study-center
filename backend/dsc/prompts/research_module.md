@@ -15,6 +15,12 @@ Shared library of existing fact-checked cards (key: title - objective):
 If a concept you need is genuinely the same as a library card (same idea, same depth), set its reuse_key to that key
 and omit its card; otherwise write a new card.
 
+Ideas already in the learner's knowledge graph (from other goals and lessons; id: title - statement):
+{graph}
+If a concept is genuinely the same idea as one of these (same idea, same depth, not just a related topic), set its
+same_as to that id. Then the learner's progress on it is shared, and you may omit its card to reuse the existing one.
+Do not set same_as for a related or deeper idea: write a new concept and name the existing idea in its card instead.
+
 The learner's own sources (books, articles and posts they uploaded for this goal). These are the pages that match this
 module best; each starts with [Title, p. N]:
 {sources}

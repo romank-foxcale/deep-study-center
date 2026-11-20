@@ -131,6 +131,27 @@ export interface Grading {
   followup: string | null
 }
 
+export interface SessionQuestion {
+  id: number; idea: string; phase: 'probe' | 'predict' | 'check'; round: number; prompt: string; options: string[]
+  answered: boolean; choice?: number | null; correct?: boolean; answer?: number; explanation?: string
+  thinking?: string; confidence?: number | null
+}
+export interface SessionExplain { id: number; idea: string; phase: 'explain'; body: string; repair: boolean }
+export type SessionItem = SessionQuestion | SessionExplain
+
+export interface SessionIdea {
+  key: string; title: string; statement: string; node: string; prereqs: string[]; target: boolean
+  level: 'known' | 'partial' | 'unknown' | null; skip?: boolean; fromGraph: boolean; nodeState: string
+}
+
+/** A study session, "teach me X" (SPEC §22). */
+export interface SessionView {
+  id: string; topic: string; title: string
+  status: 'sketching' | 'probing' | 'planning' | 'teaching' | 'extracting' | 'done'
+  busy: boolean; error: string | null; ideas: SessionIdea[]; plan: string[]; current: number; items: SessionItem[]
+  summary: string; sources: string[]; createdAt: string
+}
+
 export interface ProbeAnswered {
   id: number; round: number; module: string; prompt: string; options: string[]; choice: number | null; correct: boolean
   answer: number; explanation: string; thinking: string; confidence: number | null
@@ -425,6 +446,8 @@ export interface State {
   cardProposals: CardProposal[]
   library: LibraryCard[]
   sources: SourceDoc[]
+  sessions: { id: string; title: string; topic: string; status: string; createdAt: string }[]
+  lastSession: string | null
   runner: { setUp: boolean; packages: string[]; mode: 'local' | 'docker'; dockerReady: boolean }
   backups: { folder: string; last: string | null; items: { name: string; size: number; at: string }[] }
   firstRun: boolean

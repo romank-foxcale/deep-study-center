@@ -11,11 +11,13 @@ import Library from './pages/Library'
 import Settings from './pages/Settings'
 import Review from './pages/Review'
 import Probe from './pages/Probe'
+import Study from './pages/Study'
 import Search from './pages/Search'
 import Week from './pages/Week'
 
 const NAV = [
   { to: '/', label: 'Home', end: true },
+  { to: '/study', label: 'Study' },
   { to: '/week', label: 'This week' },
   { to: '/roadmap', label: 'Roadmap' },
   { to: '/review', label: 'Reviews' },
@@ -74,6 +76,8 @@ export default function App() {
           <Route path="/roadmap" element={<Roadmap />} />
           <Route path="/review" element={<Review />} />
           <Route path="/probe" element={<Probe />} />
+          <Route path="/study" element={<Study />} />
+          <Route path="/study/:id" element={<Study />} />
           <Route path="/placement" element={<Probe />} />
           <Route path="/search" element={<Search />} />
           <Route path="/week" element={<Week />} />

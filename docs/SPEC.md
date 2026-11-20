@@ -477,3 +477,61 @@ Change log shows text changes only (not graph or question changes).
   research, the lesson writer and the tutor read. "Retake" (`resetProbe`) clears it; known steps stay known.
 - Tables: `probe_items` (one row per question, with the answer, thinking and confidence), `probe_results`. The old
   `placement_items` / `placement_answers` stay for old data; `engine.placement` and the `placement_bank` job are gone.
+
+## 21. One knowledge graph (2026-11-20)
+- Purpose: knowledge belongs to the learner, not to one goal. An idea learned for one goal is known in every goal,
+  and later steps ("Teach me X", the skill-tree map, recall practice) work on one graph. Step 3 of the rework.
+- Model (`graph.py`): a node is one idea (`nodes`: id, title, statement, kind, origin). Every concept (a lesson in a
+  goal's module) points to one node (`concept_nodes`); concepts in different goals can share a node. A link means
+  "this idea is used to reason toward that idea": links come from the concepts' prerequisites (mapped to nodes) and
+  from the `links` table (for later steps). `node_fts` indexes node titles and statements.
+- Automatic: `graph.sync` gives every concept without a node its own node (node id = concept id). It runs before
+  any read (state, graph view), also inside an open transaction, so code that inserts concepts needs no change.
+  Existing workspaces get their nodes on first use; states stay the same until ideas are shared.
+- Shared state: `state.concept_states` uses the evidence of every concept on the same node
+  (`graph.evidence_for`); an explain-back passed on a sibling counts for this concept. `graph.states` gives the
+  learner's state per node from all evidence (same rules as a concept).
+- Research dedupe: `research_module` gets up to 15 existing nodes that match the module (`graph.candidates`,
+  full-text search, not the module's own) and may set `same_as: <node id>` for a concept that is the same idea at
+  the same depth. That concept points to the existing node, and without its own card it reuses the node's newest card
+  (fact-check status carried over). An unknown id is ignored.
+- Deleting a goal removes its concepts' mappings and nodes that no concept uses any more; shared nodes stay.
+- API: `GET /api/graph` → `{nodes: [{id, title, statement, kind, state, mastery, goals, concepts}], links: [{src, dst,
+  origin}]}`. The map that shows it is step 5.
+- Not yet: reviews are still scheduled per concept (a shared node learned in goal A has no review row in goal B);
+  nodes smaller than a concept (statements from sessions) come with step 4.
+
+## 22. Study sessions: "teach me X" (2026-11-20)
+- Purpose: learn anything, with or without a goal. DSC maps the topic, connects it to the knowledge graph (§21),
+  checks what the learner holds, and teaches one small reasoning step at a time, so each step "feels obviously true".
+  What they learn goes into the graph. Step 4 of the rework.
+- Page `/study` ("Study" in the sidebar): one text field with dictation, optional own sources (ready PDFs), the list
+  of past sessions. A session is `/study/<id>`, with a phase bar: Map the topic → What you know → Plan → Learn →
+  Add to your graph → Done. "Delete session" removes it.
+- Phases (`session.py`, `sessions.status`; jobs `session_sketch`, `session_probe`, `session_turn`, `session_extract`):
+  1. Sketch ("Study plan" route, `session_sketch.md`): 4-12 ideas with `prereq_keys`, one `target_key`, and
+     `same_as` for ideas already in the graph (the prompt lists the graph ideas that match the topic, plus learned
+     ones, with their state). Each idea becomes a node at once: the existing node, or a new one (origin "session",
+     `session_nodes.created = 1`), with reasoning links between the ideas. Ideas the graph holds as learned or
+     mastered are marked known.
+  2. Probe ("Study tutor" route, `session_probe.md`): rounds of up to 4 quick questions on the ideas not known yet,
+     middle of the tree first; at most 3 rounds / 12 questions; "Stop asking and show the plan" ends it. Levels:
+     known / partial / unknown.
+  3. Plan: the ideas to teach, prerequisites first (topological order), the target last. The learner can untick ideas
+     they hold (`sessionKnown`; not the target), then "Start learning" (`sessionTeach`).
+  4. Teach (`session_turn.md`): per idea **predict** (a question before any explanation, answered with thinking and
+     confidence; "I don't know" allowed) → **explain** (60-200 words, fitted to the prediction and thinking, Markdown
+     with math and runnable Python) + **check** (a new setting). A wrong check gets one **repair** (another angle +
+     a new check); after a second miss the session moves on.
+  5. Extract ("Study plan" route, `session_extract.md`): a statement per taught idea (what the learner now holds,
+     written into new nodes), reasoning links between the ideas and other graph ideas (`links`, origin "session"),
+     and a summary for the learner with what to practise next.
+- Evidence: probe and check answers are evidence on the idea's node (`evidence.concept_id` = node id, item
+  `<session>-<item>`, guess rule as in §19); predictions are not evidence. The graph counts evidence on a node id
+  directly (`graph.states`, `graph.evidence_for`), so a lesson later mapped to the same node (research `same_as`)
+  sees it. Understanding alone does not make a node "learned" (3 right items + recall practice, step 6): taught
+  ideas show as "learning".
+- A failed step shows "Try again" (`sessionRetry`), which re-runs the step of the current phase.
+- API: `GET /api/session/<id>` (the session as the page shows it; answer keys only after answering). Snapshot:
+  `sessions` (list) and `lastSession`.
+- Not yet: graphs (viz widgets) inside explanations, prefetching the next step, attaching a session to a goal.

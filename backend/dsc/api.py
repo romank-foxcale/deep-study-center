@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from fastapi.responses import Response
 
-from . import actions, backup, lesson, library, planner, progress, providers, runner, sources, state, versions
+from . import actions, backup, graph, lesson, library, planner, progress, providers, runner, session, sources, state, versions
 from .db import DB, workspace
 from .jobs import Jobs
 from .seed import ensure_routes, init_empty
@@ -25,6 +25,19 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
     jobs = jobs or Jobs(db)
     app = FastAPI(title="Deep Study Center")
     app.state.db, app.state.jobs = db, jobs
+
+    @app.get("/api/session/{sid}")
+    def get_session(sid: str) -> dict:
+        """One study session as the page shows it (SPEC §22)."""
+        v = session.view(db, sid)
+        if not v:
+            raise HTTPException(404, "no such session")
+        return v
+
+    @app.get("/api/graph")
+    def get_graph() -> dict:
+        """The knowledge graph: every node with the learner's state and goals, and the links (SPEC §21)."""
+        return graph.view(db)
 
     @app.get("/api/state")
     def get_state() -> dict:

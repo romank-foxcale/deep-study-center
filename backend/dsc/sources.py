@@ -168,9 +168,10 @@ def contents_text(db: DB, goal_id: str | None = None, ids: list[str] | None = No
     return "\n".join(blocks)
 
 
-def excerpts(db: DB, goal_id: str | None, topic: str, k: int = 8) -> list[dict]:
-    """The pages of the goal's sources that match a topic best (full-text search, best first)."""
-    srcs = {s["id"]: s for s in for_goal(db, goal_id) if s["status"] == "ready"}
+def excerpts(db: DB, goal_id: str | None, topic: str, k: int = 8, ids: list[str] | None = None) -> list[dict]:
+    """The pages of the goal's sources (or of the given source ids) that match a topic best (full-text search)."""
+    pool = [x for x in db.q("SELECT * FROM sources") if x["id"] in ids] if ids is not None else for_goal(db, goal_id)
+    srcs = {x["id"]: x for x in pool if x["status"] == "ready"}
     terms = [t for t in dict.fromkeys(_WORD.findall(topic.lower())) if len(t) > 2 and t not in _STOP][:12]
     if not srcs or not terms:
         return []
