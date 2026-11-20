@@ -108,7 +108,7 @@ def _learner(db: DB) -> dict:
     g = db.one("SELECT * FROM goals WHERE id=?", (gid,)) or {"title": "", "profile": ""}
     pb = state.playbook(db)
     return {"goal": g["title"], "profile": g["profile"], "pb": pb, "playbook": state.playbook_text(pb),
-            "guidelines": guidelines.text(db), "feedback": recent_feedback(db)}
+            "guidelines": guidelines.text(db), "feedback": recent_feedback(db), "reasoning": state.reasoning_log(db)}
 
 
 # ---------------------------------------------------------------- the steps
@@ -134,7 +134,7 @@ def write_prose(jobs: Jobs, jid: int, cid: str, card_version: int, style: str, w
         lines.append(line)
     out = jobs.call(jid, "Renditions", Call(
         prompt=prompt("render", card=_card_text(card), goal=lr["goal"], profile=lr["profile"], playbook=lr["playbook"],
-                      sections="\n".join(lines), guidelines=lr["guidelines"], **lr["pb"]["adjust"]),
+                      sections="\n".join(lines), guidelines=lr["guidelines"], reasoning=lr["reasoning"], **lr["pb"]["adjust"]),
         schema={"type": "object", "required": ["sections"], "properties": {"sections": {"type": "array", "items": {
             "type": "object", "required": ["id", "body"], "properties": {"id": {"type": "string"}, "body": {"type": "string"}}}}}},
         model="sonnet", timeout=300))
@@ -171,7 +171,7 @@ def plan(jobs: Jobs, jid: int, cid: str, card: dict, r: dict) -> dict | None:
         lines.append(line)
     out = jobs.call(jid, "Lesson planner", Call(
         prompt=prompt("plan_lesson", card=_card_text(card), sections="\n".join(lines), goal=lr["goal"], profile=lr["profile"],
-                      playbook=lr["playbook"], guidelines=lr["guidelines"], feedback=lr["feedback"]),
+                      playbook=lr["playbook"], guidelines=lr["guidelines"], feedback=lr["feedback"], reasoning=lr["reasoning"]),
         schema=PLAN_SCHEMA, model="sonnet", timeout=240))
     by = {s["id"]: s for s in card["sections"]}
     clean = []

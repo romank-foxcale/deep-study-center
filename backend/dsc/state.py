@@ -112,12 +112,54 @@ def answers(db: DB, concept_ids: list[str]) -> dict:
     secs = {cid: effective_sections(db, cid, c) + (c or {}).get("sections", []) for cid, c in cards.items()}
     for r in rows:
         key = f'{r["concept_id"]}:{r["item_id"]}'
-        item = {"choice": r["choice"], "correct": bool(r["correct"]), "score": r["score"]}
+        item = {"choice": r["choice"], "correct": bool(r["correct"]), "score": r["score"],
+                "thinking": r["thinking"] or "", "confidence": r["confidence"]}
         check = next((s["check"] for s in secs[r["concept_id"]] if (s.get("check") or {}).get("id") == r["item_id"]), None)
         if check:
             item.update(answer=check["answer"], explanation=check["explanation"])
         out[key] = item
     return out
+
+
+def reasoning_log(db: DB, concept_id: str | None = None, limit: int = 10) -> str:
+    """The learner's recent answers with their thinking and confidence, newest first, for the agents.
+    Only answers with thinking or a confidence are listed: they show how the learner reasons, not just the result."""
+    where = "voided=0 AND (thinking != '' OR confidence IS NOT NULL)" + (" AND concept_id=?" if concept_id else "")
+    rows = db.q(f"SELECT * FROM evidence WHERE {where} ORDER BY id DESC LIMIT ?", ((concept_id,) if concept_id else ()) + (limit,))
+    grads = db.q("SELECT * FROM gradings WHERE status='graded'" + (" AND concept_id=?" if concept_id else "")
+                 + " ORDER BY id DESC LIMIT ?", ((concept_id,) if concept_id else ()) + (max(3, limit // 3),))
+    from .writer import effective_sections
+    titles = {r["id"]: r["title"] for r in db.q("SELECT id, title FROM concepts")}
+    checks: dict[str, dict] = {}
+    lines = []
+    for r in rows:
+        cid = r["concept_id"]
+        if cid not in checks:
+            card = latest_card(db, cid)
+            checks[cid] = {s["check"]["id"]: s["check"] for s in effective_sections(db, cid, card) + (card or {}).get("sections", [])
+                           if s.get("check")} if card else {}
+        c = checks[cid].get(r["item_id"])
+        result = "right" if r["correct"] else "wrong"
+        if r["correct"] and r["confidence"] is not None and r["confidence"] <= 0.25:
+            result = "right, but a guess"
+        elif not r["correct"] and (r["confidence"] or 0) >= 0.75:
+            result = "wrong while sure (a likely misconception)"
+        head = f'- [{titles.get(cid, cid)}{", review" if r["kind"] == "review" else ""}] '
+        if c:
+            chose = c["options"][r["choice"]] if r["choice"] is not None and 0 <= r["choice"] < len(c["options"]) else "?"
+            head += f'Q: {c["prompt"][:200]} | chose: {chose[:120]} ({result})'
+        else:
+            head += f"exercise {r['item_id']} ({result})"
+        if r["confidence"] is not None:
+            head += f' | confidence {round(r["confidence"] * 100)}%'
+        if r["thinking"]:
+            head += f' | thinking: "{r["thinking"][:600]}"'
+        lines.append(head)
+    for g in grads:
+        conf = f', confidence {round(g["confidence"] * 100)}%' if g["confidence"] is not None else ""
+        lines.append(f'- [{titles.get(g["concept_id"], g["concept_id"])}, explain-back, score {g["score"]}{conf}] '
+                     f'"{g["answer"][:500]}" | grader: {(g["feedback"] or "")[:200]}')
+    return "\n".join(lines) or "(none yet)"
 
 
 def gradings(db: DB, concept_ids: list[str]) -> dict:

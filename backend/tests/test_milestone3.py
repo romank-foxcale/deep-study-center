@@ -191,9 +191,9 @@ def test_codex_adapter_command_auth_and_output(tmp_path, monkeypatch):
                                                   model="default", tools=("WebSearch",)), tmp_path)
     assert out == {"n": 4}
     cmd = seen["cmd"]
-    assert cmd[1] == "exec" and cmd[-1] == "-" and seen["input"] == "hi"
+    assert cmd[1:3] == ["--search", "exec"] and cmd[-1] == "-" and seen["input"] == "hi"  # --search is a top-level option
     assert ["--sandbox", "read-only"] == cmd[cmd.index("--sandbox"):cmd.index("--sandbox") + 2]
-    assert "--search" in cmd and "--model" not in cmd and "--output-schema" in cmd
+    assert "--model" not in cmd and "--output-schema" in cmd
     assert "OPENAI_API_KEY" not in seen["env"]
     schema = json.loads((tmp_path / "codex-schema.json").read_text(encoding="utf-8"))
     assert schema["additionalProperties"] is False

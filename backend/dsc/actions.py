@@ -50,7 +50,11 @@ def answer(db: DB, jobs: Jobs, a: dict) -> None:
         raise ActionError("explain-back answers go through the 'explain' action")
     # Checks are graded here against the hidden key; code exercises run in the browser (Pyodide).
     correct = (a.get("choice") == item["answer"]) if item["kind"] == "check" else bool(a.get("correct"))
-    if progress.record_evidence(db, cid, item_id, 1.0 if correct else 0.0, choice=a.get("choice"), angle=a.get("angle")):
+    thinking, conf = progress.reasoning(a)
+    # A right answer you marked as a guess is half evidence: it moves P(learned) but does not count as known.
+    score = 0.5 if progress.guessed(correct, conf) else (1.0 if correct else 0.0)
+    if progress.record_evidence(db, cid, item_id, score, choice=a.get("choice"), angle=a.get("angle"),
+                                thinking=thinking, confidence=conf, correct=correct):
         progress.on_finished(db, jobs, cid)
     progress.research_ahead(db, jobs)
 
@@ -63,8 +67,9 @@ def explain(db: DB, jobs: Jobs, a: dict) -> None:
         raise ActionError(f"unknown explain-back item {item_id}")
     if len(text) < 15:
         raise ActionError("write a few sentences in your own words first")
-    gid = db.x("INSERT INTO gradings(ts, concept_id, item_id, answer, status) VALUES(?,?,?,?,?)",
-               (now(), cid, item_id, text[:4000], "pending"))
+    _, conf = progress.reasoning(a)
+    gid = db.x("INSERT INTO gradings(ts, concept_id, item_id, answer, status, confidence) VALUES(?,?,?,?,?,?)",
+               (now(), cid, item_id, text[:4000], "pending", conf))
     jobs.enqueue("grade", "Grade explanation", {"grading_id": gid, "concept_id": cid, "angle": a.get("angle")})
 
 
@@ -75,10 +80,14 @@ def review(db: DB, jobs: Jobs, a: dict) -> None:
     if not item or item["kind"] != "check" or not row:
         raise ActionError("nothing to review")
     correct = a.get("choice") == item["answer"]
+    thinking, conf = progress.reasoning(a)
+    recalled = correct and not progress.guessed(correct, conf)  # a lucky guess is not recall
     ts = now()
-    db.x("INSERT INTO evidence(ts, concept_id, item_id, kind, choice, correct) VALUES(?,?,?,?,?,?)",
-         (ts, cid, item_id, "review", a.get("choice"), int(correct)))
-    card, due = engine.review(row["card"], correct, ts)
+    db.x("""INSERT INTO evidence(ts, concept_id, item_id, kind, choice, correct, score, thinking, confidence)
+            VALUES(?,?,?,?,?,?,?,?,?)""",
+         (ts, cid, item_id, "review", a.get("choice"), int(correct), 1.0 if recalled else (0.5 if correct else 0.0),
+          thinking, conf))
+    card, due = engine.review(row["card"], recalled, ts)
     db.x("UPDATE reviews SET card=?, due=? WHERE concept_id=?", (card, due, cid))
 
 
@@ -438,8 +447,10 @@ def placement_answer(db: DB, jobs: Jobs, a: dict) -> None:
     item = loads(row["item"])
     choice = a.get("choice")
     correct = choice is not None and choice == item["answer"]
-    db.x("INSERT INTO placement_answers(ts, goal_id, module_id, choice, correct) VALUES(?,?,?,?,?)",
-         (now(), gid, a["moduleId"], choice, int(correct)))
+    thinking, conf = progress.reasoning(a)
+    db.x("""INSERT INTO placement_answers(ts, goal_id, module_id, choice, correct, thinking, confidence)
+            VALUES(?,?,?,?,?,?,?)""",
+         (now(), gid, a["moduleId"], choice, int(correct and not progress.guessed(correct, conf)), thinking, conf))
 
 
 def finish_placement(db: DB, jobs: Jobs, a: dict) -> None:

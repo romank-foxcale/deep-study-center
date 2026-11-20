@@ -436,3 +436,19 @@ Change log shows text changes only (not graph or question changes).
 - Research for a book goal gets 12 matching pages instead of 8 and `_book_research.md` as `{focus}`: teach what the
   sources say, cite the pages, use the web only to check, to explain the same idea better, or for a prerequisite.
 - Not yet: films and videos (only PDF sources exist), and undoing a "Bring back".
+
+## 19. Thinking box, confidence and dictation on every answer (2026-11-20)
+- Purpose: the agents see how the learner reasons, not only whether an answer is right. Two people can give the same
+  wrong answer for different reasons. (Step 1 of the knowledge-graph rework.)
+- Every quiz question (lessons, reviews, placement) has an optional "Think out loud" box and a "How sure are you?"
+  slider (0-100 %, "not set" until moved). Explain-back has the slider too; its answer is already the thinking.
+- Dictation: a "Dictate" button on each box uses the browser's speech recognition (Chromium); spoken phrases are added
+  at the end of the text. It is hidden where the browser has none. A local Whisper model is a later option.
+- Stored with the answer: `evidence.thinking`, `evidence.confidence`, `gradings.confidence`,
+  `placement_answers.thinking/confidence`. The answer shows them back after checking.
+- Scoring: a right answer at 25 % or less ("Guess") is half evidence (score 0.5). It is shown as right, moves
+  P(learned), but does not count as a known item. In a review, a right guess is not recall (the card goes rusty).
+  In placement, a right guess does not mark the module known.
+- Agents: `state.reasoning_log` lists recent answers with thinking or confidence ("wrong while sure" = likely
+  misconception, "right, but a guess"), plus graded explain-backs. The lesson planner, the prose writer and the tutor
+  (for that lesson) get it.

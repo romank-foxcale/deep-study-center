@@ -148,7 +148,8 @@ def run_tutor(jobs: Jobs, jid: int, d: dict) -> dict:
     reply = jobs.call(jid, "Tutor chat", Call(
         prompt=prompt("tutor", card=_card_text(card), goal=_goal(db)["title"], playbook=state.playbook_text(state.playbook(db)),
                       notes="\n".join(f'- {n["text"]}' + (f' (on "{n["quote"]}")' if n["quote"] else "") for n in notes) or "(none)",
-                      history="\n".join(f'{m["role"]}: {m["text"]}' for m in history), section=d.get("section") or "(unknown)"),
+                      history="\n".join(f'{m["role"]}: {m["text"]}' for m in history), section=d.get("section") or "(unknown)",
+                      reasoning=state.reasoning_log(db, cid, limit=8)),
         model="sonnet", timeout=180))
     db.x("INSERT INTO chats(ts, concept_id, role, text) VALUES(?,?,?,?)", (now(), cid, "tutor", str(reply).strip()))
     return {"ok": True}

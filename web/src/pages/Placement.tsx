@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { jobActive, useStore } from '../store'
 import Markdown from '../components/Markdown'
+import ThinkingInput, { NO_REASONING, type Reasoning } from '../components/ThinkingInput'
 
 /** Placement diagnostic: a few quick questions over the roadmap outline to find where to start. */
 export default function Placement() {
   const { s, dispatch } = useStore()
   const [choice, setChoice] = useState<number | null>(null)
+  const [reasoning, setReasoning] = useState<Reasoning>(NO_REASONING)
   const p = s.placement
   if (!s.goal || !p) return <div className="page"><p>No goal yet. <Link to="/goal/new">Set one</Link>.</p></div>
   const writing = jobActive(s, 'placement_bank')
@@ -14,8 +16,9 @@ export default function Placement() {
 
   const answer = (c: number | null) => {
     if (!p.question) return
-    dispatch({ type: 'placementAnswer', moduleId: p.question.moduleId, choice: c })
+    dispatch({ type: 'placementAnswer', moduleId: p.question.moduleId, choice: c, ...reasoning })
     setChoice(null)
+    setReasoning(NO_REASONING)
   }
 
   return (
@@ -57,6 +60,7 @@ export default function Placement() {
               </button>
             ))}
           </div>
+          <ThinkingInput value={reasoning} onChange={setReasoning} />
           <div className="row">
             <button className="btn btn-primary" disabled={choice === null} onClick={() => answer(choice)}>Answer</button>
             <button className="btn" onClick={() => answer(null)}>I don't know</button>

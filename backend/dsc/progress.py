@@ -3,6 +3,7 @@ module ahead of the learner."""
 
 from __future__ import annotations
 
+import threading
 from typing import TYPE_CHECKING
 
 from . import engine, state
@@ -12,14 +13,35 @@ if TYPE_CHECKING:
     from .jobs import Jobs
 
 
+GUESS = 0.25  # confidence at or below this marks an answer as a guess
+
+
+def reasoning(a: dict) -> tuple[str, float | None]:
+    """The learner's thinking and confidence sent with an answer (both optional)."""
+    thinking = " ".join(str(a.get("thinking") or "").split())[:4000]
+    c = a.get("confidence")
+    try:
+        conf = None if c is None else min(1.0, max(0.0, float(c)))
+    except (TypeError, ValueError):
+        conf = None
+    return thinking, conf
+
+
+def guessed(correct: bool, confidence: float | None) -> bool:
+    return correct and confidence is not None and confidence <= GUESS
+
+
 def record_evidence(db: DB, cid: str, item_id: str, score: float, *, choice: int | None = None,
-                    angle: str | None = None) -> bool:
+                    angle: str | None = None, thinking: str = "", confidence: float | None = None,
+                    correct: bool | None = None) -> bool:
     """Append graded practice evidence; schedule the first review when the concept becomes learned.
     Returns True when this answer made the concept learned (the lesson is finished: see ``on_finished``)."""
     gid = state.active_goal(db)
     _, before = state.concept_states(db, gid)
-    db.x("INSERT INTO evidence(ts, concept_id, item_id, kind, choice, correct, angle, score) VALUES(?,?,?,?,?,?,?,?)",
-         (now(), cid, item_id, "practice", choice, int(score >= engine.PASS_SCORE), angle, score))
+    db.x("""INSERT INTO evidence(ts, concept_id, item_id, kind, choice, correct, angle, score, thinking, confidence)
+            VALUES(?,?,?,?,?,?,?,?,?,?)""",
+         (now(), cid, item_id, "practice", choice, int(score >= engine.PASS_SCORE if correct is None else correct), angle, score,
+          thinking, confidence))
     db.x("UPDATE concepts SET started=1 WHERE id=?", (cid,))
     if angle:  # outcome signal: weak evidence about the angle used; never re-renders anything by itself
         delta = 0.03 if score >= engine.PASS_SCORE else (-0.03 if score < 0.5 else 0.0)
@@ -75,7 +97,16 @@ def prewrite(db: DB, jobs: Jobs, cid: str) -> None:
         lesson.ensure_prose(db, jobs, cid)
 
 
+_AHEAD = threading.RLock()  # several threads call research_ahead at once (actions, finished jobs, lesson opens)
+
+
 def research_ahead(db: DB, jobs: Jobs) -> str | None:
+    """See ``_research_ahead``; the check and the enqueue run as one step, so a module is never researched twice."""
+    with _AHEAD:
+        return _research_ahead(db, jobs)
+
+
+def _research_ahead(db: DB, jobs: Jobs) -> str | None:
     """Keep deep research about one module ahead of the learner (Settings → auto research).
 
     The current module is the first one (in roadmap order, skipping modules placement marked as

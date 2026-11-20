@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import type { ExplainItem, Grading } from '../types'
 import Markdown from './Markdown'
+import { ConfidenceSlider, DictationArea } from './ThinkingInput'
 
 interface Props {
   item: ExplainItem
   grading?: Grading
   inProgress: boolean
-  onSubmit: (answer: string) => void
+  onSubmit: (answer: string, confidence: number | null) => void
   /** Remove a grade you disagree with (its evidence is voided) and answer again. */
   onUndo?: () => void
 }
@@ -17,6 +18,7 @@ const SCORE_LABEL: Record<string, string> = { '1': 'Solid', '0.5': 'Almost', '0'
 export default function ExplainBack({ item, grading, inProgress, onSubmit, onUndo }: Props) {
   const [text, setText] = useState('')
   const [retry, setRetry] = useState(false)
+  const [confidence, setConfidence] = useState<number | null>(null)
   const showForm = !grading || retry || grading.status === 'ungraded' || grading.status === 'voided'
   const pending = inProgress || grading?.status === 'pending'
 
@@ -47,10 +49,11 @@ export default function ExplainBack({ item, grading, inProgress, onSubmit, onUnd
       )}
       {showForm && !pending && (
         <>
-          <textarea className="input" rows={4} value={text} onChange={e => setText(e.target.value)}
-            placeholder="In your own words, as if explaining to a colleague. Pictures-in-words and examples welcome." />
+          <DictationArea rows={4} value={text} onChange={setText}
+            placeholder="In your own words, as if explaining to a colleague. Type or dictate. Pictures-in-words and examples welcome." />
+          <ConfidenceSlider value={confidence} onChange={setConfidence} />
           <button className="btn btn-primary" disabled={text.trim().length < 15}
-            onClick={() => { onSubmit(text); setRetry(false) }}>Submit for grading</button>
+            onClick={() => { onSubmit(text, confidence); setRetry(false) }}>Submit for grading</button>
         </>
       )}
     </div>

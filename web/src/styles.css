@@ -515,3 +515,19 @@ pre.code-output.bad { color: #f48771; }
 .cut-list { list-style: none; padding: 0; margin: 6px 0 12px; display: flex; flex-direction: column; gap: 6px; }
 .cut-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 @media (max-width: 760px) { .basket-wrap { grid-template-columns: 1fr; } }
+
+/* Thinking box, dictation and confidence (SPEC §19) */
+.thinking { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.dictation { display: flex; flex-direction: column; gap: 4px; }
+.dictation-bar { gap: 8px; min-height: 0; }
+.dictation-live { font-style: italic; }
+.mic { display: inline-flex; align-items: center; gap: 6px; }
+.mic-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.mic-on { border-color: var(--bad); color: var(--bad); }
+.mic-on .mic-dot { background: var(--bad); animation: mic-pulse 1s ease-in-out infinite; }
+@keyframes mic-pulse { 50% { opacity: 0.3; } }
+.confidence { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.confidence input[type=range] { flex: 1; min-width: 140px; max-width: 320px; accent-color: var(--accent); }
+.confidence-unset input[type=range] { opacity: 0.45; }
+.confidence-value { min-width: 9em; color: var(--muted); }
+.reasoning-shown { margin-top: 6px; }

@@ -16,6 +16,12 @@ Teaching playbook (what works for this person):
 {playbook}
 Lesson guidelines distilled from this learner's feedback (every lesson must follow them):
 {guidelines}
+How the learner reasons: their recent answers with their own thinking (typed or dictated, often messy) and how sure
+they were. Use it to find what they misunderstand and why, not only what they got wrong. "Wrong while sure" is a
+misconception to address directly; "right, but a guess" is not yet understood:
+<reasoning>
+{reasoning}
+</reasoning>
 Recent feedback on other lessons (newest first):
 <feedback>
 {feedback}
