@@ -452,3 +452,25 @@ Change log shows text changes only (not graph or question changes).
 - Agents: `state.reasoning_log` lists recent answers with thinking or confidence ("wrong while sure" = likely
   misconception, "right, but a guess"), plus graded explain-backs. The lesson planner, the prose writer and the tutor
   (for that lesson) get it.
+
+## 20. The probe: where you stand (2026-11-20)
+- Purpose: find the edge of what the learner knows for a goal, the way a good tutor would: short questions, each chosen
+  from the earlier answers and the learner's thinking. It replaces the placement quiz (one fixed, hard question per
+  step). Step 2 of the knowledge-graph rework.
+- Page `/probe` ("Where you stand"; `/placement` opens it too). The outline job starts the first round, so it is ready
+  when the roadmap is. The roadmap shows a banner until the result is used ("Not now" hides it: `dismissProbe`).
+- Rounds (`probe.run_round`, job `probe_round`, route "Placement"): the agent (`probe.md`) gets the goal and profile,
+  the steps in order without merge steps, what the learner learned in other goals (concepts with a review, known steps),
+  and every answer with its thinking and confidence. It searches each area from the middle (toward the basics after a
+  miss, "I don't know" or a guess; toward advanced steps after a sure hit), then drills into the edge. A round has at
+  most 4 short questions (under 30 s each, "I don't know" added by the page). Limits: 5 rounds, 20 questions; at the
+  limit, or on "Stop and see where I stand" (`probeAssessNow`), the agent must assess. A reply without usable
+  questions fails the job (the page offers "Try again"); it never ends the probe.
+- Each answer (`probeAnswer`: item, choice or null, thinking, confidence) shows right / wrong and a one-line why at
+  once. When a round is complete, the next round is asked for.
+- Assessment (`probe_results`): a one-line summary, the edge in words, the ideas to fix (misconceptions), and per
+  step known / partial / unknown with a note. "Use this for my roadmap and lessons" (`applyProbe`): known steps become a
+  roadmap proposal (compress, as before), and the edge and misconceptions are added to the goal profile, which
+  research, the lesson writer and the tutor read. "Retake" (`resetProbe`) clears it; known steps stay known.
+- Tables: `probe_items` (one row per question, with the answer, thinking and confidence), `probe_results`. The old
+  `placement_items` / `placement_answers` stay for old data; `engine.placement` and the `placement_bank` job are gone.

@@ -30,7 +30,7 @@ export interface Module {
   title: string
   summary: string
   research: ResearchStatus
-  /** Placement showed the learner already knows this module. */
+  /** The probe (or the old placement quiz) showed the learner already knows this module. */
   known: boolean
   conceptIds: string[]
   plannedConcepts: number
@@ -131,14 +131,25 @@ export interface Grading {
   followup: string | null
 }
 
-export interface PlacementState {
-  available: boolean
-  finished: boolean
+export interface ProbeAnswered {
+  id: number; round: number; module: string; prompt: string; options: string[]; choice: number | null; correct: boolean
+  answer: number; explanation: string; thinking: string; confidence: number | null
+}
+
+/** The probe (SPEC §20): where the learner stands for the active goal. */
+export interface ProbeState {
+  status: 'idle' | 'thinking' | 'asking' | 'done'
+  question: { id: number; round: number; module: string; prompt: string; options: string[] } | null
+  answered: ProbeAnswered[]
   asked: number
-  done: boolean
-  question: { moduleId: string; module: string; prompt: string; options: string[] } | null
-  counts: { known: number; gap: number; uncertain: number }
-  status: Record<string, 'known' | 'gap' | 'uncertain'>
+  rounds: number
+  maxQuestions: number
+  dismissed: boolean
+  error: string | null
+  assessment: {
+    summary: string; edge: string; misconceptions: string[]; applied: boolean
+    modules: { moduleId: string; title: string; level: 'known' | 'partial' | 'unknown'; note: string }[]
+  } | null
 }
 
 export interface Proposal {
@@ -408,7 +419,7 @@ export interface State {
   jobs: Job[]
   reviews: Review[]
   gradings: Record<string, Grading>
-  placement: PlacementState | null
+  probe: ProbeState | null
   reflections: Reflection[]
   settings: { autoResearch: boolean; autoRefresh: boolean; lessonWriting: 'steps' | 'single'; weeklyHours: number; studyDays: number[]; startTime: string }
   cardProposals: CardProposal[]

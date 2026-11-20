@@ -78,6 +78,14 @@ CREATE TABLE IF NOT EXISTS gradings (
   answer TEXT NOT NULL, status TEXT NOT NULL, score REAL, feedback TEXT, missing TEXT, followup TEXT);
 
 -- Placement diagnostic: a question bank per goal (one row per module) and the answers.
+-- The probe (SPEC §20): rounds of quick questions an agent picks from earlier answers, then an assessment.
+CREATE TABLE IF NOT EXISTS probe_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL, round INTEGER NOT NULL, ord INTEGER NOT NULL,
+  module_id TEXT NOT NULL, item TEXT NOT NULL, choice INTEGER, answered INTEGER NOT NULL DEFAULT 0, correct INTEGER,
+  thinking TEXT NOT NULL DEFAULT '', confidence REAL, answered_at TEXT);
+CREATE TABLE IF NOT EXISTS probe_results (
+  goal_id TEXT PRIMARY KEY, ts TEXT NOT NULL, assessment TEXT NOT NULL, applied INTEGER NOT NULL DEFAULT 0);
+-- The old placement quiz (before the probe); kept so old data stays readable.
 CREATE TABLE IF NOT EXISTS placement_items (
   goal_id TEXT NOT NULL, module_id TEXT NOT NULL, item TEXT NOT NULL, PRIMARY KEY (goal_id, module_id));
 CREATE TABLE IF NOT EXISTS placement_answers (

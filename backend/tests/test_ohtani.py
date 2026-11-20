@@ -46,7 +46,7 @@ def test_new_ohtani_goal_researches_in_global_order_and_locks_merges(env):
     runner.responses["Curriculum"] = outline()
     runner.responses["Research"] = {"concepts": [card("a"), card("b", ["a"])]}
     runner.responses["Fact-check"] = {"results": []}
-    runner.responses["Placement"] = {"items": []}
+    runner.responses["Placement"] = {"done": False, "questions": []}
     actions.dispatch(db, jobs, {"type": "createGoal", "answers": [{"q": "goal", "a": "AI"}, {"q": "k", "a": ""},
                                                                   {"q": "w", "a": ""}, {"q": "t", "a": "8 hours"}]})
     s = state.snapshot(db)
@@ -55,11 +55,11 @@ def test_new_ohtani_goal_researches_in_global_order_and_locks_merges(env):
     assert [t["pos"] for t in s["tracks"]] == ohtani.RING + ["C"]
     first = s["modules"][0]
     assert first["id"] == f"{gid}-t0-m0" and first["research"] == "ready" and first["doneWhen"] == "check"
-    # the curriculum call used the Ohtani prompt and the placement quiz skips merge steps
+    # the curriculum call used the Ohtani prompt and the probe skips merge steps
     curriculum = next(c for r, c in runner.calls if r == "Curriculum")
     assert "Ohtani table" in curriculum.prompt
-    placement = next(c for r, c in runner.calls if r == "Placement")
-    assert "Merge 1" not in placement.prompt and "A1 step 1" in placement.prompt
+    probe_call = next(c for r, c in runner.calls if r == "Placement")
+    assert "Merge 1" not in probe_call.prompt and "A1 step 1" in probe_call.prompt
 
     # research the merge's requirements and the merge itself: the merge stays locked until both are learned
     merge = f"{gid}-tc-m0"
@@ -84,7 +84,7 @@ def test_merge_with_unresearched_requirement_is_locked(env):
     runner.responses["Curriculum"] = outline()
     runner.responses["Research"] = {"concepts": [card("a")]}
     runner.responses["Fact-check"] = {"results": []}
-    runner.responses["Placement"] = {"items": []}
+    runner.responses["Placement"] = {"done": False, "questions": []}
     actions.dispatch(db, jobs, {"type": "createGoal", "answers": [{"q": "goal", "a": "AI"}]})
     gid = state.active_goal(db)
     jobs.enqueue("research_module", "r", {"module_id": f"{gid}-tc-m0"})

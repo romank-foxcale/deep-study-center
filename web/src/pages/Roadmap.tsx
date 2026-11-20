@@ -41,10 +41,15 @@ export default function Roadmap() {
         </section>
       )}
 
-      {s.placement && !s.placement.finished && (
+      {s.probe && !s.probe.dismissed && (s.probe.status !== 'done' || !s.probe.assessment?.applied) && (
         <div className="card card-accent row row-between">
-          <span>Already know some of this? A short placement quiz finds where you should start.</span>
-          <Link className="btn btn-primary" to="/placement">Take placement</Link>
+          <span>{s.probe.status === 'done' ? 'Your probe result is ready to use.'
+            : s.probe.asked > 0 ? `Probe in progress: ${s.probe.asked} answered.`
+            : 'Already know some of this? Quick questions find where you stand.'}</span>
+          <span className="row">
+            <Link className="btn btn-primary" to="/probe">{s.probe.status === 'done' ? 'See the result' : s.probe.asked > 0 ? 'Continue' : 'Find where I stand'}</Link>
+            <button className="btn" onClick={() => dispatch({ type: 'dismissProbe' })}>Not now</button>
+          </span>
         </div>
       )}
       {reviewing && <div className="card card-warn"><p className="muted">Reviewing your feedback; a proposed change will appear here.</p></div>}
@@ -76,7 +81,7 @@ export default function Roadmap() {
                 <div key={m.id} id={`mod-${m.id}`} className="module">
                   <button className="module-head" onClick={() => setOpen(o => ({ ...o, [m.id]: !o[m.id] }))} aria-expanded={!!open[m.id]}>
                     <span className="module-title">{m.title}</span>
-                    {m.known && <span className="pill pill-ok" title="Placement showed you know this">known</span>}
+                    {m.known && <span className="pill pill-ok" title="The probe showed you know this">known</span>}
                     <span className={`pill ${m.research === 'ready' ? 'pill-ok' : m.research === 'researching' ? 'pill-warn' : ''}`}>{m.research}</span>
                     <span className="muted small">{cs.length ? `${done}/${cs.length} learned` : `~${m.plannedConcepts} concepts planned`}</span>
                   </button>
@@ -188,7 +193,7 @@ function GridDetail({ pick, setPick, prog, showLessons }: {
       <h2>{m.title}</h2>
       {m.summary && <p className="muted">{m.summary}</p>}
       {m.doneWhen && <p><strong>Done when:</strong> {m.doneWhen}</p>}
-      <p className="muted small">{m.known ? 'Placement showed you know this.'
+      <p className="muted small">{m.known ? 'The probe showed you know this.'
         : p.total ? `${p.done}/${p.total} lessons learned` : `~${m.plannedConcepts} lessons planned; researched about one step ahead of you`}</p>
       {m.requires.length > 0 && (
         <>

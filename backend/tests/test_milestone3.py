@@ -51,50 +51,6 @@ def test_soft_evidence_moves_bkt_between_fail_and_pass():
     assert engine.bkt(p, 0.0) < engine.bkt(p, 0.5) < engine.bkt(p, 1.0)
 
 
-# ---------------------------------------------------------------- placement
-
-def test_placement_binary_search_per_track():
-    tracks = [["a", "b", "c", "d", "e"], ["x"]]
-    r = engine.placement(tracks, [])
-    assert r["next"] == "c"  # middle of the longest uncertain run
-    r = engine.placement(tracks, [{"module_id": "c", "correct": 1}])
-    assert r["status"]["a"] == r["status"]["b"] == "known" and r["next"] in ("d", "e")
-    r = engine.placement(tracks, [{"module_id": "c", "correct": 1}, {"module_id": "e", "correct": 0}])
-    assert r["status"]["e"] == "gap" and r["next"] == "d"
-    answers = [{"module_id": m, "correct": 1} for m in ("c", "e", "x")]
-    assert engine.placement(tracks, answers)["done"]
-    assert engine.placement(tracks, [], max_questions=0)["done"]
-
-
-def _bank(call):
-    ids = [line.split(":")[0] for line in call.prompt.splitlines() if line.startswith("m-")]
-    return {"items": [{"module_id": i, "prompt": f"Q {i}?", "options": ["right", "w1", "w2", "w3"], "answer": 0,
-                       "explanation": "e"} for i in ids]}
-
-
-def test_placement_flow_compresses_known_modules_after_approval(env):
-    db, jobs, runner = env
-    runner.responses["Placement"] = _bank
-    s = act(db, jobs, type="startPlacement")
-    p = s["placement"]
-    assert p["available"] and p["question"] and "answer" not in json.dumps(p["question"])
-    # answer: know the first questioned module of every track, "I don't know" otherwise
-    while not s["placement"]["done"]:
-        q = s["placement"]["question"]
-        s = act(db, jobs, type="placementAnswer", moduleId=q["moduleId"], choice=0 if q["moduleId"] == "m-la" else None)
-    s = act(db, jobs, type="finishPlacement")
-    assert s["placement"]["finished"] and s["placement"]["asked"] <= engine.PLACEMENT_MAX
-    diff = next(d for d in s["diffs"] if d["status"] == "pending")
-    assert [c["module"] for c in diff["changes"]] == ["m-la"]
-    s = act(db, jobs, type="decideDiff", id=diff["id"], approve=True)
-    assert next(m for m in s["modules"] if m["id"] == "m-la")["known"]
-
-    s = act(db, jobs, type="resetPlacement")  # retake: answers cleared, known modules stay known
-    assert not s["placement"]["finished"] and s["placement"]["asked"] == 0
-    assert next(m for m in s["modules"] if m["id"] == "m-la")["known"]
-    assert len([r for r, _ in runner.calls if r == "Placement"]) == 1  # the question bank is reused
-
-
 # ---------------------------------------------------------------- research ahead
 
 def _research(call):

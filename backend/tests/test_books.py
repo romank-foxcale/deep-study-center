@@ -57,7 +57,7 @@ def two_sources(env):
         ids.append(sid)
     runner.responses["Research"] = {"concepts": [card("bellman")]}
     runner.responses["Fact-check"] = {"results": []}
-    runner.responses["Placement"] = {"items": []}
+    runner.responses["Placement"] = {"done": False, "questions": []}
     return db, jobs, runner, ids
 
 
