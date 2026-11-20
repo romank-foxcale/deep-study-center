@@ -417,6 +417,15 @@ def edit_source(db: DB, jobs: Jobs, a: dict) -> None:
     db.x("UPDATE sources SET title=?, kind=? WHERE id=?", (title, kind, a["id"]))
 
 
+def reread_source(db: DB, jobs: Jobs, a: dict) -> None:
+    """Read a source again (after a failed read)."""
+    row = db.one("SELECT * FROM sources WHERE id=?", (a["id"],))
+    if not row or not sources.file_path(a["id"]).exists():
+        raise ActionError("unknown source")
+    db.x("UPDATE sources SET status='reading' WHERE id=?", (a["id"],))
+    jobs.enqueue("ingest_source", f"Read {row['filename'] or row['title']}", {"source_id": a["id"]})
+
+
 def delete_source(db: DB, jobs: Jobs, a: dict) -> None:
     if not db.one("SELECT 1 FROM sources WHERE id=?", (a["id"],)):
         raise ActionError("unknown source")
@@ -686,7 +695,7 @@ ACTIONS = {
     "editGuidelines": edit_guidelines, "distillGuidelines": distill_guidelines, "refresh": refresh, "markStudied": mark_studied, "addNote": add_note, "deleteNote": delete_note,
     "chat": chat, "decideDiff": decide_diff, "researchModule": research_module, "createGoal": create_goal,
     "setGoal": set_goal, "correctEntry": correct_entry, "adjust": adjust, "route": route, "useRecommendedRoutes": use_recommended_routes,
-    "linkSource": link_source, "editSource": edit_source, "deleteSource": delete_source, "reset": reset,
+    "linkSource": link_source, "editSource": edit_source, "deleteSource": delete_source, "rereadSource": reread_source, "reset": reset,
     "restoreCut": restore_cut,
 }
 

@@ -29,6 +29,7 @@ export type Action =
   | { type: 'linkSource'; sourceId: string; goalId?: string; on: boolean }
   | { type: 'editSource'; id: string; title?: string; kind?: SourceDoc['kind'] }
   | { type: 'deleteSource'; id: string }
+  | { type: 'rereadSource'; id: string }
   | { type: 'setGoal'; id: string }
   | { type: 'correctEntry'; id: string; verdict: Verdict | 'remove' }
   | { type: 'adjust'; key: 'pace' | 'depth' | 'rigor'; value: number }

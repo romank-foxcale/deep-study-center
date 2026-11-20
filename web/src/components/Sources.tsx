@@ -7,7 +7,7 @@ const STATUS: Record<SourceDoc['status'], { label: string; cls: string; title: s
   reading: { label: 'reading…', cls: 'pill', title: 'The text of each page is read in the background' },
   ready: { label: 'ready', cls: 'pill pill-ok', title: 'Research can use and cite its pages' },
   no_text: { label: 'no text', cls: 'pill pill-warn', title: 'A scanned PDF without a text layer. Research cannot read it.' },
-  error: { label: 'error', cls: 'pill pill-warn', title: 'The file could not be read' },
+  error: { label: 'error', cls: 'pill pill-warn', title: 'The file could not be read. Click "Read again".' },
 }
 
 /** "Add PDF" button. Uploads one or more PDFs; calls onAdded with the new source ids. */
@@ -84,6 +84,7 @@ export function SourcesTable() {
           {goalId && <td><input type="checkbox" aria-label={`Use ${src.title} for this goal`} checked={src.goalIds.includes(goalId)}
             onChange={e => dispatch({ type: 'linkSource', sourceId: src.id, goalId, on: e.target.checked })} /></td>}
           <td><div className="row">
+            {src.status === 'error' && <button className="btn btn-small" onClick={() => dispatch({ type: 'rereadSource', id: src.id })}>Read again</button>}
             <button className="btn btn-small" onClick={() => setEditing({ id: src.id, title: src.title })}>Rename</button>
             <button className="btn btn-small" onClick={() => {
               if (window.confirm(`Delete “${src.title}”? The PDF and its pages are removed. Cards that cite it keep their text.`)) {
