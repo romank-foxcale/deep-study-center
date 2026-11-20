@@ -123,7 +123,10 @@ Done as described below; "Learn" opens `/goal/book` with the source in the baske
 
 Do the steps in this order. Each step works without the later ones. Steps 3 and 4 are the big ones.
 
-### B3. Step 3: one knowledge graph (data model)
+### B3. ✅ DONE (2026-11-20, branch `claude/knowledge-graph`, SPEC §21): Step 3: one knowledge graph (data model)
+Done with one change to the plan: instead of a `module_nodes` table and a `concepts.node_id` column, every concept
+points to a node through `concept_nodes` (filled automatically by `graph.sync`), so the five places that insert
+concepts did not change. Left for later: per-node review scheduling (reviews are still per concept).
 - **Why:** now every concept belongs to one module of one goal (`concepts.module_id` → `modules` → `tracks.goal_id`).
   So knowledge learned for goal A is unknown in goal B, and DSC cannot study anything outside a goal. Everything else
   in the rework (teach me X, skill tree, recall practice) needs one global graph of ideas with a state per idea.
@@ -155,7 +158,10 @@ Do the steps in this order. Each step works without the later ones. Steps 3 and 
   and make a backup (`backup.backup_now`) before it runs.
 - **Done when:** `/api/graph` returns all nodes of all goals with a correct global state, and all old tests pass.
 
-### B4. Step 4: "Teach me X" study sessions
+### B4. ✅ DONE (2026-11-20, branch `claude/knowledge-graph`, SPEC §22): Step 4: "Teach me X" study sessions
+Done as planned, checked with a real session ("teach me the chain rule") on a copy of the workspace. Left for later:
+graph widgets in explanations, prefetching the next step (each step waits for one model call), attaching a session
+to a goal, and splitting nodes into smaller statements.
 - **Why:** the user wants to say "teach me transformers" outside any goal frame. DSC should use the graph to see what
   they know, connect the new topic to it, and teach it so each step "feels obviously true".
 - **What (the flow):**

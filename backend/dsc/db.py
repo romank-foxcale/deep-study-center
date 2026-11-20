@@ -78,6 +78,27 @@ CREATE TABLE IF NOT EXISTS gradings (
   answer TEXT NOT NULL, status TEXT NOT NULL, score REAL, feedback TEXT, missing TEXT, followup TEXT);
 
 -- Placement diagnostic: a question bank per goal (one row per module) and the answers.
+-- The knowledge graph (SPEC §21): one node per idea; concepts (lessons in a goal) point to nodes; links = reasoning.
+CREATE TABLE IF NOT EXISTS nodes (
+  id TEXT PRIMARY KEY, title TEXT NOT NULL, statement TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL DEFAULT 'concept',
+  created_at TEXT NOT NULL, origin TEXT NOT NULL DEFAULT 'concept');
+CREATE TABLE IF NOT EXISTS concept_nodes (concept_id TEXT PRIMARY KEY, node_id TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS concept_nodes_node ON concept_nodes(node_id);
+CREATE TABLE IF NOT EXISTS links (
+  src TEXT NOT NULL, dst TEXT NOT NULL, why TEXT NOT NULL DEFAULT '', origin TEXT NOT NULL DEFAULT '', PRIMARY KEY (src, dst));
+CREATE VIRTUAL TABLE IF NOT EXISTS node_fts USING fts5(node_id UNINDEXED, text);
+-- Study sessions (SPEC §22): "teach me X" with or without a goal.
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY, topic TEXT NOT NULL, title TEXT NOT NULL, status TEXT NOT NULL, ideas TEXT NOT NULL DEFAULT '[]',
+  plan TEXT NOT NULL DEFAULT '[]', current INTEGER NOT NULL DEFAULT 0, source_ids TEXT NOT NULL DEFAULT '[]',
+  summary TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS session_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, idea_key TEXT NOT NULL, phase TEXT NOT NULL,
+  round INTEGER NOT NULL DEFAULT 0, ord INTEGER NOT NULL DEFAULT 0, item TEXT NOT NULL, choice INTEGER,
+  answered INTEGER NOT NULL DEFAULT 0, correct INTEGER, thinking TEXT NOT NULL DEFAULT '', confidence REAL,
+  answered_at TEXT, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS session_nodes (
+  session_id TEXT NOT NULL, node_id TEXT NOT NULL, created INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (session_id, node_id));
 -- The probe (SPEC §20): rounds of quick questions an agent picks from earlier answers, then an assessment.
 CREATE TABLE IF NOT EXISTS probe_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL, round INTEGER NOT NULL, ord INTEGER NOT NULL,

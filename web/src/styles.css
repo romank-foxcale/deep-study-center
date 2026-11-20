@@ -552,3 +552,30 @@ pre.code-output.bad { color: #f48771; }
 .src-grip { color: var(--muted); }
 .src-name { flex: 1; min-width: 0; }
 @media (max-width: 760px) { .src-zones { grid-template-columns: 1fr; } }
+
+/* Study sessions, "teach me X" (SPEC §22) */
+.study-steps { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 8px 0 16px; counter-reset: st; }
+.study-steps li { font-size: 0.8rem; color: var(--muted); padding: 3px 10px; border-radius: 99px; border: 1px solid var(--border); }
+.study-steps li.done { color: var(--ok); border-color: transparent; background: var(--ok-soft); }
+.study-steps li.now { color: var(--accent); border-color: var(--accent); font-weight: 600; }
+.study-busy { font-style: italic; }
+.study-grid { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 20px; align-items: start; }
+.study-plan { position: sticky; top: 16px; }
+.study-plan ol { padding-left: 18px; margin: 6px 0; display: flex; flex-direction: column; gap: 4px; }
+.study-plan li.done { color: var(--muted); text-decoration: line-through; }
+.study-plan li.now { color: var(--accent); font-weight: 600; }
+.study-idea { margin-bottom: 24px; }
+.study-idea h2 { font-size: 1.15rem; }
+.study-explain { margin: 12px 0; padding: 4px 0 4px 14px; border-left: 3px solid var(--accent); }
+.study-explain.repair { border-left-color: var(--warn); }
+.study-ideas { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.study-ideas li.known { opacity: 0.7; }
+.study-ideas .pill { margin-left: 6px; }
+.study-list { padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.study-sources { margin: 8px 0; }
+.study-sources label { margin: 4px 0; }
+@media (max-width: 860px) { .study-grid { grid-template-columns: 1fr; } .study-plan { position: static; } }
+.study-idea-row { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.study-idea-row input { margin-top: 4px; flex: none; }
+.study-statement { display: block; margin-top: 2px; }
+.study-idea h2 .md-inline, .study-ideas strong .md-inline, .study-plan .md-inline { display: inline; }

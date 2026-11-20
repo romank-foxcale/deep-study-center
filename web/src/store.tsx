@@ -2,7 +2,7 @@
 // /api/action and return the next snapshot. While agent jobs run, the snapshot is polled.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Angle, FeedbackKind, FeedbackRef, LessonDiff, LessonView, Plan, RunResult, SearchHit, SourceDoc, State, Verdict } from './types'
+import type { Angle, FeedbackKind, FeedbackRef, LessonDiff, LessonView, Plan, RunResult, SearchHit, SessionView, SourceDoc, State, Verdict } from './types'
 
 export type Action =
   | { type: 'answer'; conceptId: string; checkId: string; angle?: Angle; choice?: number; correct?: boolean; thinking?: string; confidence?: number | null }
@@ -36,6 +36,13 @@ export type Action =
   | { type: 'route'; role: string; provider: string; model: string }
   | { type: 'useRecommendedRoutes' }
   | { type: 'explain'; conceptId: string; itemId: string; answer: string; angle?: Angle; confidence?: number | null }
+  | { type: 'startSession'; topic: string; sourceIds?: string[] }
+  | { type: 'sessionAnswer'; sessionId: string; itemId: number; choice: number | null; thinking?: string; confidence?: number | null }
+  | { type: 'sessionKnown'; sessionId: string; ideaKey: string; known: boolean }
+  | { type: 'sessionTeach'; sessionId: string }
+  | { type: 'sessionAssessNow'; sessionId: string }
+  | { type: 'sessionRetry'; sessionId: string }
+  | { type: 'deleteSession'; sessionId: string }
   | { type: 'startProbe' }
   | { type: 'probeAnswer'; itemId: number; choice: number | null; thinking?: string; confidence?: number | null }
   | { type: 'probeAssessNow' }
@@ -101,6 +108,7 @@ export const sourceHref = (url: string) => {
   const m = /^source:([\w-]+)(?:#page=(\d+))?$/.exec(url)
   return m ? `/api/sources/${m[1]}/file${m[2] ? `#page=${m[2]}` : ''}` : url
 }
+export const getSession = (id: string) => api<SessionView>(`/api/session/${encodeURIComponent(id)}`)
 export const getPlan = () => api<Plan>('/api/plan')
 export const searchAll = (q: string) => api<SearchHit[]>(`/api/search?q=${encodeURIComponent(q)}`)
 export const runLocal = (body: { conceptId: string; itemId: string; code: string; angle?: Angle; approve?: boolean }) =>

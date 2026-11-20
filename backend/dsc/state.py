@@ -51,8 +51,8 @@ def _add_module_requires(db: DB, goal_id: str, rows: list[dict]) -> None:
 
 def concept_states(db: DB, goal_id: str) -> tuple[list[dict], dict[str, engine.ConceptState]]:
     concepts = concepts_raw(db, goal_id)
-    ids = [c["id"] for c in concepts]
-    ev = db.q(f"SELECT * FROM evidence WHERE concept_id IN ({','.join('?' * len(ids))}) ORDER BY id", ids) if ids else []
+    from . import graph
+    ev = graph.evidence_for(db, [c["id"] for c in concepts])  # shared nodes: what was learned in other goals counts
     return concepts, engine.derive_concepts(concepts, ev)
 
 
@@ -188,11 +188,12 @@ def probe_view(db: DB, gid: str) -> dict:
 def snapshot(db: DB) -> dict:
     gid = active_goal(db)
     pb = playbook(db)
-    from . import books, library, sources
+    from . import books, library, session, sources
     from . import guidelines
     base = {"playbook": pb, "guidelines": guidelines.current(db), "providers": providers.status(), "routes": routes(db), "jobs": jobs(db),
             "library": library.listing(db),
             "sources": sources.listing(db),
+            "sessions": session.listing(db), "lastSession": db.meta("last_session"),
             "runner": runner_status(db),
             "backups": {"folder": str(workspace() / "backups"), "last": db.meta("last_backup"), "items": _backups()[:5]},
             "firstRun": db.meta("first_run") == "1" and not db.one("SELECT 1 FROM goals LIMIT 1"),

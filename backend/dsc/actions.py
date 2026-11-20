@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from . import books, engine, guidelines, lesson, library, probe, progress, remedial, sources, state, versions, writer
+from . import books, engine, guidelines, lesson, library, probe, progress, remedial, session, sources, state, versions, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now
 from .jobs import Jobs
@@ -438,6 +438,54 @@ def set_goal(db: DB, jobs: Jobs, a: dict) -> None:
     db.set_meta("active_goal", a["id"])
 
 
+# ---------------------------------------------------------------- study sessions ("teach me X")
+
+def _session(fn):
+    def run(db: DB, jobs: Jobs, a: dict) -> None:
+        try:
+            fn(db, jobs, a)
+        except ValueError as e:
+            raise ActionError(str(e)) from e
+    return run
+
+
+@_session
+def start_session(db: DB, jobs: Jobs, a: dict) -> None:
+    sid = session.start(db, jobs, str(a.get("topic") or ""), list(a.get("sourceIds") or []))
+    db.set_meta("last_session", sid)
+
+
+@_session
+def session_answer(db: DB, jobs: Jobs, a: dict) -> None:
+    thinking, conf = progress.reasoning(a)
+    session.answer(db, jobs, a["sessionId"], int(a["itemId"]), a.get("choice"), thinking, conf)
+
+
+@_session
+def session_known(db: DB, jobs: Jobs, a: dict) -> None:
+    session.set_known(db, a["sessionId"], a["ideaKey"], bool(a.get("known", True)))
+
+
+@_session
+def session_teach(db: DB, jobs: Jobs, a: dict) -> None:
+    session.start_teaching(db, jobs, a["sessionId"])
+
+
+@_session
+def session_assess_now(db: DB, jobs: Jobs, a: dict) -> None:
+    session.assess_now(db, jobs, a["sessionId"])
+
+
+@_session
+def session_retry(db: DB, jobs: Jobs, a: dict) -> None:
+    session.retry(db, jobs, a["sessionId"])
+
+
+@_session
+def delete_session(db: DB, jobs: Jobs, a: dict) -> None:
+    session.delete(db, a["sessionId"])
+
+
 # ---------------------------------------------------------------- the probe (where you stand)
 
 def start_probe(db: DB, jobs: Jobs, a: dict) -> None:
@@ -676,6 +724,8 @@ ACTIONS = {
     "answer": answer, "explain": explain, "review": review,
     "startProbe": start_probe, "probeAnswer": probe_answer, "probeAssessNow": probe_assess_now, "applyProbe": apply_probe,
     "resetProbe": reset_probe, "dismissProbe": dismiss_probe,
+    "startSession": start_session, "sessionAnswer": session_answer, "sessionKnown": session_known, "sessionTeach": session_teach,
+    "sessionAssessNow": session_assess_now, "sessionRetry": session_retry, "deleteSession": delete_session,
     "reflect": reflect, "decideProposal": decide_proposal, "setSetting": set_setting,
     "promoteCard": promote_card, "setupRunner": setup_runner,
     "refreshCard": refresh_card, "decideCardProposal": decide_card_proposal, "setPlanSettings": set_plan_settings,

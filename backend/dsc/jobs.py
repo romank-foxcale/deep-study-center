@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import books, engine, guidelines, library, ohtani, probe, progress, providers, runner, sources, state, versions, viz, writer
+from . import books, engine, graph, guidelines, library, ohtani, probe, progress, providers, runner, session, sources, state, versions, viz, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
@@ -289,7 +289,7 @@ _ANGLE = {"enum": list(engine.ANGLES)}
 RESEARCH_SCHEMA = {"type": "object", "required": ["concepts"], "properties": {"concepts": {"type": "array", "minItems": 1, "items": {
     "type": "object", "required": ["key", "title", "objective", "minutes", "prereq_keys"], "properties": {
         "key": {"type": "string"}, "title": {"type": "string"}, "objective": {"type": "string"},
-        "reuse_key": {"type": "string"},
+        "reuse_key": {"type": "string"}, "same_as": {"type": "string"},
         "minutes": {"type": "integer"}, "prereq_keys": {"type": "array", "items": {"type": "string"}},
         "card": {"type": "object", "required": ["bloom", "core", "formal", "why", "angles", "examples", "misconceptions", "sources", "sections"],
                  "properties": {
@@ -327,6 +327,7 @@ def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
     topic = f'{target["title"]} {target.get("detail", "")}' if target else f'{m["title"]} {m["summary"] or ""} {m["done_when"] or ""}'
     book = g["kind"] == "book"
     own = sources.excerpts(db, g["id"], topic, k=books.RESEARCH_EXCERPTS if book else 8)
+    known = graph.candidates(db, topic, exclude_module=m["id"])  # ideas the learner's graph already has
     if own:
         jobs.progress(jid, f"using {len(own)} page(s) of your sources")
     out = jobs.call(jid, "Research", Call(
@@ -335,13 +336,21 @@ def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
                       summary=target["detail"] if target else summary,
                       earlier=", ".join(e["title"] for e in earlier) or "none",
                       planned=1 if target else (m["planned"] or 8), library=library.index_text(db),
-                      sources=sources.excerpts_text(own), focus=prompt("_book_research") if book else ""),
+                      sources=sources.excerpts_text(own), focus=prompt("_book_research") if book else "",
+                      graph=graph.candidates_text(known)),
         schema=RESEARCH_SCHEMA, model="opus", tools=("WebSearch", "WebFetch"), timeout=1800, max_turns=60))
     concepts = []
     for c in (out["concepts"][:1] if target else out["concepts"]):
         reused = library.take(db, c["reuse_key"]) if c.get("reuse_key") else None
         if reused:  # an existing fact-checked card from the shared library
             c = {**c, "card": reused, "reused": True}
+        node = c.get("same_as") if c.get("same_as") in {n["id"] for n in known} else None
+        c = {**c, "node": node}
+        if node and not c.get("card"):  # the same idea is already in the graph: reuse its newest card
+            sib = db.one("""SELECT k.body, k.fact_check FROM concept_nodes n JOIN cards k ON k.concept_id = n.concept_id
+                            WHERE n.node_id=? ORDER BY k.checked_at DESC, k.version DESC LIMIT 1""", (node,))
+            if sib:
+                c = {**c, "card": loads(sib["body"]), "reused": sib["fact_check"] == "passed"}
         if c.get("card"):
             concepts.append(c)
     # Compute every graph as the page will; one fix round with an agent for a graph that does not work.
@@ -382,6 +391,8 @@ def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
             else:
                 db.conn.execute("INSERT OR REPLACE INTO concepts VALUES(?,?,?,?,?,?,?,?,0)",
                                 (cid, m["id"], base_ord + i, c["title"], c["objective"], c["minutes"], dumps(prereqs), 0.1))
+            if c.get("node") and not target:
+                graph.attach(db, cid, c["node"])  # same idea as an existing node: knowledge is shared across goals
             body = {**c["card"], "objective": c["objective"]}
             ver = (db.conn.execute("SELECT COALESCE(MAX(version), 0) FROM cards WHERE concept_id=?", (cid,)).fetchone()[0]) + 1
             db.conn.execute("INSERT INTO cards(concept_id, version, body, fact_check, checked_at) VALUES(?,?,?,?,?)",
@@ -810,6 +821,10 @@ HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "fact_check": (run_fact_check, None),
     "grade": (run_grade, fallback_grade),
     "probe_round": (probe.run_round, None),
+    "session_sketch": (session.run_sketch, None),
+    "session_probe": (session.run_probe, None),
+    "session_turn": (session.run_turn, None),
+    "session_extract": (session.run_extract, None),
     "reflect": (run_reflect, fallback_reflect),
     "runner_setup": (lambda jobs, jid, d: runner.setup(lambda msg: jobs.progress(jid, msg)), None),
     "refresh_card": (run_refresh_card, None),
