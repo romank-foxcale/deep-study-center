@@ -174,23 +174,15 @@ def gradings(db: DB, concept_ids: list[str]) -> dict:
     return out
 
 
-def placement(db: DB, goal_id: str) -> dict:
-    """Placement diagnostic state for a goal (question shown without its key)."""
-    tracks = db.q("SELECT id FROM tracks WHERE goal_id=? ORDER BY ord", (goal_id,))
-    order = [[m["id"] for m in db.q("SELECT id FROM modules WHERE track_id=? ORDER BY ord", (t["id"],))] for t in tracks]
-    items = {r["module_id"]: loads(r["item"]) for r in db.q("SELECT * FROM placement_items WHERE goal_id=?", (goal_id,))}
-    answers = db.q("SELECT * FROM placement_answers WHERE goal_id=? ORDER BY id", (goal_id,))
-    asked_tracks = [[m for m in t if m in items] for t in order]
-    res = engine.placement([t for t in asked_tracks if t], answers)
-    nxt = res["next"]
-    question = None
-    if nxt:
-        m = db.one("SELECT title FROM modules WHERE id=?", (nxt,))
-        question = {"moduleId": nxt, "module": m["title"], "prompt": items[nxt]["prompt"], "options": items[nxt]["options"]}
-    counts = {k: sum(1 for v in res["status"].values() if v == k) for k in ("known", "gap", "uncertain")}
-    return {"available": bool(items), "finished": db.meta(f"placement_done:{goal_id}") == "1",
-            "asked": res["asked"], "done": res["done"], "question": question, "counts": counts,
-            "status": res["status"]}
+def probe_view(db: DB, gid: str) -> dict:
+    from . import probe
+    running = any(loads(j["input"], {}).get("goal_id") == gid
+                  for j in db.q("SELECT input FROM jobs WHERE kind='probe_round' AND status IN ('queued', 'running')"))
+    failed = db.one("""SELECT error FROM jobs WHERE kind='probe_round' AND input LIKE ? ORDER BY id DESC LIMIT 1""", (f'%"{gid}"%',))
+    v = probe.view(db, gid, running)
+    v["dismissed"] = db.meta(f"probe_dismissed:{gid}") == "1"
+    v["error"] = (failed or {}).get("error") if not running and v["status"] != "done" else None
+    return v
 
 
 def snapshot(db: DB) -> dict:
@@ -209,7 +201,7 @@ def snapshot(db: DB) -> dict:
     if not gid:
         return {**base, "goal": None, "tracks": [], "modules": [], "concepts": [], "cards": [], "renditions": [],
                 "feedback": [], "notes": [], "diffs": [], "chats": {}, "answers": {}, "reviews": [], "gradings": {},
-                "placement": None, "reflections": reflections(db), "settings": settings(db), "cardProposals": [], "shareSuggestions": [],
+                "probe": None, "reflections": reflections(db), "settings": settings(db), "cardProposals": [], "shareSuggestions": [],
                 "bookCuts": []}
 
     g = db.one("SELECT * FROM goals WHERE id=?", (gid,))
@@ -252,7 +244,7 @@ def snapshot(db: DB) -> dict:
         "chats": _chats(db, ids),
         "answers": answers(db, ids),
         "gradings": gradings(db, ids),
-        "placement": placement(db, gid),
+        "probe": probe_view(db, gid),
         "reflections": reflections(db),
         "settings": settings(db),
         "cardProposals": card_proposals(db, ids),

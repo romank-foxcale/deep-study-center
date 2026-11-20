@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from . import books, engine, guidelines, lesson, library, progress, remedial, sources, state, versions, writer
+from . import books, engine, guidelines, lesson, library, probe, progress, remedial, sources, state, versions, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now
 from .jobs import Jobs
@@ -438,51 +438,41 @@ def set_goal(db: DB, jobs: Jobs, a: dict) -> None:
     db.set_meta("active_goal", a["id"])
 
 
-# ---------------------------------------------------------------- placement diagnostic
+# ---------------------------------------------------------------- the probe (where you stand)
 
-def start_placement(db: DB, jobs: Jobs, a: dict) -> None:
-    gid = state.active_goal(db)
-    if not db.one("SELECT 1 FROM placement_items WHERE goal_id=?", (gid,)) and not jobs.active("placement_bank", goal_id=gid):
-        jobs.enqueue("placement_bank", "Write placement quiz", {"goal_id": gid})
+def start_probe(db: DB, jobs: Jobs, a: dict) -> None:
+    probe.start(db, jobs, state.active_goal(db))
 
 
-def placement_answer(db: DB, jobs: Jobs, a: dict) -> None:
-    """One placement answer; choice None means "I don't know" (counted as a gap, never a guess)."""
-    gid = state.active_goal(db)
-    row = db.one("SELECT item FROM placement_items WHERE goal_id=? AND module_id=?", (gid, a["moduleId"]))
-    if not row:
-        raise ActionError("no placement question for that module")
-    from .db import loads
-    item = loads(row["item"])
-    choice = a.get("choice")
-    correct = choice is not None and choice == item["answer"]
+def probe_answer(db: DB, jobs: Jobs, a: dict) -> None:
+    """One probe answer; choice None means "I don't know" (never counted as a guess)."""
     thinking, conf = progress.reasoning(a)
-    db.x("""INSERT INTO placement_answers(ts, goal_id, module_id, choice, correct, thinking, confidence)
-            VALUES(?,?,?,?,?,?,?)""",
-         (now(), gid, a["moduleId"], choice, int(correct and not progress.guessed(correct, conf)), thinking, conf))
+    try:
+        probe.answer(db, jobs, state.active_goal(db), int(a["itemId"]), a.get("choice"), thinking, conf)
+    except ValueError as e:
+        raise ActionError(str(e)) from e
 
 
-def finish_placement(db: DB, jobs: Jobs, a: dict) -> None:
-    """Turn placement results into a roadmap proposal: compress modules the learner already knows."""
+def probe_assess_now(db: DB, jobs: Jobs, a: dict) -> None:
+    probe.assess_now(db, jobs, state.active_goal(db))
+
+
+def apply_probe(db: DB, jobs: Jobs, a: dict) -> None:
+    """Use the assessment: known steps become a roadmap proposal; the edge goes into the goal profile."""
+    probe.apply(db, state.active_goal(db))
+
+
+def reset_probe(db: DB, jobs: Jobs, a: dict) -> None:
+    """Retake: clear this goal's probe (steps already marked known stay known) and start again."""
     gid = state.active_goal(db)
-    p = state.placement(db, gid)
-    known = [m for m, st in p["status"].items() if st == "known"]
-    if known:
-        titles = {m["id"]: m["title"] for m in db.q(
-            f"SELECT id, title FROM modules WHERE id IN ({','.join('?' * len(known))})", known)}
-        changes = [{"op": "compress", "title": titles[m], "module": m,
-                    "detail": "Placement showed you know this: marked as known; open it any time to review."} for m in known]
-        db.x("INSERT INTO diffs(ts, goal_id, reason, changes, status) VALUES(?,?,?,?,'pending')",
-             (now(), gid, f"Placement: you already know {len(known)} module{'s' if len(known) != 1 else ''}.", dumps(changes)))
-    db.set_meta(f"placement_done:{gid}", "1")
+    probe.reset(db, gid)
+    db.set_meta(f"probe_dismissed:{gid}", "0")
+    probe.start(db, jobs, gid)
 
 
-def reset_placement(db: DB, jobs: Jobs, a: dict) -> None:
-    """Retake: clear this goal's placement answers (modules already marked known stay known)."""
-    gid = state.active_goal(db)
-    db.x("DELETE FROM placement_answers WHERE goal_id=?", (gid,))
-    db.set_meta(f"placement_done:{gid}", "0")
-    start_placement(db, jobs, a)
+def dismiss_probe(db: DB, jobs: Jobs, a: dict) -> None:
+    db.set_meta(f"probe_dismissed:{state.active_goal(db)}", "1")
+
 
 
 # ---------------------------------------------------------------- reflection
@@ -684,7 +674,8 @@ def reset(db: DB, jobs: Jobs, a: dict) -> None:
 
 ACTIONS = {
     "answer": answer, "explain": explain, "review": review,
-    "startPlacement": start_placement, "placementAnswer": placement_answer, "finishPlacement": finish_placement, "resetPlacement": reset_placement,
+    "startProbe": start_probe, "probeAnswer": probe_answer, "probeAssessNow": probe_assess_now, "applyProbe": apply_probe,
+    "resetProbe": reset_probe, "dismissProbe": dismiss_probe,
     "reflect": reflect, "decideProposal": decide_proposal, "setSetting": set_setting,
     "promoteCard": promote_card, "setupRunner": setup_runner,
     "refreshCard": refresh_card, "decideCardProposal": decide_card_proposal, "setPlanSettings": set_plan_settings,

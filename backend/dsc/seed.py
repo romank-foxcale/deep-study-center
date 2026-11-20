@@ -100,7 +100,7 @@ def seed_demo(db: DB) -> None:
                         (g["id"], g["title"], g["why"], g["doneLooksLike"], g["hoursPerWeek"],
                          "Software engineer who codes daily; likes pictures before formulas; examples from ML.", ts))
         db.conn.execute("INSERT INTO meta(key, value) VALUES('active_goal', ?)", (g["id"],))
-        db.conn.execute("INSERT INTO meta(key, value) VALUES(?, '1')", (f"placement_done:{g['id']}",))  # see diffs
+        db.conn.execute("INSERT INTO meta(key, value) VALUES(?, '1')", (f"probe_dismissed:{g['id']}",))  # see diffs
         for i, t in enumerate(d["tracks"]):
             db.conn.execute("INSERT INTO tracks(id, goal_id, ord, title, summary) VALUES(?,?,?,?,?)", (t["id"], g["id"], i, t["title"], t["summary"]))
         for i, m in enumerate(d["modules"]):
@@ -181,10 +181,10 @@ def delete_goal(db: DB, goal_id: str) -> None:
             db.conn.executemany(f"DELETE FROM {t} WHERE concept_id = ?", [(c,) for c in concept_ids])
         db.conn.execute("DELETE FROM concepts WHERE module_id IN (SELECT m.id FROM modules m JOIN tracks t ON t.id = m.track_id WHERE t.goal_id = ?)", (goal_id,))
         db.conn.execute("DELETE FROM modules WHERE track_id IN (SELECT id FROM tracks WHERE goal_id = ?)", (goal_id,))
-        for t in ("tracks", "diffs", "placement_items", "placement_answers", "goal_sources", "book_cuts"):
+        for t in ("tracks", "diffs", "placement_items", "placement_answers", "probe_items", "probe_results", "goal_sources", "book_cuts"):
             db.conn.execute(f"DELETE FROM {t} WHERE goal_id = ?", (goal_id,))
         db.conn.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
-        db.conn.execute("DELETE FROM meta WHERE key = ?", (f"placement_done:{goal_id}",))
+        db.conn.execute("DELETE FROM meta WHERE key = ?", (f"probe_dismissed:{goal_id}",))
         nxt = db.conn.execute("SELECT id FROM goals ORDER BY created_at LIMIT 1").fetchone()
         if nxt:
             db.conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES('active_goal', ?)", (nxt[0],))

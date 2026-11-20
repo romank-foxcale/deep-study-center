@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import books, engine, guidelines, library, ohtani, progress, providers, runner, sources, state, versions, viz, writer
+from . import books, engine, guidelines, library, ohtani, probe, progress, providers, runner, sources, state, versions, viz, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
@@ -267,8 +267,8 @@ def run_outline(jobs: Jobs, jid: int, d: dict) -> dict:
     if book:
         cuts = db.q("SELECT status FROM book_cuts WHERE goal_id=?", (gid,))
         what += f"; {sum(c['status'] == 'kept' for c in cuts)} chapter(s) kept, {sum(c['status'] == 'cut' for c in cuts)} left out"
-    jobs.progress(jid, f"roadmap: {what}; writing a placement quiz and researching the first module")
-    jobs.enqueue("placement_bank", "Write placement quiz", {"goal_id": gid})
+    jobs.progress(jid, f"roadmap: {what}; preparing the probe and researching the first module")
+    probe.start(db, jobs, gid)
     if first_module:
         db.x("UPDATE modules SET research='researching' WHERE id=?", (first_module["id"],))
         jobs.enqueue("research_module", "Research first module", {"module_id": first_module["id"]})
@@ -452,34 +452,6 @@ def fallback_grade(jobs: Jobs, jid: int, d: dict) -> None:
     jobs.db.x("UPDATE gradings SET status='ungraded', feedback=? WHERE id=?",
               ("No grader is available right now (see Settings → Providers). Your answer is saved; try again later.",
                d["grading_id"]))
-
-
-# ---------------------------------------------------------------- placement question bank
-
-PLACEMENT_SCHEMA = {"type": "object", "required": ["items"], "properties": {"items": {"type": "array", "items": {
-    "type": "object", "required": ["module_id", "prompt", "options", "answer", "explanation"], "properties": {
-        "module_id": {"type": "string"}, "prompt": {"type": "string"},
-        "options": {"type": "array", "minItems": 3, "maxItems": 5, "items": {"type": "string"}},
-        "answer": {"type": "integer"}, "explanation": {"type": "string"}}}}}}
-
-
-def run_placement_bank(jobs: Jobs, jid: int, d: dict) -> dict:
-    db = jobs.db
-    g = db.one("SELECT * FROM goals WHERE id=?", (d["goal_id"],))
-    mods = db.q("""SELECT m.id, m.title, m.summary FROM modules m JOIN tracks t ON t.id = m.track_id
-                   WHERE t.goal_id=? AND m.requires='[]' ORDER BY m.seq, t.ord, m.ord""", (g["id"],))
-    out = jobs.call(jid, "Placement", Call(
-        prompt=prompt("placement", goal=g["title"], profile=g["profile"],
-                      modules="\n".join(f'{m["id"]}: {m["title"]} - {m["summary"] or ""}' for m in mods)),
-        schema=PLACEMENT_SCHEMA, model="sonnet", timeout=600))
-    ids = {m["id"] for m in mods}
-    n = 0
-    for it in out["items"]:
-        if it["module_id"] in ids and 0 <= it["answer"] < len(it["options"]):
-            db.x("INSERT OR REPLACE INTO placement_items VALUES(?,?,?)", (g["id"], it["module_id"], dumps(it)))
-            n += 1
-    jobs.progress(jid, f"{n} placement questions ready")
-    return {"items": n}
 
 
 # ---------------------------------------------------------------- weekly reflection
@@ -837,7 +809,7 @@ HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "research_module": (run_research_module, fallback_research_module),
     "fact_check": (run_fact_check, None),
     "grade": (run_grade, fallback_grade),
-    "placement_bank": (run_placement_bank, None),
+    "probe_round": (probe.run_round, None),
     "reflect": (run_reflect, fallback_reflect),
     "runner_setup": (lambda jobs, jid, d: runner.setup(lambda msg: jobs.progress(jid, msg)), None),
     "refresh_card": (run_refresh_card, None),

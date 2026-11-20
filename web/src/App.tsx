@@ -10,7 +10,7 @@ import Me from './pages/Me'
 import Library from './pages/Library'
 import Settings from './pages/Settings'
 import Review from './pages/Review'
-import Placement from './pages/Placement'
+import Probe from './pages/Probe'
 import Search from './pages/Search'
 import Week from './pages/Week'
 
@@ -73,7 +73,8 @@ export default function App() {
           <Route path="/goal/book" element={<BookGoal />} />
           <Route path="/roadmap" element={<Roadmap />} />
           <Route path="/review" element={<Review />} />
-          <Route path="/placement" element={<Placement />} />
+          <Route path="/probe" element={<Probe />} />
+          <Route path="/placement" element={<Probe />} />
           <Route path="/search" element={<Search />} />
           <Route path="/week" element={<Week />} />
           <Route path="/lesson/:id" element={<Lesson />} />

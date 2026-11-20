@@ -531,3 +531,11 @@ pre.code-output.bad { color: #f48771; }
 .confidence-unset input[type=range] { opacity: 0.45; }
 .confidence-value { min-width: 9em; color: var(--muted); }
 .reasoning-shown { margin-top: 6px; }
+
+/* The probe (SPEC §20) */
+.probe-progress { display: flex; align-items: center; gap: 12px; margin: 4px 0 12px; }
+.probe-bar { flex: 1; height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.probe-bar span { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.probe-levels { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.probe-history summary { cursor: pointer; color: var(--muted); margin: 12px 0 6px; }
+.probe-compact { margin: 6px 0; }

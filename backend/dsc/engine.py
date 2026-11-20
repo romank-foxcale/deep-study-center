@@ -21,7 +21,6 @@ WORKS, AVOID, MIN_EVIDENCE = 0.68, 0.32, 1.5
 SLIP, GUESS, TRANSIT = 0.10, 0.25, 0.15
 GATE_P, GATE_CORRECT = 0.95, 3
 PASS_SCORE = 0.8          # a graded answer at or above this counts as correct
-PLACEMENT_MAX = 20        # placement diagnostic question cap
 CONFIRM_AFTER = timedelta(hours=20)
 
 
@@ -249,41 +248,3 @@ def review(card_json: str, correct: bool, at: str) -> tuple[str, str]:
 def _card_json(card: Card) -> str:
     import json
     return json.dumps(card.to_dict())
-
-
-# ---------------------------------------------------------------- placement diagnostic
-
-def placement(tracks: list[list[str]], answers: list[dict], max_questions: int = PLACEMENT_MAX) -> dict:
-    """Adaptive placement over the roadmap outline.
-
-    ``tracks`` lists module ids per track in prerequisite order. Knowing a module implies knowing
-    the earlier modules of its track; a gap implies gaps in the later ones. Each probe is the middle
-    of the longest uncertain run (a binary search per track), so a few questions place the learner.
-    Returns {status: {module: known|gap|uncertain}, next: module | None, asked, done}.
-    """
-    status = {m: "uncertain" for t in tracks for m in t}
-    for a in answers:
-        for t in tracks:
-            if a["module_id"] not in t:
-                continue
-            i = t.index(a["module_id"])
-            if a["correct"]:
-                for m in t[:i + 1]:
-                    status[m] = "known"
-            else:
-                for m in t[i:]:
-                    if status[m] != "known" or m == a["module_id"]:
-                        status[m] = "gap"
-    asked = len(answers)
-    best: tuple[int, str] | None = None
-    for t in tracks:
-        run: list[str] = []
-        for m in t + [None]:
-            if m is not None and status[m] == "uncertain":
-                run.append(m)
-                continue
-            if run and (best is None or len(run) > best[0]):
-                best = (len(run), run[len(run) // 2])
-            run = []
-    nxt = best[1] if best and asked < max_questions else None
-    return {"status": status, "next": nxt, "asked": asked, "done": nxt is None}

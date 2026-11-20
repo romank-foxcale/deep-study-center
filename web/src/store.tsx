@@ -36,10 +36,12 @@ export type Action =
   | { type: 'route'; role: string; provider: string; model: string }
   | { type: 'useRecommendedRoutes' }
   | { type: 'explain'; conceptId: string; itemId: string; answer: string; angle?: Angle; confidence?: number | null }
-  | { type: 'startPlacement' }
-  | { type: 'placementAnswer'; moduleId: string; choice: number | null; thinking?: string; confidence?: number | null }
-  | { type: 'finishPlacement' }
-  | { type: 'resetPlacement' }
+  | { type: 'startProbe' }
+  | { type: 'probeAnswer'; itemId: number; choice: number | null; thinking?: string; confidence?: number | null }
+  | { type: 'probeAssessNow' }
+  | { type: 'applyProbe' }
+  | { type: 'resetProbe' }
+  | { type: 'dismissProbe' }
   | { type: 'reflect' }
   | { type: 'decideProposal'; reflectionId: number; index: number; accept: boolean }
   | { type: 'setSetting'; key: 'autoResearch' | 'autoRefresh'; value: boolean }
