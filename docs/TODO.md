@@ -195,7 +195,8 @@ to a goal, and splitting nodes into smaller statements.
   rule") from ask to extract; the new nodes appear in `/api/graph`.
 - **Done when:** a learner can study a topic with no goal, and the result lands in the graph.
 
-### B5. Step 5: the skill tree view
+### B5. ✅ DONE (2026-11-20, branch `claude/knowledge-map`, SPEC §23): Step 5: the skill tree view
+Done with an own layered layout (no d3). Left for later: "Practice" from a node (needs B6), remembering zoom and focus.
 - **Why:** the user wants to see the knowledge as a growing tree: what they know (lit) and the building blocks still
   needed for a target (dim), like a progression tree in a game. Trees of several goals join into one big map.
   Use an original look; do not copy a specific game's art.

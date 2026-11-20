@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { getSession, useStore } from '../store'
 import Markdown from '../components/Markdown'
 import ThinkingInput, { DictationArea, NO_REASONING, ReasoningShown, type Reasoning } from '../components/ThinkingInput'
@@ -29,7 +29,8 @@ export default function Study() {
 function StartStudy() {
   const { s, dispatch } = useStore()
   const navigate = useNavigate()
-  const [topic, setTopic] = useState('')
+  const location = useLocation()
+  const [topic, setTopic] = useState(() => (location.state as { topic?: string } | null)?.topic ?? '')
   const [picked, setPicked] = useState<string[]>([])
   const [starting, setStarting] = useState<string | null | undefined>(undefined)
   useEffect(() => {

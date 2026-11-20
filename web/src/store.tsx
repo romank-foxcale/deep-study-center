@@ -2,7 +2,7 @@
 // /api/action and return the next snapshot. While agent jobs run, the snapshot is polled.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Angle, FeedbackKind, FeedbackRef, LessonDiff, LessonView, Plan, RunResult, SearchHit, SessionView, SourceDoc, State, Verdict } from './types'
+import type { Angle, FeedbackKind, FeedbackRef, GraphView, LessonDiff, LessonView, Plan, RunResult, SearchHit, SessionView, SourceDoc, State, Verdict } from './types'
 
 export type Action =
   | { type: 'answer'; conceptId: string; checkId: string; angle?: Angle; choice?: number; correct?: boolean; thinking?: string; confidence?: number | null }
@@ -108,6 +108,7 @@ export const sourceHref = (url: string) => {
   const m = /^source:([\w-]+)(?:#page=(\d+))?$/.exec(url)
   return m ? `/api/sources/${m[1]}/file${m[2] ? `#page=${m[2]}` : ''}` : url
 }
+export const getGraph = () => api<GraphView>('/api/graph')
 export const getSession = (id: string) => api<SessionView>(`/api/session/${encodeURIComponent(id)}`)
 export const getPlan = () => api<Plan>('/api/plan')
 export const searchAll = (q: string) => api<SearchHit[]>(`/api/search?q=${encodeURIComponent(q)}`)

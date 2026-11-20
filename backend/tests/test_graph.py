@@ -112,4 +112,6 @@ def test_graph_api(env):
     db, jobs, _ = env
     client = TestClient(create_app(db=db, jobs=jobs))
     g = client.get("/api/graph").json()
-    assert len(g["nodes"]) == 10 and g["links"] and {"id", "title", "state", "goals", "concepts"} <= set(g["nodes"][0])
+    assert len(g["nodes"]) == 10 and g["links"] and {"id", "title", "state", "goals", "concepts", "lessons"} <= set(g["nodes"][0])
+    vec = next(n for n in g["nodes"] if n["id"] == "c-vectors")
+    assert vec["lessons"] == [{"id": "c-vectors", "title": "Vectors", "goalId": "g-ai"}] and g["goals"][0]["id"] == "g-ai"
