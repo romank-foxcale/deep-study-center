@@ -81,7 +81,8 @@ adaptive practice with hints.
   app (see C2).
 - **Done when:** dictation works in Chrome and Edge, or the bugs found are fixed.
 
-### A3. Move the per-goal source choice out of the library (lost commit `2dedc29`)
+### A3. ✅ DONE (2026-11-20, branch `claude/goal-sources`): Move the per-goal source choice out of the library (lost commit `2dedc29`)
+Done as described below; "Learn" opens `/goal/book` with the source in the basket (router state `sourceIds`).
 - **Why:** the user said the library column "Use for this goal" is unclear ("which goal?"). The per-goal choice must be
   on the goal page, as a check list or drag and drop. This was built in commit `2dedc29` on the old branch
   `claude/pdf-sources`, but that commit was pushed after PR #11 was merged, so it never reached `main`. Only its PDF

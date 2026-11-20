@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { uploadSource, useStore } from '../store'
 import type { SourceDoc } from '../types'
 
@@ -49,14 +50,16 @@ export function SourceStatus({ src }: { src: SourceDoc }) {
   return <span className={st.cls} title={st.title}>{st.label}</span>
 }
 
-/** The learner's PDFs: rename, kind, use for the current goal, open, delete. */
+/** All the learner's PDFs: rename, kind, open, delete, and "Learn" (a book goal built on this source).
+ * Which goal uses which source is chosen on the goal page (GoalSources). */
 export function SourcesTable() {
   const { s, dispatch } = useStore()
+  const navigate = useNavigate()
   const [editing, setEditing] = useState<{ id: string; title: string } | null>(null)
-  const goalId = s.goal?.id
+  const goalTitle = (id: string) => s.goals.find(g => g.id === id)?.title ?? id
   if (s.sources.length === 0) {
-    return <p className="muted">No sources yet. Add a book, article or post as a PDF. Research then bases its cards on the
-      pages that match each step, and cites them with a page number.</p>
+    return <p className="muted">No sources yet. Add a book, article or post as a PDF. Then learn it as a book goal, or use it
+      for a goal on that goal's home page.</p>
   }
   const save = () => {
     if (editing) dispatch({ type: 'editSource', id: editing.id, title: editing.title })
@@ -64,7 +67,7 @@ export function SourcesTable() {
   }
   return (
     <table className="table">
-      <thead><tr><th>Title</th><th>Kind</th><th>Pages</th><th>Status</th>{goalId && <th>Use for this goal</th>}<th /></tr></thead>
+      <thead><tr><th>Title</th><th>Kind</th><th>Pages</th><th>Status</th><th>Used in goals</th><th /></tr></thead>
       <tbody>{s.sources.map(src => (
         <tr key={src.id}>
           <td>
@@ -81,10 +84,15 @@ export function SourcesTable() {
           </td>
           <td>{src.pages || '—'}</td>
           <td><SourceStatus src={src} /></td>
-          {goalId && <td><input type="checkbox" aria-label={`Use ${src.title} for this goal`} checked={src.goalIds.includes(goalId)}
-            onChange={e => dispatch({ type: 'linkSource', sourceId: src.id, goalId, on: e.target.checked })} /></td>}
-          <td><div className="row">
-            {src.status === 'error' && <button className="btn btn-small" onClick={() => dispatch({ type: 'rereadSource', id: src.id })}>Read again</button>}
+          <td className="small">{src.goalIds.length
+            ? src.goalIds.map(g => <div key={g} className="src-goal" title={goalTitle(g)}>{goalTitle(g)}</div>)
+            : <span className="muted">—</span>}</td>
+          <td><div className="row src-actions">
+            {src.status === 'error'
+              ? <button className="btn btn-small" onClick={() => dispatch({ type: 'rereadSource', id: src.id })}>Read again</button>
+              : <button className="btn btn-small btn-primary" disabled={src.status !== 'ready'}
+                  title="Make a book goal from this source: its 80/20 core, with its own roadmap"
+                  onClick={() => navigate('/goal/book', { state: { sourceIds: [src.id] } })}>Learn</button>}
             <button className="btn btn-small" onClick={() => setEditing({ id: src.id, title: src.title })}>Rename</button>
             <button className="btn btn-small" onClick={() => {
               if (window.confirm(`Delete “${src.title}”? The PDF and its pages are removed. Cards that cite it keep their text.`)) {
@@ -95,5 +103,49 @@ export function SourcesTable() {
         </tr>
       ))}</tbody>
     </table>
+  )
+}
+
+const DRAG = 'text/x-dsc-goal-source'
+
+/** On the goal page: which of the learner's sources this goal uses. Tick a box or drag a source between the lists. */
+export function GoalSources() {
+  const { s, dispatch } = useStore()
+  const [over, setOver] = useState<'used' | 'unused' | null>(null)
+  const goal = s.goal
+  if (!goal) return null
+  const used = s.sources.filter(x => x.goalIds.includes(goal.id))
+  const unused = s.sources.filter(x => !x.goalIds.includes(goal.id))
+  const set = (id: string, on: boolean) => dispatch({ type: 'linkSource', sourceId: id, goalId: goal.id, on })
+  const list = (zone: 'used' | 'unused', items: SourceDoc[], empty: string) => (
+    <div className={`src-zone ${over === zone ? 'src-zone-over' : ''}`}
+      onDragOver={e => { if (e.dataTransfer.types.includes(DRAG)) { e.preventDefault(); setOver(zone) } }}
+      onDragLeave={() => setOver(null)}
+      onDrop={e => { e.preventDefault(); setOver(null); const id = e.dataTransfer.getData(DRAG); if (id) set(id, zone === 'used') }}>
+      <div className="eyebrow">{zone === 'used' ? `Used for this goal (${items.length})` : `Not used (${items.length})`}</div>
+      {items.length === 0 && <p className="muted small">{empty}</p>}
+      {items.map(src => (
+        <label key={src.id} className="src-item" draggable onDragStart={e => e.dataTransfer.setData(DRAG, src.id)}>
+          <span className="src-grip" aria-hidden>⠿</span>
+          <input type="checkbox" checked={zone === 'used'} onChange={e => set(src.id, e.target.checked)} />
+          <span className="src-name">{src.title}<span className="muted small"> · {src.kind}{src.pages ? `, ${src.pages} p.` : ''}</span></span>
+          {src.status !== 'ready' && <SourceStatus src={src} />}
+        </label>
+      ))}
+    </div>
+  )
+  return (
+    <section className="card">
+      <div className="row row-between">
+        <h2 className="h-small">Sources for this goal</h2>
+        <span className="row"><AddSources link label="Add PDF to this goal" /><Link className="btn" to="/library?tab=mine">All sources</Link></span>
+      </div>
+      <p className="muted small">Research for this goal bases its cards on the pages of the used sources and cites them as
+        “Title, p. N”. Tick a box or drag a source between the lists.</p>
+      <div className="src-zones">
+        {list('used', used, 'Drag a source here, or tick it in the other list.')}
+        {list('unused', unused, s.sources.length ? 'All your sources are used.' : 'No sources yet. Add a PDF.')}
+      </div>
+    </section>
   )
 }

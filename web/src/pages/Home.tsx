@@ -4,6 +4,7 @@ import { getPlan } from '../store'
 import type { Plan } from '../types'
 import { useStore } from '../store'
 import { MasteryBar } from '../components/StateBadge'
+import { GoalSources } from '../components/Sources'
 
 export default function Home() {
   const { s, dispatch } = useStore()
@@ -49,6 +50,8 @@ export default function Home() {
           <span>{s.goal.hoursPerWeek} h/week</span>
         </div>
       </section>
+
+      <GoalSources />
 
       <div className="grid-2">
         {next ? (

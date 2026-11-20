@@ -401,8 +401,11 @@ Change log shows text changes only (not graph or question changes).
 - Reading (`sources.py`, job `ingest_source`, pypdf): the text of each page (`source_pages`), a full-text index
   (`source_fts`, SQLite FTS5), the PDF outline as the table of contents, and the title and author from the metadata
   (a title the learner set wins). A PDF with text on fewer than 1 in 5 pages is "no text" (a scan); there is no OCR.
-- Use per goal (`goal_sources`): a source added in the library is used for the current goal at once; the learner ticks
-  or unticks it per goal. Sources chosen in the goal setup are linked to the new goal.
+- Use per goal (`goal_sources`): chosen on the goal's home page, "Sources for this goal": two lists (used, not used);
+  tick a box or drag a source between them. "Add PDF to this goal" there uploads and links at once. A PDF added in the
+  library is not linked to any goal; the library shows which goals use each source ("Used in goals") and has "Learn",
+  which opens the book-goal page with that source in the basket. Sources chosen in the goal setup are linked to the
+  new goal. The library tab is in the URL (`/library?tab=mine`).
 - Roadmap: the outline prompts (`outline.md`, `outline_ohtani.md`) get the tables of contents and build the roadmap
   around them, with the chapters named in module summaries.
 - Research: `research_module` gets the 8 pages of the goal's sources that match the module best (bm25 over title,
