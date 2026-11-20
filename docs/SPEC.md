@@ -535,3 +535,23 @@ Change log shows text changes only (not graph or question changes).
 - API: `GET /api/session/<id>` (the session as the page shows it; answer keys only after answering). Snapshot:
   `sessions` (list) and `lastSession`.
 - Not yet: graphs (viz widgets) inside explanations, prefetching the next step, attaching a session to a goal.
+
+## 23. The knowledge map (2026-11-20)
+- Purpose: see everything you know and everything you still need as one skill tree, so progress is visible and a
+  goal's missing building blocks are obvious. Step 5 of the rework. Original look; no game art is copied.
+- Page `/map` ("Knowledge map" in the sidebar). It reads `GET /api/graph` (§21), which now also returns, per node,
+  `lessons` ([{id, title, goalId}]), and the lists of `goals` and `sessions`.
+- Layout (`components/graphLayout.ts`, no library): depth = longest path from a root idea; basics at the bottom,
+  reasoning goes up; nodes inside a layer are ordered by barycenter sweeps (6 rounds up and down) to reduce crossing
+  links, with ideas of the same goal or session kept together at the start. 1000 nodes take about 5 ms.
+- Show: "Everything" (option "Hide ideas not started"), one goal, or one study session. For a goal or session, the
+  map shows its ideas plus everything they build on (other ideas are dimmed); its target ideas (no next idea inside
+  it) have a dashed halo; the bar says "N of M known · K still needed". Opens on the active goal.
+- Node look: strong (glow) and known = green; learning / rusty = amber with a ring for mastery; ready = blue outline;
+  needs others first / not started = dashed. Links between two known ideas are green; arrows point to the idea a
+  link helps you reason toward.
+- Interaction: wheel to zoom at the cursor, drag to pan, +/−/Fit; "Find an idea" marks matches, Enter selects and
+  centers the first. Click an idea: a panel with its state, statement, "Builds on" / "Leads to" (click to jump),
+  its lessons (opening one switches to its goal first), its study sessions, and "Teach me this" (opens Study with the
+  idea as the topic).
+- Not yet: practice from the map (step 6), saving the zoom and focus per user.

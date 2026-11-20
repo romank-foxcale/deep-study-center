@@ -131,6 +131,16 @@ export interface Grading {
   followup: string | null
 }
 
+export interface GraphNode {
+  id: string; title: string; statement: string; kind: string; state: string; mastery: number
+  goals: string[]; concepts: string[]; sessions: string[]; lessons: { id: string; title: string; goalId: string }[]
+}
+/** The knowledge graph (SPEC §21, §23). */
+export interface GraphView {
+  nodes: GraphNode[]; links: { src: string; dst: string; origin: string }[]
+  goals: { id: string; title: string }[]; sessions: { id: string; title: string }[]
+}
+
 export interface SessionQuestion {
   id: number; idea: string; phase: 'probe' | 'predict' | 'check'; round: number; prompt: string; options: string[]
   answered: boolean; choice?: number | null; correct?: boolean; answer?: number; explanation?: string

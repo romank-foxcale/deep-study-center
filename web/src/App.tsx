@@ -12,12 +12,14 @@ import Settings from './pages/Settings'
 import Review from './pages/Review'
 import Probe from './pages/Probe'
 import Study from './pages/Study'
+import KnowledgeMap from './pages/KnowledgeMap'
 import Search from './pages/Search'
 import Week from './pages/Week'
 
 const NAV = [
   { to: '/', label: 'Home', end: true },
   { to: '/study', label: 'Study' },
+  { to: '/map', label: 'Knowledge map' },
   { to: '/week', label: 'This week' },
   { to: '/roadmap', label: 'Roadmap' },
   { to: '/review', label: 'Reviews' },
@@ -77,6 +79,7 @@ export default function App() {
           <Route path="/review" element={<Review />} />
           <Route path="/probe" element={<Probe />} />
           <Route path="/study" element={<Study />} />
+          <Route path="/map" element={<KnowledgeMap />} />
           <Route path="/study/:id" element={<Study />} />
           <Route path="/placement" element={<Probe />} />
           <Route path="/search" element={<Search />} />

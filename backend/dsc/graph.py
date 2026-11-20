@@ -195,9 +195,12 @@ def view(db: DB) -> dict:
     nodes = node_of(db)
     st = states(db)
     goals_of: dict[str, set[str]] = {}
-    for r in db.q("""SELECT c.id, t.goal_id FROM concepts c JOIN modules m ON m.id = c.module_id
-                     JOIN tracks t ON t.id = m.track_id"""):
-        goals_of.setdefault(nodes.get(r["id"], r["id"]), set()).add(r["goal_id"])
+    lessons_of: dict[str, list[dict]] = {}
+    for r in db.q("""SELECT c.id, c.title, t.goal_id FROM concepts c JOIN modules m ON m.id = c.module_id
+                     JOIN tracks t ON t.id = m.track_id ORDER BY t.goal_id, m.seq, t.ord, m.ord, c.ord"""):
+        nid = nodes.get(r["id"], r["id"])
+        goals_of.setdefault(nid, set()).add(r["goal_id"])
+        lessons_of.setdefault(nid, []).append({"id": r["id"], "title": r["title"], "goalId": r["goal_id"]})
     concepts_of: dict[str, list[str]] = {}
     for cid, nid in nodes.items():
         concepts_of.setdefault(nid, []).append(cid)
@@ -210,5 +213,7 @@ def view(db: DB) -> dict:
         out.append({"id": n["id"], "title": n["title"], "statement": n["statement"], "kind": n["kind"],
                     "state": s.state if s else "pending", "mastery": s.mastery if s else 0.0,
                     "goals": sorted(goals_of.get(n["id"], ())), "concepts": sorted(concepts_of.get(n["id"], [])),
-                    "sessions": sorted(sessions_of.get(n["id"], []))})
-    return {"nodes": out, "links": links(db)}
+                    "sessions": sorted(sessions_of.get(n["id"], [])), "lessons": lessons_of.get(n["id"], [])})
+    goals = [{"id": g["id"], "title": g["title"]} for g in db.q("SELECT id, title FROM goals ORDER BY created_at")]
+    sessions = [{"id": r["id"], "title": r["title"]} for r in db.q("SELECT id, title FROM sessions ORDER BY created_at")]
+    return {"nodes": out, "links": links(db), "goals": goals, "sessions": sessions}

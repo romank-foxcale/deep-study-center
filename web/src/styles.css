@@ -579,3 +579,42 @@ pre.code-output.bad { color: #f48771; }
 .study-idea-row input { margin-top: 4px; flex: none; }
 .study-statement { display: block; margin-top: 2px; }
 .study-idea h2 .md-inline, .study-ideas strong .md-inline, .study-plan .md-inline { display: inline; }
+
+/* The knowledge map (SPEC §23) */
+.km { display: flex; flex-direction: column; height: 100vh; padding: 16px 20px 12px; box-sizing: border-box; gap: 8px; }
+.km-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.km-title { font-size: 1.3rem; margin: 0 8px 0 0; }
+.km-bar select { max-width: 320px; }
+.km-search { width: 180px; }
+.km-zoom { display: flex; gap: 4px; }
+.km-legend { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.km-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.km-canvas { position: relative; flex: 1; min-height: 300px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+  background: radial-gradient(circle at 50% 120%, var(--surface-2), var(--bg) 70%); touch-action: none; cursor: grab; }
+.km-canvas:active { cursor: grabbing; }
+.km-empty { position: absolute; inset: 40% 0 auto; text-align: center; }
+.km-link { fill: none; stroke: var(--border); stroke-width: 1.4; opacity: 0.8; }
+.km-link.lit { stroke: var(--ok); opacity: 0.9; }
+.km-link.hot { stroke: var(--accent); stroke-width: 2.4; opacity: 1; }
+.km-arrowhead { fill: var(--muted); }
+.km-node { cursor: pointer; }
+.km-node.support { opacity: 0.55; }
+.km-dot { stroke-width: 2; fill: var(--surface); stroke: var(--border); }
+.km-dot.km-mastered { fill: var(--ok); stroke: var(--ok); filter: drop-shadow(0 0 6px var(--ok)); }
+.km-dot.km-learned { fill: var(--ok); stroke: var(--ok); }
+.km-dot.km-learning, .km-dot.km-rusty { fill: var(--warn-soft); stroke: var(--warn); }
+.km-dot.km-ready { fill: var(--surface); stroke: var(--accent); }
+.km-dot.km-locked, .km-dot.km-pending { fill: var(--surface); stroke: var(--border); stroke-dasharray: 3 3; }
+.km-progress { fill: none; stroke: var(--warn); stroke-width: 4; }
+.km-halo { fill: none; stroke: var(--accent); stroke-width: 2; opacity: 0.6; stroke-dasharray: 4 3; }
+.km-node.match .km-dot { stroke: var(--accent); stroke-width: 4; }
+.km-node.selected .km-dot { stroke: var(--text); stroke-width: 3.5; }
+.km-label { font-size: 11px; fill: var(--text); pointer-events: none; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; }
+.km-node.km-locked .km-label, .km-node.km-pending .km-label { fill: var(--muted); }
+.km-panel { position: absolute; top: 12px; right: 12px; width: 320px; max-height: calc(100% - 24px); overflow: auto; cursor: auto;
+  display: flex; flex-direction: column; gap: 6px; }
+.km-list { list-style: none; padding: 0; margin: 0 0 4px; display: flex; flex-direction: column; gap: 2px; }
+.km-list .link { text-align: left; }
+.km-pill-learned, .km-pill-mastered { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+.km-pill-learning, .km-pill-rusty { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+@media (max-width: 760px) { .km { height: auto; min-height: 100vh; } .km-canvas { height: 70vh; } .km-panel { position: static; width: auto; } }
