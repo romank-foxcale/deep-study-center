@@ -160,6 +160,11 @@ CREATE TABLE IF NOT EXISTS jobs (
 
 MIGRATIONS = [
     ("evidence", "score", "REAL"),                         # soft evidence (0..1), e.g. graded explain-back
+    ("evidence", "thinking", "TEXT NOT NULL DEFAULT ''"),  # the learner's raw thinking on this answer (typed or dictated)
+    ("evidence", "confidence", "REAL"),                    # how sure the learner was (0..1); None = not given
+    ("gradings", "confidence", "REAL"),
+    ("placement_answers", "thinking", "TEXT NOT NULL DEFAULT ''"),
+    ("placement_answers", "confidence", "REAL"),
     ("modules", "known", "INTEGER NOT NULL DEFAULT 0"),    # placement showed the learner knows it
     ("goals", "layout", "TEXT NOT NULL DEFAULT 'list'"),   # list (classic roadmap) | ohtani (9x9 Mandala grid)
     ("goals", "kind", "TEXT NOT NULL DEFAULT 'goal'"),     # goal | book (the 80/20 core of chosen sources, SPEC §18)

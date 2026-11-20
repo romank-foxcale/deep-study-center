@@ -5,8 +5,8 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import type { Angle, FeedbackKind, FeedbackRef, LessonDiff, LessonView, Plan, RunResult, SearchHit, SourceDoc, State, Verdict } from './types'
 
 export type Action =
-  | { type: 'answer'; conceptId: string; checkId: string; angle?: Angle; choice?: number; correct?: boolean }
-  | { type: 'review'; conceptId: string; checkId: string; choice: number }
+  | { type: 'answer'; conceptId: string; checkId: string; angle?: Angle; choice?: number; correct?: boolean; thinking?: string; confidence?: number | null }
+  | { type: 'review'; conceptId: string; checkId: string; choice: number; thinking?: string; confidence?: number | null }
   | { type: 'feedback'; conceptId: string; sectionId?: string; angle?: Angle; available?: Angle[]; tags: string[]; text: string; kind?: FeedbackKind; ref?: FeedbackRef; apply?: boolean; worked?: string[] }
   | { type: 'editFeedback'; id: number; tags?: string[]; text?: string; kind?: FeedbackKind }
   | { type: 'deleteFeedback'; id: number }
@@ -34,9 +34,9 @@ export type Action =
   | { type: 'adjust'; key: 'pace' | 'depth' | 'rigor'; value: number }
   | { type: 'route'; role: string; provider: string; model: string }
   | { type: 'useRecommendedRoutes' }
-  | { type: 'explain'; conceptId: string; itemId: string; answer: string; angle?: Angle }
+  | { type: 'explain'; conceptId: string; itemId: string; answer: string; angle?: Angle; confidence?: number | null }
   | { type: 'startPlacement' }
-  | { type: 'placementAnswer'; moduleId: string; choice: number | null }
+  | { type: 'placementAnswer'; moduleId: string; choice: number | null; thinking?: string; confidence?: number | null }
   | { type: 'finishPlacement' }
   | { type: 'resetPlacement' }
   | { type: 'reflect' }

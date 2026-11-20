@@ -359,7 +359,10 @@ export interface RoadmapDiff { id: number; ts: string; reason: string; changes: 
 
 export interface ChatMessage { role: 'tutor' | 'me'; text: string }
 
-export interface Answer { choice: number | null; correct: boolean; score?: number | null; answer?: number; explanation?: string }
+export interface Answer {
+  choice: number | null; correct: boolean; score?: number | null; answer?: number; explanation?: string
+  thinking?: string; confidence?: number | null
+}
 
 export interface ProviderRoute {
   role: string

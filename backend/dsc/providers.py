@@ -168,12 +168,13 @@ class CodexCLI(Provider):
     name, binary = "codex", "codex"
 
     def command(self, call: Call, cwd: Path, out_file: Path, schema_file: Path | None) -> list[str]:
-        cmd = [shutil.which(self.binary) or self.binary, "exec", "--skip-git-repo-check", "--ephemeral",
-               "--sandbox", "read-only", "--cd", str(cwd), "--output-last-message", str(out_file)]
+        cmd = [shutil.which(self.binary) or self.binary]
+        if "WebSearch" in call.tools:
+            cmd += ["--search"]  # a top-level option: `codex exec --search` is rejected (codex-cli 0.163)
+        cmd += ["exec", "--skip-git-repo-check", "--ephemeral",
+                "--sandbox", "read-only", "--cd", str(cwd), "--output-last-message", str(out_file)]
         if call.model and call.model != "default":
             cmd += ["--model", call.model]
-        if "WebSearch" in call.tools:
-            cmd += ["--search"]
         if schema_file:
             cmd += ["--output-schema", str(schema_file)]
         return cmd + ["-"]

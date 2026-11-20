@@ -13,6 +13,12 @@ Teaching playbook (what works for this person):
 {playbook}
 Lesson guidelines distilled from this learner's feedback so far (follow them in every section):
 {guidelines}
+How the learner reasons: their recent answers with their own thinking (typed or dictated, often messy) and how sure
+they were. Use it to find what they misunderstand and why, not only what they got wrong. "Wrong while sure" is a
+misconception to address directly; "right, but a guess" is not yet understood:
+<reasoning>
+{reasoning}
+</reasoning>
 Style knobs (-3..+3): pace {pace} (negative = smaller steps, more worked examples), depth {depth} (negative = essentials only), rigor {rigor} (positive = formal statements and proofs earlier).
 </learner>
 

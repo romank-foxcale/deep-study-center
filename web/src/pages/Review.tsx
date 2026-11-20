@@ -27,7 +27,7 @@ export default function Review() {
           <div key={review.conceptId} className="card">
             <h3>{concept?.title}</h3>
             {check
-              ? <InlineCheck check={check} label="Review" onAnswer={choice => dispatch({ type: 'review', conceptId: review.conceptId, checkId: check.id, choice })} />
+              ? <InlineCheck check={check} label="Review" onAnswer={(choice, r) => dispatch({ type: 'review', conceptId: review.conceptId, checkId: check.id, choice, ...r })} />
               : <p className="muted">This card has no review question yet.</p>}
           </div>
         )

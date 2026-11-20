@@ -260,7 +260,7 @@ export default function Lesson() {
               {sec.check && sec.checkMine && <div className="mine-note"><span className="pill pill-accent small" title="This question was written for you from the source card">question made for you</span></div>}
               {sec.check && (
                 <InlineCheck key={sec.check.id} check={sec.check} previous={s.answers[`${id}:${sec.check.id}`]}
-                  onAnswer={choice => dispatch({ type: 'answer', conceptId: id, checkId: sec.check!.id, angle: sec.angle, choice })}
+                  onAnswer={(choice, r) => dispatch({ type: 'answer', conceptId: id, checkId: sec.check!.id, angle: sec.angle, choice, ...r })}
                   onUndo={() => dispatch({ type: 'undoAnswer', conceptId: id, itemId: sec.check!.id })} />
               )}
               {sec.code?.runtime === 'local' && (
@@ -274,7 +274,7 @@ export default function Lesson() {
               {sec.explain && (
                 <ExplainBack key={sec.explain.id} item={sec.explain} grading={s.gradings[`${id}:${sec.explain.id}`]}
                   inProgress={jobActive(s, 'grade', { concept_id: id })}
-                  onSubmit={answer => dispatch({ type: 'explain', conceptId: id, itemId: sec.explain!.id, angle: sec.angle, answer })}
+                  onSubmit={(answer, confidence) => dispatch({ type: 'explain', conceptId: id, itemId: sec.explain!.id, angle: sec.angle, answer, confidence })}
                   onUndo={() => dispatch({ type: 'undoAnswer', conceptId: id, itemId: sec.explain!.id })} />
               )}
             </section>
