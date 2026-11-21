@@ -27,6 +27,7 @@ EXTRA_ROUTES = [
     {"role": "Lesson assets", "description": "Make graphs and quiz questions for you", "provider": "claude", "model": "sonnet"},
     {"role": "Study plan", "description": "Plan a study session (\"teach me X\") and add what you learned to your graph", "provider": "claude", "model": "opus"},
     {"role": "Study tutor", "description": "Each step of a study session: probe, predict, explain, check", "provider": "claude", "model": "sonnet"},
+    {"role": "Practice", "description": "Recall practice: write problems and read your thinking (hints, never answers)", "provider": "claude", "model": "sonnet"},
     {"role": "Lesson review", "description": "Check each new lesson against your guidelines and feedback", "provider": "claude", "model": "sonnet"},
 ]
 

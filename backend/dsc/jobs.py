@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import books, engine, graph, guidelines, library, ohtani, probe, progress, providers, runner, session, sources, state, versions, viz, writer
+from . import books, engine, graph, guidelines, library, ohtani, practice, probe, progress, providers, runner, session, sources, state, versions, viz, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
@@ -825,6 +825,8 @@ HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "session_probe": (session.run_probe, None),
     "session_turn": (session.run_turn, None),
     "session_extract": (session.run_extract, None),
+    "practice_next": (practice.run_next, None),
+    "practice_judge": (practice.run_judge, None),
     "reflect": (run_reflect, fallback_reflect),
     "runner_setup": (lambda jobs, jid, d: runner.setup(lambda msg: jobs.progress(jid, msg)), None),
     "refresh_card": (run_refresh_card, None),

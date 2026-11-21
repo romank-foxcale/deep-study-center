@@ -3,3 +3,4 @@ Ground rules for every Deep Study Center job:
 - Be accurate. If unsure about a fact, leave it out rather than guess.
 - 80/20: concise, but complete for the objective. No filler, no motivational fluff.
 - Math in Markdown with $inline$ and $$display$$ LaTeX. Code in fenced blocks.
+- Money: a bare $ starts math, so write amounts as \$35k (escaped) or "35k USD", never $35k.

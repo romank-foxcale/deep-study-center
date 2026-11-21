@@ -555,3 +555,29 @@ Change log shows text changes only (not graph or question changes).
   its lessons (opening one switches to its goal first), its study sessions, and "Teach me this" (opens Study with the
   idea as the topic).
 - Not yet: practice from the map (step 6), saving the zoom and focus per user.
+
+## 24. Recall practice (2026-11-21)
+- Purpose: understanding an idea is not the same as recalling it when a problem calls for it. Recall works from cues,
+  so practice widens and strengthens them: problems that make the learner find and use the idea themselves. Step 6
+  of the rework.
+- Page `/practice` ("Practice" in the sidebar, with the number of ideas due): "Due now" lists due ideas and ideas
+  learned recently but never practised, with "Practise 5 problems"; "My own problem" takes a pasted or dictated
+  problem, or a page of a ready PDF source (one problem). On the map, "Practise" on an idea starts a run on it.
+- What is due (`practice.due`): ideas whose own review is due (`node_reviews`), lesson reviews that are due (mapped
+  to their ideas), then ideas in state "learning" (mastery ≥ 0.2) that were never practised. A run takes up to 6.
+- A run (`practices`, `practice_items`; jobs `practice_next`, `practice_judge`; route "Practice", Sonnet):
+  - Problem (`practice_next.md`): 1-3 ideas, self-contained, never naming the idea or method (finding it is part of
+    recall), with a hidden worked solution and key steps. Level 1-4 (`practice.LEVELS`): one idea in a familiar
+    setting → one idea in a new setting → two ideas → two or three ideas in an unfamiliar setting. A clean solve
+    raises the level; giving up or 2+ hints lowers it.
+  - The learner sends thinking in chunks (typed or dictated). The judge (`practice_judge.md`) sees the hidden
+    solution and returns solved / progress / stuck / wrong with short feedback, and the smallest hint when asked
+    for or when stuck or wrong; never the solution. "Give up" ends the problem and shows the solution; "Stop" ends
+    the run.
+- Result per problem: score 1.0 solved without hints, 0.7 with one, 0.4 with more, 0 given up. It is evidence on each
+  target idea (`evidence.concept_id` = node id; kind "practice", or "review" once the idea is learned, so it can
+  become strong or go rusty) and updates the idea's FSRS card in `node_reviews` (`engine.new_card`, `engine.review`).
+- API: `GET /api/practice/<id>` (solutions only for closed problems), `GET /api/practice-due`. Snapshot:
+  `practices`, `lastPractice`, `practiceDue`.
+- Prompt rule for every job: write money as `\$35k` or "35k USD", because a bare `$` starts math.
+- Not yet: replacing the old Reviews page (one quiz question per lesson) with recall practice; prefetching problems.

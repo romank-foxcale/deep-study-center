@@ -238,6 +238,11 @@ def first_review(learned_at: str) -> tuple[str, str]:
     return _card_json(card), card.due.isoformat()
 
 
+def new_card(at: str) -> str:
+    """A fresh review card, due now (an idea's first practice result schedules it)."""
+    return _card_json(Card(due=_ts(at)))
+
+
 def review(card_json: str, correct: bool, at: str) -> tuple[str, str]:
     import json
     card = Card.from_dict(json.loads(card_json))

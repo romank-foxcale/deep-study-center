@@ -215,7 +215,10 @@ Done with an own layered layout (no d3). Left for later: "Practice" from a node 
   highlights its path, and zoom/pan works. Check speed with about 1000 nodes (make a test graph).
 - **Done when:** the map shows all goals' nodes in one tree, and a target shows what is still needed.
 
-### B6. Step 6: adaptive recall practice
+### B6. ✅ DONE (2026-11-21, branch `claude/recall-practice`, SPEC §24): Step 6: adaptive recall practice
+Done as planned, checked with a real run on a copy of the workspace. Left for later: replace `Review.tsx` with
+recall practice, prefetch the next problem, and watch whether the judge sometimes misreads a partial answer
+(it said "no answer yet" once in the real run; the prompt was made stricter).
 - **Why:** understanding is not the same as being able to use it. Recall works from cues; practice must make the set
   of cues wider and stronger. DSC now only re-asks one quiz question from a card (`Review.tsx`), which trains
   recognition, not recall.

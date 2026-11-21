@@ -87,6 +87,15 @@ CREATE INDEX IF NOT EXISTS concept_nodes_node ON concept_nodes(node_id);
 CREATE TABLE IF NOT EXISTS links (
   src TEXT NOT NULL, dst TEXT NOT NULL, why TEXT NOT NULL DEFAULT '', origin TEXT NOT NULL DEFAULT '', PRIMARY KEY (src, dst));
 CREATE VIRTUAL TABLE IF NOT EXISTS node_fts USING fts5(node_id UNINDEXED, text);
+-- Recall practice (SPEC §24): problems over ideas, judged from the learner's thinking; a review schedule per idea.
+CREATE TABLE IF NOT EXISTS practices (
+  id TEXT PRIMARY KEY, title TEXT NOT NULL, node_ids TEXT NOT NULL DEFAULT '[]', own TEXT NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL, level INTEGER NOT NULL DEFAULT 1, count INTEGER NOT NULL DEFAULT 5,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS practice_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, practice_id TEXT NOT NULL, problem TEXT NOT NULL, status TEXT NOT NULL,
+  hints INTEGER NOT NULL DEFAULT 0, chunks TEXT NOT NULL DEFAULT '[]', score REAL, created_at TEXT NOT NULL, ended_at TEXT);
+CREATE TABLE IF NOT EXISTS node_reviews (node_id TEXT PRIMARY KEY, card TEXT NOT NULL, due TEXT NOT NULL, last_at TEXT NOT NULL);
 -- Study sessions (SPEC §22): "teach me X" with or without a goal.
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY, topic TEXT NOT NULL, title TEXT NOT NULL, status TEXT NOT NULL, ideas TEXT NOT NULL DEFAULT '[]',

@@ -131,6 +131,21 @@ export interface Grading {
   followup: string | null
 }
 
+export interface PracticeChunk { text: string; ts: string; askedHint: boolean; verdict?: string; feedback?: string; hint?: string }
+export interface PracticeItem {
+  id: number; title: string; prompt: string; level: number; ideas: { id: string; title: string }[]
+  status: 'open' | 'solved' | 'given_up' | 'skipped'; hints: number; score: number | null; chunks: PracticeChunk[]; solution: string | null
+}
+/** A recall-practice run (SPEC §24). */
+export interface PracticeView {
+  id: string; title: string; status: 'active' | 'done'; level: number; levelText: string; count: number
+  busy: boolean; error: string | null; items: PracticeItem[]; ideas: { id: string; title: string }[]
+}
+export interface PracticeDue {
+  due: { nodeId: string; title: string; state: string; reason: 'due' | 'new'; due: string | null }[]
+  dueCount: number; newCount: number; next: string | null
+}
+
 export interface GraphNode {
   id: string; title: string; statement: string; kind: string; state: string; mastery: number
   goals: string[]; concepts: string[]; sessions: string[]; lessons: { id: string; title: string; goalId: string }[]
@@ -458,6 +473,9 @@ export interface State {
   sources: SourceDoc[]
   sessions: { id: string; title: string; topic: string; status: string; createdAt: string }[]
   lastSession: string | null
+  practices: { id: string; title: string; status: string; createdAt: string }[]
+  lastPractice: string | null
+  practiceDue: number
   runner: { setUp: boolean; packages: string[]; mode: 'local' | 'docker'; dockerReady: boolean }
   backups: { folder: string; last: string | null; items: { name: string; size: number; at: string }[] }
   firstRun: boolean

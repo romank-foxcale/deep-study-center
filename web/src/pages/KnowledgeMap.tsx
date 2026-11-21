@@ -229,10 +229,16 @@ function NodePanel({ n, g, onPick, onClose }: { n: GraphNode; g: GraphView; onPi
         ))}</ul></>}
       {n.sessions.length > 0 && <><div className="eyebrow">Study sessions</div>
         <ul className="km-list">{n.sessions.map(id => <li key={id}><Link to={`/study/${id}`}>{g.sessions.find(x => x.id === id)?.title ?? id}</Link></li>)}</ul></>}
-      {!LIT.has(n.state) && (
-        <button className="btn btn-primary btn-small" onClick={() => navigate('/study', { state: { topic: `Teach me: ${n.title}. ${n.statement}`.slice(0, 400) } })}>
-          Teach me this</button>
-      )}
+      <div className="row">
+        {!LIT.has(n.state) && (
+          <button className="btn btn-primary btn-small" onClick={() => navigate('/study', { state: { topic: `Teach me: ${n.title}. ${n.statement}`.slice(0, 400) } })}>
+            Teach me this</button>
+        )}
+        {n.state !== 'pending' && n.state !== 'locked' && (
+          <button className={`btn btn-small ${LIT.has(n.state) ? 'btn-primary' : ''}`} title="Problems that make you recall this idea"
+            onClick={() => navigate('/practice', { state: { nodeIds: [n.id], title: n.title } })}>Practise</button>
+        )}
+      </div>
     </aside>
   )
 }
