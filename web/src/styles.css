@@ -628,3 +628,6 @@ pre.code-output.bad { color: #f48771; }
 .practice-thinking { border-left: 3px solid var(--border); padding-left: 10px; }
 .practice-thinking p { margin: 2px 0; white-space: pre-wrap; }
 .practice-hint { margin-top: 6px; }
+
+/* Anthropic API key (SPEC §25) */
+.api-key-input { flex: 1; min-width: 240px; max-width: 420px; font-family: var(--mono, monospace); }

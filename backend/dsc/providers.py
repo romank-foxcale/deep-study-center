@@ -302,10 +302,105 @@ def drop_nulls(v):
     return v
 
 
-PROVIDERS: dict[str, Provider] = {p.name: p for p in (ClaudeCLI(), CodexCLI(), CursorCLI())}
+class AnthropicAPI(Provider):
+    """The Claude API with the learner's own API key (SPEC §25), for people without the agent CLIs (the desktop app).
+
+    Uses the official SDK: streaming, adaptive thinking (always on for these models), server-side web search and
+    web fetch for research jobs, structured JSON output, and server-side refusal fallbacks. Billed to the key's
+    account, not to a subscription.
+    """
+    name, binary = "anthropic", ""
+    MODEL_IDS = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5", "haiku": "claude-haiku-5-5",
+                 "default": "claude-sonnet-5-5"}
+    WEB_TOOLS = [{"type": "web_search_20260209", "name": "web_search", "max_uses": 20},
+                 {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 20}]
+    MAX_CONTINUATIONS = 6
+
+    def available(self) -> bool:
+        from . import apikey
+        return apikey.get() is not None
+
+    def run(self, call: Call, cwd: Path) -> dict | str:
+        import anthropic
+
+        from . import apikey
+        key = apikey.get()
+        if not key:
+            raise ProviderUnavailable("no Anthropic API key (Settings → Anthropic API key)")
+        client = anthropic.Anthropic(api_key=key, timeout=float(call.timeout), max_retries=2)
+        model = self.MODEL_IDS.get(call.model, call.model)
+        web = bool({"WebSearch", "WebFetch"} & set(call.tools))
+        prompt = call.prompt
+        params: dict = {"model": model, "max_tokens": 64000, "betas": ["server-side-fallback-2026-07-01"],
+                        "fallbacks": "default"}
+        if call.system:
+            params["system"] = call.system
+        output_config: dict = {"effort": "high"} if call.model == "opus" else {}
+        if call.schema and web:
+            # Web results carry citations, which do not mix with a JSON output format: ask for JSON in the prompt.
+            prompt += ("\n\nWhen you are done, reply with only a JSON object (no prose, no code fence) that matches "
+                       "this JSON Schema:\n" + json.dumps(call.schema))
+        elif call.schema:
+            output_config["format"] = {"type": "json_schema", "schema": api_schema(call.schema)}
+        if output_config:
+            params["output_config"] = output_config
+        if web:
+            params["tools"] = self.WEB_TOOLS
+        messages: list = [{"role": "user", "content": prompt}]
+        try:
+            for _ in range(self.MAX_CONTINUATIONS):
+                with client.beta.messages.stream(messages=messages, **params) as stream:
+                    msg = stream.get_final_message()
+                if call.on_event:
+                    for b in msg.content:
+                        if b.type == "server_tool_use":
+                            what = (b.input or {}).get("query") or (b.input or {}).get("url") or ""
+                            call.on_event(f"{'searching' if b.name == 'web_search' else 'reading'}: {what}"[:160])
+                if msg.stop_reason != "pause_turn":
+                    break
+                messages = [messages[0], {"role": "assistant", "content": msg.content}]  # the server resumes the turn
+        except anthropic.AuthenticationError as e:
+            raise ProviderUnavailable("the Anthropic API key was rejected") from e
+        except anthropic.PermissionDeniedError as e:
+            raise ProviderUnavailable(f"the API key may not use {model}") from e
+        except anthropic.RateLimitError as e:
+            raise ProviderUnavailable("Anthropic API rate limit; try again later") from e
+        except anthropic.APIStatusError as e:
+            raise ProviderError(f"Anthropic API error {e.status_code}: {e.message}"[:500]) from e
+        except anthropic.APIConnectionError as e:
+            raise ProviderUnavailable("cannot reach the Anthropic API (network)") from e
+        if msg.stop_reason == "refusal":
+            raise ProviderError("the model declined this request")
+        if msg.stop_reason == "max_tokens":
+            raise ProviderError("the answer was cut off (max_tokens)")
+        text = "".join(b.text for b in msg.content if b.type == "text")
+        return _finish(text, structured=call.schema is not None)
+
+
+_UNSUPPORTED = ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "minLength", "maxLength",
+                "maxItems", "pattern")
+
+
+def api_schema(schema: dict) -> dict:
+    """A JSON schema the Claude API accepts for structured output: strict objects, no numeric or length limits
+    (those are checked by the code that reads the answer), minItems only 0 or 1."""
+    def clean(v):
+        if isinstance(v, dict):
+            out = {k: clean(x) for k, x in v.items() if k not in _UNSUPPORTED}
+            if isinstance(out.get("minItems"), int) and out["minItems"] > 1:
+                out["minItems"] = 1
+            return out
+        if isinstance(v, list):
+            return [clean(x) for x in v]
+        return v
+    return clean(strict_schema(schema))
+
+
+PROVIDERS: dict[str, Provider] = {p.name: p for p in (ClaudeCLI(), CodexCLI(), CursorCLI(), AnthropicAPI())}
 
 # "default" lets a CLI use its own configured model (set it in that CLI's config); other values go to --model.
-MODELS = {"claude": ["opus", "sonnet", "haiku"], "codex": ["default"], "cursor": ["default"]}
+MODELS = {"claude": ["opus", "sonnet", "haiku"], "codex": ["default"], "cursor": ["default"],
+          "anthropic": ["opus", "sonnet", "haiku"]}
 
 # Recommended provider and model per job, with the reason shown in Settings. Opus where a mistake is expensive or
 # repeats in every lesson (research, roadmap, facts, the lesson plan); Sonnet where the output is long or must be fast
@@ -336,21 +431,22 @@ RECOMMENDED: dict[str, tuple[str, str, str]] = {
 
 
 def status() -> list[dict]:
-    return [{"id": p.name, "cli": p.binary, "detected": p.available(), "implemented": True,
+    return [{"id": p.name, "cli": p.binary or "API key", "detected": p.available(), "implemented": True,
              "models": MODELS[p.name]} for p in PROVIDERS.values()]
 
 
 def run_with_fallback(route: dict, call: Call, cwd: Path) -> tuple[dict | str, str]:
-    """Run on the routed provider; if it is unavailable or rate-limited, fall back to Claude.
+    """Run on the routed provider; if it is unavailable or rate-limited, fall back to the Claude CLI, then to the
+    Claude API when an API key is set.
 
     Returns (output, provider name used).
     """
-    order = [route["provider"]] + ([] if route["provider"] == "claude" else ["claude"])
+    order = [route["provider"]] + [n for n in ("claude", "anthropic") if n != route["provider"]]
     last: Exception | None = None
     for name in order:
         p = PROVIDERS[name]
         model = route["model"] if name == route["provider"] else call.model
-        if name == "claude" and model == "default":
+        if name in ("claude", "anthropic") and model == "default":
             model = call.model
         try:
             return p.run(Call(**{**call.__dict__, "model": model}), cwd), name

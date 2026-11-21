@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Deep Study Center",
+  "version": "0.3.0",
+  "identifier": "app.deepstudycenter.desktop",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Deep Study Center",
+        "url": "index.html",
+        "width": 1280,
+        "height": 860,
+        "minWidth": 720,
+        "minHeight": 520
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../backend/dist/dsc-backend/": "backend/"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
+}

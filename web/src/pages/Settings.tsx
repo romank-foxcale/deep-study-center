@@ -1,4 +1,5 @@
 import { useStore } from '../store'
+import ApiKeyCard from '../components/ApiKeyCard'
 
 export default function Settings() {
   const { s, dispatch } = useStore()
@@ -9,21 +10,24 @@ export default function Settings() {
 
       <div className="card">
         <h2>Providers</h2>
-        <p className="muted small">The app drives the agent CLIs you have installed and logged in, so it uses your subscriptions: no API keys,
-          but each plan's rate limits apply. If a routed provider is missing or rate-limited, the job falls back to Claude.</p>
+        <p className="muted small">The app drives the agent CLIs you have installed and logged in, so it uses your subscriptions
+          (each plan's rate limits apply), or the Claude API with your own key. If a routed provider is missing or
+          rate-limited, the job falls back to the Claude CLI, then to the Claude API when a key is set.</p>
         <table className="table">
-          <thead><tr><th>Provider</th><th>CLI</th><th>Status</th></tr></thead>
+          <thead><tr><th>Provider</th><th>Uses</th><th>Status</th></tr></thead>
           <tbody>{s.providers.map(p => (
             <tr key={p.id}>
               <td>{p.id}</td><td><code>{p.cli}</code></td>
               <td>
-                {p.detected ? <span className="pill pill-ok">detected</span> : <span className="pill">not found</span>}{' '}
+                {p.detected ? <span className="pill pill-ok">{p.id === 'anthropic' ? 'key set' : 'detected'}</span> : <span className="pill">{p.id === 'anthropic' ? 'no key' : 'not found'}</span>}{' '}
                 {!p.implemented && <span className="muted small">adapter coming in milestone 3</span>}
               </td>
             </tr>
           ))}</tbody>
         </table>
       </div>
+
+      <ApiKeyCard />
 
       <div className="card">
         <h2>Lesson writing</h2>

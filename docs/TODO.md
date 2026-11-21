@@ -244,7 +244,10 @@ recall practice, prefetch the next problem, and watch whether the judge sometime
 
 ## C. Desktop app and open source (step 7)
 
-### C1. Package DSC as a desktop app
+### C1. ✅ DONE (2026-11-21, branch `claude/desktop-app`, SPEC §25): Package DSC as a desktop app
+Done with Tauri 2 + a PyInstaller backend folder + an NSIS per-user installer, and an Anthropic API-key provider with
+the key in the Windows Credential Manager. Left for later: bundle Pyodide for offline use, code signing, auto-update,
+macOS/Linux builds, a single-instance guard (two app windows would start two backends on one workspace).
 - **Why:** the user wants DSC to be a free, open-source desktop app that anyone can install.
 - **What:** one installer per OS that starts the backend and shows the UI in a native window.
 - **How:**

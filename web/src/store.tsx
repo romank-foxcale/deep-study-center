@@ -48,6 +48,9 @@ export type Action =
   | { type: 'sessionAssessNow'; sessionId: string }
   | { type: 'sessionRetry'; sessionId: string }
   | { type: 'deleteSession'; sessionId: string }
+  | { type: 'setApiKey'; key: string }
+  | { type: 'clearApiKey' }
+  | { type: 'useApiForAll' }
   | { type: 'startProbe' }
   | { type: 'probeAnswer'; itemId: number; choice: number | null; thinking?: string; confidence?: number | null }
   | { type: 'probeAssessNow' }

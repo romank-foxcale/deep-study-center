@@ -4,7 +4,7 @@ export type NodeState = 'locked' | 'ready' | 'learning' | 'learned' | 'mastered'
 export type ResearchStatus = 'outline' | 'researching' | 'ready'
 export type Angle = 'geometric' | 'algebraic' | 'computational'
 export type Verdict = 'works' | 'avoid' | 'trying'
-export type Provider = 'claude' | 'codex' | 'cursor'
+export type Provider = 'claude' | 'codex' | 'cursor' | 'anthropic'
 
 export interface Goal {
   id: string
@@ -462,6 +462,7 @@ export interface State {
   answers: Record<string, Answer>
   routes: ProviderRoute[]
   providers: ProviderStatus[]
+  apiKey: { set: boolean; source: 'environment' | 'keychain' | null }
   jobs: Job[]
   reviews: Review[]
   gradings: Record<string, Grading>
