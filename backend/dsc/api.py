@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from fastapi.responses import Response
 
-from . import actions, backup, graph, lesson, library, planner, progress, providers, runner, session, sources, state, versions
+from . import actions, backup, graph, lesson, library, planner, practice, progress, providers, runner, session, sources, state, versions
 from .db import DB, workspace
 from .jobs import Jobs
 from .seed import ensure_routes, init_empty
@@ -33,6 +33,18 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
         if not v:
             raise HTTPException(404, "no such session")
         return v
+
+    @app.get("/api/practice/{pid}")
+    def get_practice(pid: str) -> dict:
+        """One practice run as the page shows it (solutions only for closed problems; SPEC §24)."""
+        v = practice.view(db, pid)
+        if not v:
+            raise HTTPException(404, "no such practice")
+        return v
+
+    @app.get("/api/practice-due")
+    def get_practice_due() -> dict:
+        return practice.schedule(db)
 
     @app.get("/api/graph")
     def get_graph() -> dict:

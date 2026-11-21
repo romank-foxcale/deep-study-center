@@ -325,6 +325,7 @@ RECOMMENDED: dict[str, tuple[str, str, str]] = {
     "Placement": ("claude", "sonnet", "Short quiz questions over the outline."),
     "Study plan": ("claude", "opus", "Plans a study session and writes what you learned into your graph: needs judgment."),
     "Study tutor": ("claude", "sonnet", "Each step of a study session must come fast."),
+    "Practice": ("claude", "sonnet", "Writes practice problems and reads your thinking: must answer fast."),
     "Reflection": ("claude", "opus", "Finding patterns over weeks of feedback needs careful reasoning."),
     "Card refresh": ("claude", "opus", "Finds errors in facts: the strongest model."),
     "Feedback": ("claude", "sonnet", "Rewrites one lesson from your feedback; Sonnet is good and fast."),

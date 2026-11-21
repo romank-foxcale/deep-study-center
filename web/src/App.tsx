@@ -13,12 +13,14 @@ import Review from './pages/Review'
 import Probe from './pages/Probe'
 import Study from './pages/Study'
 import KnowledgeMap from './pages/KnowledgeMap'
+import Practice from './pages/Practice'
 import Search from './pages/Search'
 import Week from './pages/Week'
 
 const NAV = [
   { to: '/', label: 'Home', end: true },
   { to: '/study', label: 'Study' },
+  { to: '/practice', label: 'Practice' },
   { to: '/map', label: 'Knowledge map' },
   { to: '/week', label: 'This week' },
   { to: '/roadmap', label: 'Roadmap' },
@@ -60,6 +62,7 @@ export default function App() {
             {n.label}
             {n.to === '/roadmap' && pending > 0 && <span className="pill pill-warn">{pending}</span>}
             {n.to === '/review' && due > 0 && <span className="pill pill-warn">{due}</span>}
+            {n.to === '/practice' && s.practiceDue > 0 && <span className="pill pill-warn">{s.practiceDue}</span>}
             {n.to === '/library' && s.cardProposals.length > 0 && <span className="pill pill-warn">{s.cardProposals.length}</span>}
           </NavLink>
         ))}
@@ -80,6 +83,8 @@ export default function App() {
           <Route path="/probe" element={<Probe />} />
           <Route path="/study" element={<Study />} />
           <Route path="/map" element={<KnowledgeMap />} />
+          <Route path="/practice" element={<Practice />} />
+          <Route path="/practice/:id" element={<Practice />} />
           <Route path="/study/:id" element={<Study />} />
           <Route path="/placement" element={<Probe />} />
           <Route path="/search" element={<Search />} />

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from . import books, engine, guidelines, lesson, library, probe, progress, remedial, session, sources, state, versions, writer
+from . import books, engine, guidelines, lesson, library, practice, probe, progress, remedial, session, sources, state, versions, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now
 from .jobs import Jobs
@@ -486,6 +486,34 @@ def delete_session(db: DB, jobs: Jobs, a: dict) -> None:
     session.delete(db, a["sessionId"])
 
 
+# ---------------------------------------------------------------- recall practice
+
+@_session
+def start_practice(db: DB, jobs: Jobs, a: dict) -> None:
+    pid = practice.start(db, jobs, list(a.get("nodeIds") or []), str(a.get("own") or ""), a.get("source"))
+    db.set_meta("last_practice", pid)
+
+
+@_session
+def practice_submit(db: DB, jobs: Jobs, a: dict) -> None:
+    practice.submit(db, jobs, int(a["itemId"]), str(a.get("text") or ""), bool(a.get("hint")))
+
+
+@_session
+def practice_give_up(db: DB, jobs: Jobs, a: dict) -> None:
+    practice.give_up(db, jobs, int(a["itemId"]))
+
+
+@_session
+def practice_retry(db: DB, jobs: Jobs, a: dict) -> None:
+    practice.retry(db, jobs, a["practiceId"])
+
+
+@_session
+def practice_stop(db: DB, jobs: Jobs, a: dict) -> None:
+    practice.stop(db, a["practiceId"])
+
+
 # ---------------------------------------------------------------- the probe (where you stand)
 
 def start_probe(db: DB, jobs: Jobs, a: dict) -> None:
@@ -726,6 +754,8 @@ ACTIONS = {
     "resetProbe": reset_probe, "dismissProbe": dismiss_probe,
     "startSession": start_session, "sessionAnswer": session_answer, "sessionKnown": session_known, "sessionTeach": session_teach,
     "sessionAssessNow": session_assess_now, "sessionRetry": session_retry, "deleteSession": delete_session,
+    "startPractice": start_practice, "practiceSubmit": practice_submit, "practiceGiveUp": practice_give_up,
+    "practiceRetry": practice_retry, "practiceStop": practice_stop,
     "reflect": reflect, "decideProposal": decide_proposal, "setSetting": set_setting,
     "promoteCard": promote_card, "setupRunner": setup_runner,
     "refreshCard": refresh_card, "decideCardProposal": decide_card_proposal, "setPlanSettings": set_plan_settings,

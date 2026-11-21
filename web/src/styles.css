@@ -618,3 +618,13 @@ pre.code-output.bad { color: #f48771; }
 .km-pill-learned, .km-pill-mastered { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
 .km-pill-learning, .km-pill-rusty { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
 @media (max-width: 760px) { .km { height: auto; min-height: 100vh; } .km-canvas { height: 70vh; } .km-panel { position: static; width: auto; } }
+
+/* Recall practice (SPEC §24) */
+.practice-due { padding-left: 18px; display: flex; flex-direction: column; gap: 3px; margin: 6px 0 12px; }
+.practice-page { width: 80px; }
+.practice-problem.solved { border-color: var(--ok); }
+.practice-problem.given_up, .practice-problem.skipped { opacity: 0.85; }
+.practice-chunk { margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
+.practice-thinking { border-left: 3px solid var(--border); padding-left: 10px; }
+.practice-thinking p { margin: 2px 0; white-space: pre-wrap; }
+.practice-hint { margin-top: 6px; }
