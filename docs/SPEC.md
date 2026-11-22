@@ -764,3 +764,28 @@ Change log shows text changes only (not graph or question changes).
   teaching, probing). It refuses a folder that holds anything but an earlier mock (file `MOCK`), so it never touches
   a real workspace. Run it with `DSC_WORKSPACE=<folder> dsc serve --port 8001`.
 - The five concepts were first shown as a separate page (`docs/mockups/graph-concepts.html`).
+
+## 30. The redesign: five entries, Today, the book shelf (2026-11-22)
+- Purpose: the app is built around "teach me this book" and "teach me X". Big goals stay, on hold.
+- Navigation (`App.tsx`): Today (`/`), Books (`/books`), Learn (`/study`), Practice (`/practice`, with a badge for what is
+  due), Map (`/map`). A collapsed group "Goals (on hold)" holds Goal overview (`/goal`, the former Home), Roadmap,
+  This week, Reviews and "+ New goal" (and the goal switcher); it opens by itself on a goal page. Source library, Me and
+  Settings sit at the bottom. On a phone (under 760 px) the five entries are a tab bar at the bottom.
+- Theme: the dark "star chart" is the default (night blue, gold for "know strongly"). Settings → Appearance: Dark,
+  Light or Follow the system, kept in the browser (`localStorage["dsc-theme"]`, set on `<html data-theme>` before
+  the page draws). Fonts: Space Grotesk (headings), Inter (text), Source Serif 4 (session explanations),
+  JetBrains Mono (labels); each with a system fallback.
+- Today (`pages/Today.tsx`, `GET /api/today`, `today.py`): "Continue" (the newest unfinished study session with its
+  next idea and progress, else the next part of the newest book), "Due for recall" (count and the first ideas), "This
+  week" (ideas learned since Monday, ideas known strongly, sessions done, answers), a small Territories map (click an
+  idea to open it on the map), the book shelf and recent sessions. Without books or sessions: a start card; without a
+  model provider: the API-key card.
+- Books (`pages/Books.tsx`, `components/BookShelf.tsx`): a card per book study with a colored spine, a ring of known
+  (green) and strong (gold) ideas, parts and ideas done; ready PDFs not studied yet get "Teach me this book".
+  `bookstudy.listing` now gives `author`, `ideas`, `known`, `strong`.
+- Book page: parts done, ideas known and strong, a stacked progress bar, the next part ("Continue" for the part in
+  progress first, else the first part not done), parts by chapter with a dot per idea in its state, and the book's own
+  Territories map (shared ideas show their other book as a second ring). "Remove" asks inside the page.
+- Session: explanations in the reading face, the plan with a state dot per idea.
+- Map: opens on everything, in Territories (`mapView` default "territory").
+- The clickable mockup is `docs/mockups/ui-redesign.html`.

@@ -222,11 +222,11 @@ function SessionPage({ id }: { id: string }) {
             ))}
           </div>
           <aside className="study-plan card">
-            <div className="eyebrow">Plan</div>
-            <ol>
+            <div className="eyebrow">Plan · {v.plan.length} ideas</div>
+            <ol className="study-plan-list">
               {v.plan.map((k, n) => (
                 <li key={k} className={n < v.current || v.status === 'done' ? 'done' : n === v.current ? 'now' : ''}>
-                  <Markdown inline>{idea(k)?.title ?? k}</Markdown>{idea(k)?.target && <span className="pill small">goal</span>}</li>
+                  <i className={`state-dot state-${idea(k)?.nodeState ?? 'ready'}`} /><Markdown inline>{idea(k)?.title ?? k}</Markdown>{idea(k)?.target && <span className="pill small">goal</span>}</li>
               ))}
             </ol>
             {v.ideas.some(i => !v.plan.includes(i.key)) && (
@@ -297,7 +297,7 @@ function IdeaSteps({ n, title, items, sessionId, onAnswer }: {
     <section className="study-idea">
       <h2>{n}. <Markdown inline>{title}</Markdown></h2>
       {items.map(it => it.phase === 'explain'
-        ? <div key={it.id} className={`study-explain ${it.repair ? 'repair' : ''}`}>
+        ? <div key={it.id} className={`study-explain reader ${it.repair ? 'repair' : ''}`}>
             {it.repair && <div className="eyebrow">Another way to see it</div>}
             <Markdown runnable={sessionId}>{it.body}</Markdown>
           </div>

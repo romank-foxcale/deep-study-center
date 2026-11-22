@@ -109,13 +109,22 @@ def _chapters(db: DB, bid: str) -> list[list[dict]]:
 
 
 def listing(db: DB) -> list[dict]:
+    """Book studies, newest first, with their ideas: how many, how many known and how many strong (the shelf's rings)."""
+    st = graph.states(db)
+    counts: dict[str, dict] = {}
+    for r in db.q("SELECT book_id, node_id FROM book_nodes"):
+        c = counts.setdefault(r["book_id"], {"ideas": 0, "known": 0, "strong": 0})
+        s = st.get(r["node_id"])
+        c["ideas"] += 1
+        c["known"] += int(bool(s) and s.state in ("learned", "mastered", "rusty"))
+        c["strong"] += int(bool(s) and s.state == "mastered")
     out = []
-    for b in db.q("SELECT * FROM books ORDER BY updated_at DESC"):
+    for b in db.q("SELECT b.*, s.author FROM books b LEFT JOIN sources s ON s.id = b.source_id ORDER BY b.updated_at DESC"):
         ps = parts(db, b["id"])
-        out.append({"id": b["id"], "sourceId": b["source_id"], "title": b["title"], "status": b["status"],
-                    "chapters": b["chapters"], "chaptersDone": b["chapters_done"],
+        out.append({"id": b["id"], "sourceId": b["source_id"], "title": b["title"], "author": b["author"] or "",
+                    "status": b["status"], "chapters": b["chapters"], "chaptersDone": b["chapters_done"],
                     "parts": len(ps), "partsDone": sum(1 for p in ps if p["status"] == "done"),
-                    "updatedAt": b["updated_at"]})
+                    **counts.get(b["id"], {"ideas": 0, "known": 0, "strong": 0}), "updatedAt": b["updated_at"]})
     return out
 
 
@@ -140,7 +149,9 @@ def view(db: DB, bid: str) -> dict | None:
                    "title": p["title"], "pages": [p["page_from"], p["page_to"]], "summary": p["summary"],
                    "status": p["status"], "sessionId": p["session_id"], "practiceId": p["practice_id"],
                    "ideas": nodes_by_part.get(p["id"], [])})
-    nxt = next((p["id"] for p in ps if p["status"] != "done" and p["ideas"]), None)
+    # the part you are in the middle of comes first, else the first part not done
+    nxt = (next((p["id"] for p in ps if p["status"] == "studying" and p["ideas"]), None)
+           or next((p["id"] for p in ps if p["status"] != "done" and p["ideas"]), None))
     return {"id": b["id"], "sourceId": b["source_id"], "title": b["title"], "status": b["status"],
             "chapters": b["chapters"], "chaptersDone": b["chapters_done"], "parts": ps, "next": nxt,
             "error": running["error"] if running and running["status"] == "failed" else None,

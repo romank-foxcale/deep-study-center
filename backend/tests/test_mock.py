@@ -33,7 +33,7 @@ def test_the_mock_has_every_state_books_sessions_and_lessons(mocked):
     dot = lesson.view(db, "c-dot")
     assert any(sec.get("viz") for sec in dot["card"]["sections"])
     assert db.one("SELECT COUNT(*) AS n FROM node_reviews")["n"] > 0
-    assert (folder / "MOCK").exists() and db.meta("map_view") == "nebula"
+    assert (folder / "MOCK").exists() and db.meta("map_view") == "territory"
 
 
 def test_clusters_give_chapters_and_reading_order(mocked):
@@ -56,8 +56,23 @@ def test_the_mock_never_writes_into_a_real_workspace(tmp_path):
 
 def test_the_map_view_is_saved(env):
     db, jobs, _ = env
-    assert state.snapshot(db)["mapView"] == "tree"
+    assert state.snapshot(db)["mapView"] == "territory"  # the default (SPEC §30)
     actions.dispatch(db, jobs, {"type": "setMapView", "view": "globe"})
     assert state.snapshot(db)["mapView"] == "globe"
     with pytest.raises(actions.ActionError):
         actions.dispatch(db, jobs, {"type": "setMapView", "view": "spiral"})
+
+
+def test_today_shows_where_to_continue_what_is_due_and_the_books(mocked):
+    from dsc import bookstudy, today
+    _, db = mocked
+    t = today.view(db)
+    c = t["continue"]
+    assert c["kind"] == "session" and c["status"] in ("teaching", "probing") and c["book"]["title"] == "Inference Engineering"
+    assert t["due"]["count"] > 0 and t["due"]["items"] and {"learned", "strong", "answers", "sessions"} <= set(t["week"])
+    assert t["recent"] and len(t["recent"]) <= 4
+    shelf = {b["title"]: b for b in bookstudy.listing(db)}
+    ie = shelf["Inference Engineering"]
+    assert ie["author"] == "Philip Kiely" and 0 < ie["strong"] <= ie["known"] <= ie["ideas"]
+    v = bookstudy.view(db, ie["id"])
+    assert next(p for p in v["parts"] if p["id"] == v["next"])["status"] == "studying"  # the part in progress comes first

@@ -101,6 +101,8 @@ export default function Settings() {
         </table>
       </div>
 
+      <AppearanceCard />
+
       <DictationCard />
 
       <div className="card">
@@ -246,6 +248,27 @@ function DictationCard() {
           <DictationArea value={tryText} onChange={setTryText} rows={2} placeholder="Your words appear here." />
         </div>
       )}
+    </div>
+  )
+}
+
+/** Appearance (SPEC §30): the dark "star chart" is the default; light, or follow the system. Kept in this browser. */
+function AppearanceCard() {
+  const read = () => { try { return localStorage.getItem('dsc-theme') || 'dark' } catch { return 'dark' } }
+  const [theme, setTheme] = useState(read)
+  const pick = (t: string) => {
+    setTheme(t)
+    document.documentElement.dataset.theme = t
+    try { localStorage.setItem('dsc-theme', t) } catch { /* private window: the choice lasts for this visit */ }
+  }
+  return (
+    <div className="card">
+      <h2>Appearance</h2>
+      <div className="row" role="radiogroup" aria-label="Theme">
+        {[['dark', 'Dark (star chart)'], ['light', 'Light'], ['system', 'Follow the system']].map(([id, label]) => (
+          <label key={id} className="row"><input type="radio" name="theme" checked={theme === id} onChange={() => pick(id)} /> {label}</label>
+        ))}
+      </div>
     </div>
   )
 }

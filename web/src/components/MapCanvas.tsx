@@ -29,6 +29,8 @@ interface L { s: N; t: N; cross: boolean }
 interface Props {
   view: CanvasView; nodes: GraphNode[]; links: { src: string; dst: string }[]; clusters: MapCluster[]
   selected: string | null; matches: Set<string>; center: { id: string; n: number } | null; onSelect: (id: string | null) => void
+  /** A small map inside a card: no zoom buttons, and the wheel scrolls the page. */
+  compact?: boolean
 }
 
 const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -234,7 +236,7 @@ function layoutGlobe(m: Model) {
 
 // ------------------------------------------------------------------ the component
 
-export default function MapCanvas({ view, nodes, links, clusters, selected, matches, center, onSelect }: Props) {
+export default function MapCanvas({ view, nodes, links, clusters, selected, matches, center, onSelect, compact }: Props) {
   const box = useRef<HTMLDivElement>(null)
   const cv = useRef<HTMLCanvasElement>(null)
   const tipRef = useRef<HTMLDivElement>(null)
@@ -341,6 +343,7 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
       return on ? { a: 0.95, w: 1.6, c: col.fg } : { a: focus ? base * 0.35 : l.cross ? base * 0.6 : base, w: 0.8, c: col.muted }
     }
     const label = (c: C, x: number, y: number) => {
+      if (compact) return  // a small map: no cluster names
       screen()
       const sx = x * k + tx, sy = y * k + ty
       ctx.font = `600 ${W < 600 ? 11 : 13}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
@@ -544,7 +547,7 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
 
   useEffect(() => {
     const el = cv.current
-    if (!el) return
+    if (!el || compact) return
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const [mx, my] = local(e), v = t.current
@@ -592,12 +595,12 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
         <span className="mc-tip-row"><i className="mc-tip-dot" /><span className="mc-tip-state" /></span>
         <span className="mc-tip-where" />
       </div>
-      <div className="km-zoom mc-zoom">
+      {!compact && <div className="km-zoom mc-zoom">
         <button className="btn btn-small" onClick={() => zoomBy(1.25)} aria-label="Zoom in">+</button>
         <button className="btn btn-small" onClick={() => zoomBy(0.8)} aria-label="Zoom out">−</button>
         <button className="btn btn-small" onClick={() => { t.current = { x: 0, y: 0, k: 1 }; drawRef.current() }}>Fit</button>
-      </div>
-      {view === 'globe' && <span className="mc-hint small muted">Drag to turn the globe</span>}
+      </div>}
+      {view === 'globe' && !compact && <span className="mc-hint small muted">Drag to turn the globe</span>}
     </div>
   )
 }

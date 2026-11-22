@@ -45,7 +45,7 @@ export default function KnowledgeMap() {
   const asked = location.state as { focus?: string; select?: string } | null
   const [g, setG] = useState<GraphView | null>(null)
   const [error, setError] = useState('')
-  const [focus, setFocus] = useState<string>(() => asked?.focus ?? (s.goal ? `goal:${s.goal.id}` : 'all'))
+  const [focus, setFocus] = useState<string>(() => asked?.focus ?? 'all')
   const [selected, setSelected] = useState<string | null>(asked?.select ?? null)
   const [query, setQuery] = useState('')
   const [hideNew, setHideNew] = useState(false)
