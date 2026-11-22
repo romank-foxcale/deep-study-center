@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from fastapi.responses import Response
 
-from . import actions, backup, dictation, graph, lesson, library, planner, practice, progress, providers, runner, session, sources, state, versions
+from . import actions, backup, bookstudy, dictation, graph, lesson, library, planner, practice, progress, providers, runner, session, sources, state, versions
 from .db import DB, workspace
 from .jobs import Jobs
 from .seed import ensure_routes, init_empty
@@ -33,6 +33,22 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
         v = session.view(db, sid)
         if not v:
             raise HTTPException(404, "no such session")
+        return v
+
+    @app.get("/api/book/{bid}")
+    def get_book(bid: str) -> dict:
+        """One book study: its parts with their ideas and state (SPEC §28)."""
+        v = bookstudy.view(db, bid)
+        if not v:
+            raise HTTPException(404, "no such book")
+        return v
+
+    @app.get("/api/graph/node/{nid}")
+    def get_node(nid: str) -> dict:
+        """One idea for a hover card: where it was learned and how it connects (SPEC §28)."""
+        v = graph.node_detail(db, nid)
+        if not v:
+            raise HTTPException(404, "no such idea")
         return v
 
     @app.get("/api/practice/{pid}")

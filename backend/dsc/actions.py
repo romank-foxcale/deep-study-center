@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from . import books, dictation, engine, guidelines, lesson, library, practice, probe, progress, remedial, session, sources, state, versions, writer
+from . import books, bookstudy, dictation, engine, guidelines, lesson, library, practice, probe, progress, remedial, session, sources, state, versions, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now
 from .jobs import Jobs
@@ -486,6 +486,52 @@ def delete_session(db: DB, jobs: Jobs, a: dict) -> None:
     session.delete(db, a["sessionId"])
 
 
+# ---------------------------------------------------------------- book study (SPEC §28)
+
+def _book(fn):
+    def run(db: DB, jobs: Jobs, a: dict) -> None:
+        try:
+            fn(db, jobs, a)
+        except (bookstudy.BookError, ValueError) as e:
+            raise ActionError(str(e)) from e
+    return run
+
+
+@_book
+def study_book(db: DB, jobs: Jobs, a: dict) -> None:
+    db.set_meta("last_book", bookstudy.start(db, jobs, str(a["sourceId"])))
+
+
+@_book
+def book_retry(db: DB, jobs: Jobs, a: dict) -> None:
+    bookstudy.retry(db, jobs, str(a["bookId"]))
+
+
+@_book
+def book_study_part(db: DB, jobs: Jobs, a: dict) -> None:
+    db.set_meta("last_session", bookstudy.study(db, jobs, int(a["partId"])))
+
+
+@_book
+def book_homework(db: DB, jobs: Jobs, a: dict) -> None:
+    db.set_meta("last_practice", bookstudy.homework(db, jobs, int(a["partId"])))
+
+
+@_book
+def delete_book(db: DB, jobs: Jobs, a: dict) -> None:
+    bookstudy.delete(db, str(a["bookId"]))
+
+
+MAP_VIEWS = ("tree", "graph", "nebula", "wheel", "cells", "territory", "globe")
+
+
+def set_map_view(db: DB, jobs: Jobs, a: dict) -> None:
+    """The learner's choice of knowledge-map view (SPEC §29), kept in the workspace."""
+    if a.get("view") not in MAP_VIEWS:
+        raise ActionError(f"unknown map view {a.get('view')!r}")
+    db.set_meta("map_view", a["view"])
+
+
 # ---------------------------------------------------------------- local dictation (SPEC §27)
 
 def _dictation(fn):
@@ -831,6 +877,8 @@ ACTIONS = {
     "setApiKey": set_api_key, "clearApiKey": clear_api_key, "useApiForAll": use_api_for_all,
     "linkSource": link_source, "editSource": edit_source, "deleteSource": delete_source, "rereadSource": reread_source, "reset": reset,
     "restoreCut": restore_cut,
+    "studyBook": study_book, "bookRetry": book_retry, "bookStudyPart": book_study_part, "bookHomework": book_homework,
+    "deleteBook": delete_book, "setMapView": set_map_view,
     "setDictation": set_dictation, "downloadDictationModel": download_dictation_model,
     "removeDictationModel": remove_dictation_model,
 }

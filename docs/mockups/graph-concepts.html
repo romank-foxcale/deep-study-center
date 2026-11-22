@@ -1,0 +1,640 @@
+<meta charset="utf-8">
+<title>Knowledge Map Concepts</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: a night "star chart" — one wide canvas per concept, tabs above, legend and notes below. Single dark look by choice. */
+:root {
+  color-scheme: dark;
+  --bg: #0b0f17;          /* night sky */
+  --panel: #121826;       /* raised surface */
+  --line: #232c3f;        /* hairlines */
+  --fg: #e6eaf2;          /* text */
+  --muted: #8b95aa;       /* secondary text */
+  --accent: #8fb3ff;      /* focus, active tab */
+  /* idea states */
+  --st-mastered: #f5c451; /* know strongly: gold */
+  --st-learned: #9fe3b5;  /* learned */
+  --st-learning: #67b7ff; /* learning now */
+  --st-due: #ff8a65;      /* learned, due for review */
+  --st-new: #5b6478;      /* not started */
+  --st-locked: #343b4b;   /* needs other ideas first */
+  /* clusters (books and goals) */
+  --c-ie: #22c08a; --c-udl: #9b7bff; --c-aie: #ff6fa8; --c-ddia: #4c9dff; --c-goal: #d9a066;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+html, body { background: var(--bg); color: var(--fg); }
+body { font-family: var(--font-body); font-size: 14px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+header { display: flex; flex-direction: column; gap: 6px; }
+.eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(24px, 3.4vw, 34px); margin: 0; text-wrap: balance; }
+.lead { color: var(--muted); max-width: 70ch; margin: 0; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tab { font: 500 13px var(--font-body); color: var(--muted); background: transparent; border: 1px solid var(--line);
+  border-radius: 999px; padding: 6px 14px; cursor: pointer; display: flex; gap: 8px; align-items: baseline; }
+.tab b { font-family: var(--font-mono); font-weight: 400; font-size: 11px; color: var(--muted); }
+.tab:hover { color: var(--fg); border-color: #3a4560; }
+.tab[aria-selected="true"] { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+.tab[aria-selected="true"] b { color: var(--bg); }
+.tab:focus-visible, .toggle input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stage { position: relative; border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 40%, #111a2b 0%, var(--bg) 70%); }
+canvas { display: block; width: 100%; touch-action: none; }
+.hint { position: absolute; left: 12px; bottom: 10px; font-size: 12px; color: var(--muted); pointer-events: none; }
+.toggle { position: absolute; right: 12px; top: 10px; font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center;
+  background: rgba(11, 15, 23, 0.7); padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); }
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; font-size: 12px; max-width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 2px; }
+.tip strong { font-size: 13px; }
+.tip .row { display: flex; gap: 6px; align-items: center; color: var(--muted); }
+.below { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 760px) { .below { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card h2 { font-family: var(--font-display); font-weight: 600; font-size: 18px; margin: 0; }
+.card p { margin: 0; color: var(--muted); }
+.pros { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 520px) { .pros { grid-template-columns: minmax(0, 1fr); } }
+.pros h3 { font-size: 12px; font-family: var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; margin: 0 0 4px; color: var(--muted); font-weight: 400; }
+.pros ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.legend span { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+.dot.ring { background: transparent; border: 2px solid; }
+.swatch { width: 18px; height: 11px; border-radius: 3px; flex: none; opacity: 0.85; }
+.count { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.note { font-size: 12px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Deep Study Center · knowledge map · 5 concepts</div>
+    <h1>One graph, five ways to see it</h1>
+    <p class="lead">Sample data: four of your books and the AI-researcher goal, as clusters. Each idea has a state; gold is what you know
+      strongly. Hover an idea to see it and its links. Same data in every tab, so you can compare the layouts.</p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Concept" id="tabs"></nav>
+
+  <div class="stage" id="stage">
+    <canvas id="cv" aria-label="Knowledge map concept"></canvas>
+    <label class="toggle"><input type="checkbox" id="links" checked> Links</label>
+    <div class="hint" id="hint"></div>
+    <div class="tip" id="tip" hidden></div>
+  </div>
+
+  <div class="below">
+    <section class="card" id="about"></section>
+    <section class="card">
+      <h2>Legend</h2>
+      <div class="eyebrow">Idea state</div>
+      <div class="legend" id="states"></div>
+      <div class="eyebrow">Clusters (books and goals)</div>
+      <div class="legend" id="clusters"></div>
+      <p class="note">An idea shared by two books has a second ring in the other book's color (for example the KV cache in
+        Inference Engineering and AI Engineering).</p>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+(() => {
+'use strict';
+// ------------------------------------------------------------------ tokens
+const css = getComputedStyle(document.documentElement);
+const tok = n => css.getPropertyValue(n).trim();
+const STATES = [
+  { id: 'mastered', label: 'Know strongly', color: tok('--st-mastered') },
+  { id: 'learned', label: 'Learned', color: tok('--st-learned') },
+  { id: 'learning', label: 'Learning now', color: tok('--st-learning') },
+  { id: 'due', label: 'Due for review', color: tok('--st-due') },
+  { id: 'new', label: 'Not started', color: tok('--st-new') },
+  { id: 'locked', label: 'Needs other ideas first', color: tok('--st-locked') },
+];
+const ST = Object.fromEntries(STATES.map(s => [s.id, s]));
+
+// ------------------------------------------------------------------ sample data
+let seed = 7;
+const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+
+const CLUSTERS = [
+  { id: 'goal', title: 'Goal: AI researcher & engineer', color: tok('--c-goal'), progress: 0.86, rusty: 0.08, chapters: [
+    ['Math foundations', ['Vectors and arrays', 'Dot product', 'Vector norms', 'Matrix multiplication', 'Derivatives', 'Chain rule', 'Gradient', 'Probability basics', 'Bayes rule', 'Expectation and variance']],
+    ['Python and NumPy', ['Values and variables', 'Lists and loops', 'Functions', 'NumPy arrays', 'Broadcasting', 'Cosine similarity without loops']],
+    ['Algorithms', ['Big-O', 'Hash maps', 'Hash sets', 'Two pointers', 'Sliding window', 'Prefix sums', 'Binary search', 'Heaps and top-k']]] },
+  { id: 'ie', title: 'Inference Engineering', color: tok('--c-ie'), progress: 0.38, rusty: 0.04, chapters: [
+    ['Inference', ['Inference engineering', 'Closed vs open models', 'Nines of availability', 'Three layers of inference', 'Six performance techniques']],
+    ['Prerequisites', ['Online vs offline apps', 'Model evaluation', 'Distillation', 'Fine-tuning for a domain', 'Latency percentiles', 'Time to first token', 'Tokens per second']],
+    ['Models', ['Linear layer as matmul', 'Activation functions', 'Tokens and vocabulary', 'Chat template', 'Prefill and decode', 'Logits and token selection', 'Temperature, top-k, top-p', 'Scaled dot-product attention', 'Multi-head attention', 'KV cache', 'Mixture of Experts', 'Arithmetic intensity', 'Memory-bound decode']],
+    ['Hardware', ['Streaming multiprocessors', 'Tensor cores', 'HBM bandwidth', 'Hopper H100', 'Blackwell B200', 'NVLink', 'Multi-instance GPU', 'Local inference']],
+    ['Software', ['CUDA kernels', 'Kernel fusion', 'FlashAttention', 'PyTorch compile', 'TensorRT-LLM', 'vLLM', 'SGLang']],
+    ['Techniques', ['Continuous batching', 'PagedAttention', 'Prefix caching', 'Quantization', 'FP8 inference', 'Speculative decoding', 'EAGLE drafts', 'Tensor parallelism', 'Expert parallelism', 'Prefill/decode disaggregation']],
+    ['Modalities', ['Embedding models', 'Speech recognition', 'Speech synthesis', 'Diffusion steps', 'Video generation']],
+    ['Production', ['Autoscaling replicas', 'Cold starts', 'Load balancing', 'Multi-cloud capacity', 'Observability']]] },
+  { id: 'udl', title: 'Understanding Deep Learning', color: tok('--c-udl'), progress: 0.14, rusty: 0, chapters: [
+    ['Supervised learning', ['Supervised learning', 'Loss function', 'Linear regression', 'Least squares']],
+    ['Shallow networks', ['Shallow network', 'ReLU', 'Universal approximation', 'Hidden units as regions']],
+    ['Deep networks', ['Composing networks', 'Depth efficiency', 'Matrix notation for layers']],
+    ['Loss functions', ['Maximum likelihood', 'Softmax', 'Cross-entropy', 'Negative log-likelihood', 'KL divergence']],
+    ['Fitting models', ['Gradient descent', 'Stochastic gradient descent', 'Momentum', 'Adam', 'Learning rate schedule', 'Loss landscape', 'Saddle points']],
+    ['Gradients', ['Backpropagation', 'Computational graph', 'Jacobian', 'Vanishing gradients', 'He initialization']],
+    ['Performance', ['Test error', 'Bias and variance', 'Double descent', 'Curse of dimensionality']],
+    ['Regularization', ['L2 regularization', 'Weight decay', 'Dropout', 'Early stopping', 'Data augmentation', 'Label smoothing', 'Ensembling', 'Transfer learning']],
+    ['Convolutional networks', ['Convolution', 'Stride and padding', 'Pooling', 'Receptive field', 'Channels']],
+    ['Residual networks', ['Residual connection', 'Batch normalization', 'Layer normalization', 'U-Net']],
+    ['Transformers', ['Self-attention', 'Positional encoding', 'Encoder-decoder', 'Tokenization (BPE)', 'Vision transformer', 'Sparse attention', 'Language model pretraining']],
+    ['Graph networks', ['Graphs as data', 'Message passing', 'Graph convolution']],
+    ['Generative models', ['GANs', 'Generator and discriminator', 'Normalizing flows', 'Change of variables', 'VAEs', 'ELBO', 'Reparameterization trick', 'Diffusion: forward noising', 'Diffusion: reverse process', 'Score matching']],
+    ['Reinforcement learning', ['Markov decision process', 'Return and value', 'Q-learning', 'Policy gradient', 'Actor-critic', 'RLHF']],
+    ['Why it works', ['Why deep nets generalize', 'Lottery tickets', 'Overparameterization']]] },
+  { id: 'aie', title: 'AI Engineering', color: tok('--c-aie'), progress: 0.56, rusty: 0.12, chapters: [
+    ['Foundation models', ['Foundation models', 'Sampling', 'Structured output', 'Hallucination']],
+    ['Evaluation', ['Evaluation methodology', 'AI as a judge', 'Pairwise comparison', 'Benchmark contamination']],
+    ['Prompt engineering', ['Few-shot prompts', 'Chain of thought', 'Prompt injection', 'Long context']],
+    ['RAG and agents', ['Retrieval', 'Chunking', 'Hybrid search', 'Reranking', 'Agents', 'Tool use', 'Planning', 'Agent memory']],
+    ['Finetuning', ['When to finetune', 'LoRA', 'Model merging']],
+    ['Dataset engineering', ['Data quality', 'Synthetic data', 'Deduplication']],
+    ['Inference optimization', ['Latency vs cost', 'Batching for throughput']],
+    ['Architecture', ['Guardrails', 'Model router', 'User feedback loop']]] },
+  { id: 'ddia', title: 'Designing Data-Intensive Applications', color: tok('--c-ddia'), progress: 0.5, rusty: 0.3, chapters: [
+    ['Foundations', ['Reliability', 'Scalability', 'Maintainability', 'Data models', 'Document vs relational']],
+    ['Storage', ['LSM trees', 'B-trees', 'Column storage', 'Encoding and schemas']],
+    ['Replication', ['Leader-follower', 'Replication lag', 'Multi-leader', 'Leaderless quorums']],
+    ['Partitioning', ['Partitioning by key', 'Rebalancing', 'Secondary indexes']],
+    ['Transactions', ['ACID', 'Isolation levels', 'Snapshot isolation', 'Serializability']],
+    ['Distributed systems', ['Unreliable networks', 'Clocks', 'Linearizability', 'Consensus']],
+    ['Derived data', ['Batch processing', 'Stream processing', 'Change data capture', 'Event sourcing']]] },
+];
+// Ideas that two books share: [title in its first book, other book]. In the app this is `same_as` in the book map.
+const SHARED = [['KV cache', 'aie'], ['Quantization', 'aie'], ['Speculative decoding', 'aie'], ['Model evaluation', 'aie'],
+  ['Softmax', 'ie'], ['Self-attention', 'ie'], ['Matrix multiplication', 'udl'], ['Chain rule', 'udl'], ['Dot product', 'udl'],
+  ['LoRA', 'udl'], ['Load balancing', 'ddia'], ['Tool use', 'ie']];
+// Explicit prerequisite links across clusters (older idea -> newer idea).
+const CROSS = [['Matrix multiplication', 'Linear layer as matmul'], ['Dot product', 'Scaled dot-product attention'],
+  ['Softmax', 'Logits and token selection'], ['Self-attention', 'Scaled dot-product attention'], ['Chain rule', 'Backpropagation'],
+  ['Probability basics', 'Maximum likelihood'], ['Big-O', 'Memory-bound decode'], ['KV cache', 'Latency vs cost'],
+  ['Cosine similarity without loops', 'Retrieval'], ['Hash maps', 'Partitioning by key'], ['Load balancing', 'Partitioning by key'],
+  ['Gradient', 'Gradient descent'], ['Quantization', 'Latency vs cost']];
+
+const nodes = [], byTitle = new Map(), links = [];
+for (const c of CLUSTERS) {
+  c.nodes = [];
+  const total = c.chapters.reduce((n, ch) => n + ch[1].length, 0);
+  let k = 0;
+  c.chapters.forEach(([chTitle, ideas], ci) => {
+    ideas.forEach(title => {
+      const n = { id: nodes.length, title, cluster: c, chapter: ci, chapterTitle: chTitle, order: k / Math.max(1, total - 1),
+        idx: k, depth: 0, prereqs: [], books: [c] };
+      nodes.push(n); c.nodes.push(n); byTitle.set(title, n); k++;
+    });
+  });
+  // local prerequisites: each idea builds on 1-2 of the few ideas just before it (same or previous chapter)
+  c.nodes.forEach((n, i) => {
+    if (i === 0) return;
+    const pool = c.nodes.slice(Math.max(0, i - 5), i).filter(p => p.chapter >= n.chapter - 1);
+    const want = 1 + (rnd() < 0.45 ? 1 : 0);
+    for (let j = 0; j < want && pool.length; j++) {
+      const p = pool.splice(Math.floor(rnd() * pool.length), 1)[0];
+      if (!n.prereqs.includes(p)) { n.prereqs.push(p); links.push({ s: p, t: n, cross: false }); }
+    }
+  });
+}
+for (const [title, other] of SHARED) { const n = byTitle.get(title); if (n) n.books.push(CLUSTERS.find(c => c.id === other)); }
+for (const [a, b] of CROSS) { const s = byTitle.get(a), t = byTitle.get(b); if (s && t) { links.push({ s, t, cross: true }); t.prereqs.push(s); } }
+for (const n of nodes) { // depth = longest prerequisite chain inside the cluster
+  const d = m => m.depth || (m.depth = 1 + Math.max(0, ...m.prereqs.filter(p => p.cluster === m.cluster).map(d)));
+  d(n);
+}
+for (const c of CLUSTERS) c.maxDepth = Math.max(...c.nodes.map(n => n.depth));
+// states: a reading frontier per cluster; well before it gold or learned (some due), around it learning, then new / locked
+for (const n of nodes) {
+  const p = n.cluster.progress, f = n.order, r = rnd();
+  if (f < p * 0.55) n.state = r < n.cluster.rusty ? 'due' : (r < 0.62 ? 'mastered' : 'learned');
+  else if (f < p) n.state = r < n.cluster.rusty ? 'due' : (r < 0.3 ? 'mastered' : 'learned');
+  else if (f < p + 0.09) n.state = 'learning';
+  else n.state = f > p + 0.35 ? 'locked' : 'new';
+}
+const neighbors = new Map(nodes.map(n => [n, new Set()]));
+for (const l of links) { neighbors.get(l.s).add(l.t); neighbors.get(l.t).add(l.s); }
+
+// ------------------------------------------------------------------ canvas + interaction
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const stage = document.getElementById('stage'), tip = document.getElementById('tip');
+const linksBox = document.getElementById('links');
+let W = 0, H = 0, DPR = 1, hover = null, active = null, raf = 0;
+const proj = new Map(); // node -> {x, y, r, a} on screen, written by each draw
+
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = stage.clientWidth; H = Math.round(Math.max(420, Math.min(680, W * 0.62)));
+  cv.width = W * DPR; cv.height = H * DPR; cv.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (active) { active.layout?.(); draw(); }
+}
+function hexA(color, a) { const c = d3.color(color); c.opacity = a; return c.formatRgb(); }
+function nodeDot(n, x, y, r, alpha = 1) {
+  const s = ST[n.state];
+  ctx.globalAlpha = alpha;
+  if (n.state === 'mastered') { // gold glow
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r * 3.2);
+    g.addColorStop(0, hexA(s.color, 0.55)); g.addColorStop(1, hexA(s.color, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 3.2, 0, 7); ctx.fill();
+  }
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 7);
+  if (n.state === 'new') { ctx.fillStyle = tok('--bg'); ctx.fill(); ctx.lineWidth = 1.4; ctx.strokeStyle = s.color; ctx.stroke(); }
+  else if (n.state === 'locked') { ctx.fillStyle = s.color; ctx.fill(); }
+  else if (n.state === 'learning') {
+    ctx.fillStyle = tok('--bg'); ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = s.color; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, r, -Math.PI / 2, Math.PI * 0.6); ctx.closePath(); ctx.fillStyle = s.color; ctx.fill();
+  } else { ctx.fillStyle = s.color; ctx.fill(); }
+  if (n.books.length > 1) { ctx.beginPath(); ctx.arc(x, y, r + 2.6, 0, 7); ctx.lineWidth = 1.6; ctx.strokeStyle = n.books[1].color; ctx.stroke(); }
+  ctx.globalAlpha = 1;
+}
+function edgeStyle(l, base) {
+  const on = hover && (l.s === hover || l.t === hover);
+  if (on) return { a: 0.95, w: 1.6, c: tok('--fg') };
+  if (hover) return { a: base * 0.35, w: 0.8, c: '#8b95aa' };
+  return { a: l.cross ? base * 0.55 : base, w: 0.8, c: '#8b95aa' };
+}
+function clusterLabel(c, x, y, align = 'center') {
+  ctx.font = `600 ${W < 600 ? 11 : 13}px ${tok('--font-display')}`; ctx.textAlign = align; ctx.textBaseline = 'middle';
+  const t = c.title.replace('Designing Data-Intensive Applications', 'Designing Data-Intensive Apps');
+  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(11,15,23,0.85)'; ctx.strokeText(t, x, y);
+  ctx.fillStyle = c.color; ctx.fillText(t, x, y);
+  ctx.font = `400 10px ${tok('--font-mono')}`; ctx.fillStyle = tok('--muted');
+  const learned = c.nodes.filter(n => ['mastered', 'learned', 'due'].includes(n.state)).length;
+  ctx.strokeText(`${learned}/${c.nodes.length} ideas`, x, y + 15); ctx.fillText(`${learned}/${c.nodes.length} ideas`, x, y + 15);
+}
+function pick(mx, my) {
+  let best = null, bd = 14 * 14;
+  for (const [n, p] of proj) { if (p.a !== undefined && p.a < 0.25) continue; const d = (p.x - mx) ** 2 + (p.y - my) ** 2; if (d < bd) { bd = d; best = n; } }
+  return best;
+}
+cv.addEventListener('pointermove', e => {
+  const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  if (active.drag && active.drag(e, mx, my)) return;
+  const n = pick(mx, my);
+  if (n !== hover) { hover = n; draw(); }
+  if (!n) { tip.hidden = true; return; }
+  const s = ST[n.state];
+  tip.innerHTML = `<strong></strong><span class="row"><span class="dot"></span><span class="st"></span></span><span class="row bk"></span><span class="row ch"></span>`;
+  tip.querySelector('strong').textContent = n.title;
+  tip.querySelector('.dot').style.background = s.color; tip.querySelector('.st').textContent = s.label;
+  tip.querySelector('.bk').textContent = n.books.map(b => b.title).join(' · ');
+  tip.querySelector('.ch').textContent = `Chapter: ${n.chapterTitle} · builds on ${n.prereqs.length}, leads to ${[...neighbors.get(n)].length - n.prereqs.length}`;
+  tip.hidden = false;
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  tip.style.left = Math.min(W - tw - 8, mx + 14) + 'px'; tip.style.top = Math.max(8, Math.min(H - th - 8, my + 14)) + 'px';
+});
+cv.addEventListener('pointerleave', () => { hover = null; tip.hidden = true; active.dragEnd?.(); draw(); });
+cv.addEventListener('pointerdown', e => active.dragStart?.(e));
+window.addEventListener('pointerup', () => active.dragEnd?.());
+linksBox.addEventListener('change', draw);
+function draw() { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { proj.clear(); ctx.clearRect(0, 0, W, H); active.draw(); }); }
+
+// ------------------------------------------------------------------ 1. Nebula: force layout, soft clouds
+const nebula = {
+  id: 'nebula', name: 'Nebula', hint: 'Hover an idea to light its links.',
+  about: ['Nebula', 'Each book is a soft cloud of its own color. Ideas pull toward their book and toward the ideas they build on, so the map grows into organic shapes. A shared idea floats between the two clouds it belongs to.',
+    ['Clusters are obvious at a glance, even with every book open', 'Shared ideas sit where the books meet', 'Closest to the current map, so the cheapest to build'],
+    ['Basics and advanced ideas are mixed inside a cloud', 'Positions move when you add a book (the layout is recomputed)']],
+  layout() {
+    const R = Math.min(W, H) * 0.32, cx = W / 2, cy = H / 2;
+    const total = nodes.length;
+    let ang = -Math.PI / 2;
+    for (const c of CLUSTERS) { const span = (c.nodes.length / total) * Math.PI * 2; c.cx = cx + Math.cos(ang + span / 2) * R; c.cy = cy + Math.sin(ang + span / 2) * R * 0.86; ang += span; }
+    seed = 11;
+    for (const n of nodes) { n.x = n.cluster.cx + (rnd() - 0.5) * 60; n.y = n.cluster.cy + (rnd() - 0.5) * 60; }
+    const sim = d3.forceSimulation(nodes).stop()
+      .force('link', d3.forceLink(links.map(l => ({ source: l.s, target: l.t, cross: l.cross }))).distance(l => l.cross ? 60 : 16).strength(l => l.cross ? 0.04 : 0.5))
+      .force('charge', d3.forceManyBody().strength(-16).distanceMax(120))
+      .force('collide', d3.forceCollide(6.5))
+      .force('x', d3.forceX(n => d3.mean(n.books, b => b.cx)).strength(n => n.books.length > 1 ? 0.12 : 0.07))
+      .force('y', d3.forceY(n => d3.mean(n.books, b => b.cy)).strength(n => n.books.length > 1 ? 0.12 : 0.07));
+    for (let i = 0; i < 320; i++) sim.tick();
+    // fit to the canvas
+    const xs = d3.extent(nodes, n => n.x), ys = d3.extent(nodes, n => n.y);
+    const k = Math.min((W - 80) / (xs[1] - xs[0]), (H - 70) / (ys[1] - ys[0]), 1.6);
+    for (const n of nodes) { n.px = W / 2 + (n.x - (xs[0] + xs[1]) / 2) * k; n.py = H / 2 + (n.y - (ys[0] + ys[1]) / 2) * k; }
+    for (const c of CLUSTERS) { c.lx = d3.mean(c.nodes, n => n.px); c.ly = d3.min(c.nodes, n => n.py) - 22; }
+  },
+  draw() {
+    ctx.globalCompositeOperation = 'lighter';
+    for (const n of nodes) {
+      const r = 34;
+      const g = ctx.createRadialGradient(n.px, n.py, 0, n.px, n.py, r);
+      g.addColorStop(0, hexA(n.cluster.color, 0.10)); g.addColorStop(1, hexA(n.cluster.color, 0));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n.px, n.py, r, 0, 7); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    if (linksBox.checked) for (const l of links) {
+      const st = edgeStyle(l, 0.35); ctx.strokeStyle = hexA(st.c, st.a); ctx.lineWidth = st.w;
+      ctx.beginPath(); ctx.moveTo(l.s.px, l.s.py); ctx.lineTo(l.t.px, l.t.py); ctx.stroke();
+    }
+    for (const n of nodes) { const r = n === hover ? 6 : 4; nodeDot(n, n.px, n.py, r, hover && n !== hover && !neighbors.get(hover).has(n) ? 0.45 : 1); proj.set(n, { x: n.px, y: n.py }); }
+    for (const c of CLUSTERS) clusterLabel(c, c.lx, Math.max(16, c.ly));
+  },
+};
+
+// ------------------------------------------------------------------ 2. Skill wheel: radial, basics at the center
+const wheel = {
+  id: 'wheel', name: 'Skill wheel', hint: 'Basics in the middle ring; each book grows outward in its own sector.',
+  about: ['Skill wheel', 'A round skill tree. Your goal\'s foundations form the core. Each book owns a sector whose size follows its number of ideas; its ideas sit on rings by depth, so the outside rim is the most advanced. Links only join neighbouring rings, like a passive tree: you walk outward step by step.',
+    ['Shows how far out you are in every book at once', 'Paths are short and local; nothing crosses the whole map', 'Sector size shows how big each book is'],
+    ['Very small books get thin sectors', 'The link from one chapter to the next runs from the rim back to the core',
+      'Shared ideas sit on a sector border, so a 3-book idea is hard to place']],
+  layout() {
+    const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 34;
+    const core = CLUSTERS[0], outer = CLUSTERS.slice(1);
+    const coreR = R * 0.24;
+    // the goal's foundations: a small inner disc
+    core.nodes.forEach((n, i) => { const a = i * 2.39996, r = coreR * Math.sqrt((i + 0.5) / core.nodes.length);
+      n.px = cx + Math.cos(a) * r; n.py = cy + Math.sin(a) * r; });
+    const total = d3.sum(outer, c => c.nodes.length);
+    let a0 = -Math.PI / 2;
+    for (const c of outer) {
+      const span = (c.nodes.length / total) * Math.PI * 2 - 0.06;
+      c.a0 = a0 + 0.03; c.a1 = c.a0 + span; a0 += span + 0.06;
+      const rings = c.maxDepth;
+      // each chapter is a spoke: it owns a slice of the sector (size = its ideas) and runs from the core (its basics)
+      // to the rim (its most advanced ideas), a few columns wide. Prerequisites are mostly in the same spoke or the
+      // one beside it, so links stay short, like a passive tree.
+      let s0 = c.a0;
+      const midR = (coreR + R) / 2;
+      c.chapters.forEach((_, ci) => {
+        const list = c.nodes.filter(n => n.chapter === ci).sort((a, b) => a.depth - b.depth || a.idx - b.idx);
+        const sspan = span * (list.length / c.nodes.length);
+        const cols = Math.max(1, Math.min(4, Math.round((sspan * midR) / 16))), rows = Math.ceil(list.length / cols);
+        list.forEach((n, i) => {
+          const row = Math.floor(i / cols), col = i % cols;
+          const r = coreR + 26 + (R - coreR - 34) * (rows > 1 ? row / (rows - 1) : 0.5);
+          const a = s0 + sspan * ((col + 0.5 + (row % 2 ? 0.25 : -0.25) * (cols > 1 ? 1 : 0)) / cols);
+          n.px = cx + Math.cos(a) * r; n.py = cy + Math.sin(a) * r; n.ang = a;
+        });
+        s0 += sspan;
+      });
+      const mid = (c.a0 + c.a1) / 2;
+      c.lx = cx + Math.cos(mid) * (R + 4); c.ly = cy + Math.sin(mid) * (R + 4);
+    }
+    this.geo = { cx, cy, R, coreR };
+  },
+  draw() {
+    const { cx, cy, R, coreR } = this.geo;
+    for (const c of CLUSTERS.slice(1)) { // sector backgrounds
+      const g = ctx.createRadialGradient(cx, cy, coreR, cx, cy, R + 10);
+      g.addColorStop(0, hexA(c.color, 0.04)); g.addColorStop(1, hexA(c.color, 0.16));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R + 10, c.a0, c.a1); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = hexA(CLUSTERS[0].color, 0.13); ctx.beginPath(); ctx.arc(cx, cy, coreR + 8, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(139,149,170,0.10)'; ctx.lineWidth = 1;
+    for (let r = coreR + 26; r < R; r += (R - coreR) / 6) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.stroke(); }
+    if (linksBox.checked) for (const l of links) {
+      const st = edgeStyle(l, 0.45); if (l.cross && !(hover && (l.s === hover || l.t === hover))) continue; // passive tree: no long lines
+      ctx.strokeStyle = hexA(st.c, st.a); ctx.lineWidth = st.w; ctx.beginPath();
+      if (l.cross) { ctx.moveTo(l.s.px, l.s.py); ctx.quadraticCurveTo(cx, cy, l.t.px, l.t.py); }
+      else { ctx.moveTo(l.s.px, l.s.py); ctx.lineTo(l.t.px, l.t.py); }
+      ctx.stroke();
+    }
+    for (const n of nodes) { const r = n === hover ? 6 : (n.cluster === CLUSTERS[0] ? 4.5 : 3.8); nodeDot(n, n.px, n.py, r, hover && n !== hover && !neighbors.get(hover).has(n) ? 0.4 : 1); proj.set(n, { x: n.px, y: n.py }); }
+    for (const c of CLUSTERS.slice(1)) clusterLabel(c, Math.max(90, Math.min(W - 90, c.lx)), Math.max(16, Math.min(H - 30, c.ly)));
+    clusterLabel(CLUSTERS[0], cx, cy + coreR + 22);
+  },
+};
+
+// ------------------------------------------------------------------ 3. Cells: nested circles, book > chapter > idea
+const cells = {
+  id: 'cells', name: 'Cells', hint: 'Book bubbles hold chapter bubbles; arcs join ideas that books share.',
+  about: ['Cells', 'Circle packing. Each book is a bubble sized by its number of ideas; inside are its chapters, and inside those the ideas. Understanding Deep Learning is visibly the biggest. Shared ideas and cross-book prerequisites are drawn as arcs between bubbles.',
+    ['Size of every book and chapter is exact and easy to compare', 'Chapters are visible units: “what is left in chapter 5?”', 'Never cluttered, also with many books'],
+    ['Prerequisite order inside a chapter is not shown', 'Looks less like a “tree” to walk']],
+  layout() {
+    const root = d3.hierarchy({ children: CLUSTERS.map(c => ({ c, children: c.chapters.map((ch, ci) => ({ ci, c, title: ch[0], children: c.nodes.filter(n => n.chapter === ci).map(n => ({ n })) })) })) })
+      .sum(d => d.n ? 1 : 0).sort((a, b) => b.value - a.value);
+    d3.pack().size([W - 20, H - 20]).padding(d => d.depth === 0 ? 14 : d.depth === 1 ? 6 : 2)(root);
+    this.books = root.children; this.chapters = root.descendants().filter(d => d.depth === 2);
+    for (const leaf of root.leaves()) { leaf.data.n.px = leaf.x + 10; leaf.data.n.py = leaf.y + 10; leaf.data.n.pr = Math.max(2.4, Math.min(5.5, leaf.r * 0.72)); }
+  },
+  draw() {
+    for (const b of this.books) {
+      const c = b.data.c;
+      ctx.fillStyle = hexA(c.color, 0.10); ctx.strokeStyle = hexA(c.color, 0.55); ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(b.x + 10, b.y + 10, b.r, 0, 7); ctx.fill(); ctx.stroke();
+    }
+    for (const ch of this.chapters) {
+      const on = hover && hover.cluster === ch.data.c && hover.chapter === ch.data.ci;
+      ctx.fillStyle = hexA(ch.data.c.color, on ? 0.16 : 0.06); ctx.strokeStyle = hexA(ch.data.c.color, on ? 0.6 : 0.2); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(ch.x + 10, ch.y + 10, ch.r, 0, 7); ctx.fill(); ctx.stroke();
+    }
+    if (linksBox.checked) for (const l of links) {
+      if (!l.cross && !(hover && (l.s === hover || l.t === hover))) continue;
+      const st = edgeStyle(l, 0.5); ctx.strokeStyle = hexA(l.cross ? l.t.cluster.color : st.c, st.a); ctx.lineWidth = l.cross ? 1.2 : st.w;
+      const mx = (l.s.px + l.t.px) / 2, my = (l.s.py + l.t.py) / 2, dx = l.t.px - l.s.px, dy = l.t.py - l.s.py;
+      ctx.beginPath(); ctx.moveTo(l.s.px, l.s.py); ctx.quadraticCurveTo(mx - dy * 0.25, my + dx * 0.25, l.t.px, l.t.py); ctx.stroke();
+    }
+    for (const n of nodes) { const r = n === hover ? n.pr + 2 : n.pr; nodeDot(n, n.px, n.py, r, hover && n !== hover && !neighbors.get(hover).has(n) ? 0.5 : 1); proj.set(n, { x: n.px, y: n.py }); }
+    for (const b of this.books) clusterLabel(b.data.c, b.x + 10, Math.max(16, b.y + 10 - b.r + 14));
+    if (hover) { // chapter name for the hovered idea
+      const ch = this.chapters.find(c => c.data.c === hover.cluster && c.data.ci === hover.chapter);
+      ctx.font = `500 11px ${tok('--font-body')}`; ctx.textAlign = 'center'; ctx.fillStyle = tok('--fg');
+      ctx.fillText(ch.data.title, ch.x + 10, ch.y + 10 + ch.r + 12);
+    }
+  },
+};
+
+// ------------------------------------------------------------------ 4. Territories: a hex world map
+const hexes = {
+  id: 'territory', name: 'Territories', hint: 'Every hex is an idea. Lit hexes are what you know; the dark land is still to explore.',
+  about: ['Territories', 'A strategy-game world map. Every idea is one hex; each book is a country whose area equals its number of ideas. Basics sit at the country\'s heart and the advanced ideas at its coast. Learning lights a hex; gold hexes are what you know strongly. Neighbouring hexes are related ideas, so links are optional.',
+    ['Progress reads instantly as “lit land” per book', 'Area is honest: big books are big countries', 'Shared ideas sit on the border between two countries'],
+    ['Exact prerequisite links are hidden unless you hover', 'A hex grid needs a different click and zoom feel than a node graph']],
+  layout() {
+    const total = nodes.length, s3 = Math.sqrt(3);
+    const radius = Math.ceil(Math.sqrt(total / 2.2)) + 3;
+    const cells = new Map(), key = (q, r) => q + ',' + r;
+    for (let q = -radius; q <= radius; q++) for (let r = -radius; r <= radius; r++) if (Math.abs(q + r) <= radius) cells.set(key(q, r), { q, r, owner: null });
+    const dirs = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+    const seeds = { goal: [0, 0] }; // the goal in the middle, books around it
+    const outer = CLUSTERS.slice(1), ring = Math.round(radius * 0.55);
+    outer.forEach((c, i) => { const a = (i / outer.length) * Math.PI * 2 + 0.4; seeds[c.id] = [Math.round(Math.cos(a) * ring), Math.round(Math.sin(a) * ring - Math.cos(a) * ring / 2)]; });
+    const dist = (a, b) => (Math.abs(a[0] - b[0]) + Math.abs(a[0] + a[1] - b[0] - b[1]) + Math.abs(a[1] - b[1])) / 2;
+    const owned = new Map(CLUSTERS.map(c => [c, []]));
+    for (const c of CLUSTERS) { const cell = cells.get(key(...seeds[c.id])); cell.owner = c; owned.get(c).push(cell); }
+    let grew = true;
+    const stuck = new Set();
+    while (grew) { // grow the country that is furthest from its size, one cell at a time, toward its own seed
+      grew = false;
+      const order = CLUSTERS.filter(c => !stuck.has(c) && owned.get(c).length < c.nodes.length).sort((a, b) => owned.get(a).length / a.nodes.length - owned.get(b).length / b.nodes.length);
+      if (order.length) grew = true;
+      for (const c of order.slice(0, 1)) {
+        let best = null, bd = 1e9;
+        for (const cell of owned.get(c)) for (const [dq, dr] of dirs) {
+          const nb = cells.get(key(cell.q + dq, cell.r + dr)); if (!nb || nb.owner) continue;
+          const d = dist([nb.q, nb.r], seeds[c.id]) + rnd() * 0.6; if (d < bd) { bd = d; best = nb; }
+        }
+        if (best) { best.owner = c; owned.get(c).push(best); } else stuck.add(c); // boxed in: stop growing it
+      }
+    }
+    const size = Math.min((W - 30) / ((radius * 2 + 1) * s3), (H - 30) / ((radius * 2 + 1) * 1.5));
+    this.size = size; this.cells = [];
+    for (const c of CLUSTERS) {
+      const list = owned.get(c).slice().sort((a, b) => dist([a.q, a.r], seeds[c.id]) - dist([b.q, b.r], seeds[c.id]));
+      const ideas = c.nodes.slice().sort((a, b) => a.depth - b.depth || a.idx - b.idx); // basics at the heart
+      // shared ideas go to the border cells that touch the other country
+      const touching = cell => dirs.some(([dq, dr]) => { const nb = cells.get(key(cell.q + dq, cell.r + dr)); return nb && nb.owner && nb.owner !== c; });
+      const shared = ideas.filter(n => n.books.length > 1), plain = ideas.filter(n => n.books.length === 1);
+      const border = list.filter(touching).reverse(), inner = list.filter(cell => !border.includes(cell));
+      const slots = [...inner, ...border];
+      const assign = [...plain.slice(0, inner.length), ...shared, ...plain.slice(inner.length)];
+      slots.forEach((cell, i) => {
+        const n = assign[i]; if (!n) return;
+        cell.node = n; n.px = W / 2 + size * s3 * (cell.q + cell.r / 2); n.py = H / 2 + size * 1.5 * cell.r; this.cells.push(cell);
+      });
+      c.lx = d3.mean(list, cell => W / 2 + size * s3 * (cell.q + cell.r / 2)); c.ly = d3.mean(list, cell => H / 2 + size * 1.5 * cell.r);
+    }
+    this.lookup = cells; this.key = key; this.dirs = dirs;
+  },
+  draw() {
+    const s = this.size, s3 = Math.sqrt(3);
+    const corner = (x, y, i, k = 1) => { const a = Math.PI / 180 * (60 * i - 30); return [x + s * k * Math.cos(a), y + s * k * Math.sin(a)]; };
+    for (const cell of this.cells) {
+      const n = cell.node, c = n.cluster, x = n.px, y = n.py, st = ST[n.state];
+      ctx.beginPath(); for (let i = 0; i < 6; i++) { const [px, py] = corner(x, y, i, 0.94); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } ctx.closePath();
+      const lit = { mastered: 0.95, learned: 0.62, due: 0.7, learning: 0.5, new: 0, locked: 0 }[n.state];
+      ctx.fillStyle = hexA(c.color, n.state === 'locked' ? 0.07 : 0.17); ctx.fill();
+      if (lit) { ctx.fillStyle = hexA(st.color, lit); ctx.fill(); }
+      if (n.state === 'mastered') { ctx.save(); ctx.shadowColor = st.color; ctx.shadowBlur = 12; ctx.strokeStyle = hexA(st.color, 0.9); ctx.lineWidth = 1; ctx.stroke(); ctx.restore(); }
+      if (n.books.length > 1) { ctx.strokeStyle = n.books[1].color; ctx.lineWidth = 1.6; ctx.stroke(); }
+      if (n === hover || (hover && neighbors.get(hover).has(n))) { ctx.strokeStyle = tok('--fg'); ctx.lineWidth = n === hover ? 2 : 1; ctx.stroke(); }
+      proj.set(n, { x, y });
+    }
+    // country borders: edges between cells of different owners
+    ctx.lineWidth = 2;
+    for (const cell of this.cells) {
+      this.dirs.forEach(([dq, dr], i) => {
+        const nb = this.lookup.get(this.key(cell.q + dq, cell.r + dr));
+        if (nb && nb.owner === cell.owner) return;
+        const side = [0, 5, 4, 3, 2, 1][i]; // which hex side faces this neighbour (pointy-top)
+        const [ax, ay] = corner(cell.node.px, cell.node.py, side), [bx, by] = corner(cell.node.px, cell.node.py, (side + 1) % 6);
+        ctx.strokeStyle = hexA(cell.owner.color, 0.85); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      });
+    }
+    if (linksBox.checked && hover) for (const l of links) {
+      if (l.s !== hover && l.t !== hover) continue;
+      ctx.strokeStyle = hexA(tok('--fg'), 0.85); ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(l.s.px, l.s.py); ctx.lineTo(l.t.px, l.t.py); ctx.stroke();
+    }
+    for (const c of CLUSTERS) clusterLabel(c, c.lx, c.ly);
+  },
+};
+
+// ------------------------------------------------------------------ 5. Globe: ideas on a sphere you can turn
+const globe = {
+  id: 'globe', name: 'Globe', hint: 'Drag to turn the globe. Each book is a region of the surface; basics at its centre.',
+  about: ['Globe', 'A brain-like sphere. Each book is a region of the surface, sized by its ideas; inside a region the basics sit in the middle and later ideas spiral outward. Links are short arcs on the surface, so related ideas are always near each other. Drag to turn it; the far side fades.',
+    ['Feels like one connected mind, not separate trees', 'No edge of the map: every book can border several others', 'Turning it to a book focuses that book naturally'],
+    ['Half of the map is always on the far side', 'Harder to read exact structure; best as an overview']],
+  rot: [0.2, -0.35], vel: [0.0016, 0], dragging: null,
+  layout() {
+    const total = nodes.length;
+    // region centres spread over the sphere; a region's angular radius follows its size
+    const centres = CLUSTERS.map((c, i) => { const y = 1 - (i + 0.5) / CLUSTERS.length * 2, r = Math.sqrt(1 - y * y), th = i * 2.39996;
+      return [Math.cos(th) * r, y * 0.85, Math.sin(th) * r]; });
+    const norm = v => { const l = Math.hypot(...v); return v.map(x => x / l); };
+    CLUSTERS.forEach((c, i) => {
+      const cen = norm(centres[i]); c.cen = cen;
+      const cap = Math.sqrt(c.nodes.length / total) * 1.25; // radians
+      const a = norm(Math.abs(cen[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]);
+      const u = norm([a[1] * cen[2] - a[2] * cen[1], a[2] * cen[0] - a[0] * cen[2], a[0] * cen[1] - a[1] * cen[0]]);
+      const v = [cen[1] * u[2] - cen[2] * u[1], cen[2] * u[0] - cen[0] * u[2], cen[0] * u[1] - cen[1] * u[0]];
+      const ideas = c.nodes.slice().sort((x, y) => x.depth - y.depth || x.idx - y.idx);
+      ideas.forEach((n, k) => {
+        const t = cap * Math.sqrt((k + 0.5) / ideas.length), ph = k * 2.39996;
+        const p = cen.map((cv, j) => cv * Math.cos(t) + (u[j] * Math.cos(ph) + v[j] * Math.sin(ph)) * Math.sin(t));
+        n.p3 = norm(p);
+      });
+    });
+    for (const n of nodes) if (n.books.length > 1) { // shared ideas lean toward the other region
+      const o = n.books[1].cen; n.p3 = norm(n.p3.map((x, j) => x * 0.6 + o[j] * 0.4));
+    }
+    this.R = Math.min(W, H) * 0.43;
+  },
+  project(p) {
+    const [ay, ax] = this.rot, cy = Math.cos(ay), sy = Math.sin(ay), cx = Math.cos(ax), sx = Math.sin(ax);
+    let x = p[0] * cy + p[2] * sy, z = -p[0] * sy + p[2] * cy, y = p[1];
+    const y2 = y * cx - z * sx, z2 = y * sx + z * cx;
+    return [W / 2 + x * this.R, H / 2 - y2 * this.R, z2];
+  },
+  draw() {
+    const R = this.R, cx = W / 2, cy = H / 2;
+    const g = ctx.createRadialGradient(cx - R * 0.3, cy - R * 0.35, R * 0.1, cx, cy, R);
+    g.addColorStop(0, '#1a2338'); g.addColorStop(1, '#0d1220');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(143,179,255,0.18)'; ctx.lineWidth = 1; ctx.stroke();
+    const pts = nodes.map(n => { const [x, y, z] = this.project(n.p3); n.px = x; n.py = y; n.pz = z; return n; }).sort((a, b) => a.pz - b.pz);
+    ctx.globalCompositeOperation = 'lighter';
+    for (const n of pts) { if (n.pz < -0.1) continue; const r = 26 * (0.6 + 0.4 * n.pz);
+      const gg = ctx.createRadialGradient(n.px, n.py, 0, n.px, n.py, r); gg.addColorStop(0, hexA(n.cluster.color, 0.10 * (0.4 + 0.6 * n.pz))); gg.addColorStop(1, hexA(n.cluster.color, 0));
+      ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(n.px, n.py, r, 0, 7); ctx.fill(); }
+    ctx.globalCompositeOperation = 'source-over';
+    if (linksBox.checked) for (const l of links) {
+      const z = Math.min(l.s.pz, l.t.pz); if (z < -0.15 && !(hover && (l.s === hover || l.t === hover))) continue;
+      const st = edgeStyle(l, 0.4 * Math.max(0.2, (z + 1) / 2));
+      ctx.strokeStyle = hexA(st.c, st.a); ctx.lineWidth = st.w;
+      const mid = this.project(l.s.p3.map((v, j) => (v + l.t.p3[j]) * 0.58)); // bow the line outward like a surface arc
+      ctx.beginPath(); ctx.moveTo(l.s.px, l.s.py); ctx.quadraticCurveTo(mid[0], mid[1], l.t.px, l.t.py); ctx.stroke();
+    }
+    for (const n of pts) {
+      const a = n.pz < 0 ? 0.18 + 0.3 * (n.pz + 1) : 1, r = (n === hover ? 6 : 3.6) * (0.75 + 0.25 * n.pz);
+      nodeDot(n, n.px, n.py, Math.max(1.5, r), hover && n !== hover && !neighbors.get(hover).has(n) ? Math.min(a, 0.45) : a);
+      proj.set(n, { x: n.px, y: n.py, a: n.pz < 0 ? 0 : 1 });
+    }
+    for (const c of CLUSTERS) { const [x, y, z] = this.project(c.cen); if (z > 0.25) clusterLabel(c, x, y - 4); }
+    if (!this.dragging && !hover && !REDUCED) { this.rot[0] += this.vel[0]; draw(); }
+  },
+  dragStart(e) { this.dragging = { x: e.clientX, y: e.clientY, rot: this.rot.slice() }; cv.setPointerCapture?.(e.pointerId); },
+  drag(e) { if (!this.dragging) return false; this.rot = [this.dragging.rot[0] + (e.clientX - this.dragging.x) * 0.008,
+    Math.max(-1.3, Math.min(1.3, this.dragging.rot[1] + (e.clientY - this.dragging.y) * 0.008))]; tip.hidden = true; draw(); return true; },
+  dragEnd() { if (this.dragging) { this.dragging = null; draw(); } },
+};
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ------------------------------------------------------------------ page
+const VIEWS = [nebula, wheel, cells, hexes, globe];
+const tabs = document.getElementById('tabs');
+VIEWS.forEach((v, i) => {
+  const b = document.createElement('button'); b.className = 'tab'; b.role = 'tab'; b.id = 'tab-' + v.id;
+  b.innerHTML = `<b>${i + 1}</b><span></span>`; b.querySelector('span').textContent = v.name;
+  b.addEventListener('click', () => { location.hash = v.id; });
+  tabs.appendChild(b);
+});
+document.getElementById('states').innerHTML = STATES.map(s => {
+  const ring = s.id === 'new' || s.id === 'learning';
+  return `<span><i class="dot${ring ? ' ring' : ''}" style="${ring ? 'border-color' : 'background'}:${s.color}${s.id === 'mastered' ? `;box-shadow:0 0 8px ${s.color}` : ''}"></i>${s.label} <span class="count">${nodes.filter(n => n.state === s.id).length}</span></span>`;
+}).join('');
+document.getElementById('clusters').innerHTML = CLUSTERS.map(c =>
+  `<span><i class="swatch" style="background:${c.color}"></i>${c.title} <span class="count">${c.nodes.length}</span></span>`).join('');
+function show(id) {
+  const v = VIEWS.find(x => x.id === id) || VIEWS[0];
+  active = v; hover = null; tip.hidden = true;
+  for (const x of VIEWS) document.getElementById('tab-' + x.id).setAttribute('aria-selected', String(x === v));
+  document.getElementById('hint').textContent = v.hint;
+  const [title, text, good, bad] = v.about;
+  const about = document.getElementById('about');
+  about.innerHTML = `<div class="eyebrow">Concept ${VIEWS.indexOf(v) + 1} of 5</div><h2></h2><p></p>
+    <div class="pros"><div><h3>Good at</h3><ul class="g"></ul></div><div><h3>Trade-offs</h3><ul class="b"></ul></div></div>`;
+  about.querySelector('h2').textContent = title; about.querySelector('p').textContent = text;
+  for (const [sel, list] of [['.g', good], ['.b', bad]]) for (const t of list) { const li = document.createElement('li'); li.textContent = t; about.querySelector(sel).appendChild(li); }
+  seed = 23; v.layout(); draw();
+}
+window.addEventListener('hashchange', () => show(location.hash.slice(1)));
+new ResizeObserver(() => resize()).observe(stage);
+resize(); show(location.hash.slice(1));
+})();
+</script>

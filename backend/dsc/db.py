@@ -183,6 +183,19 @@ CREATE TABLE IF NOT EXISTS source_pages (
 CREATE VIRTUAL TABLE IF NOT EXISTS source_fts USING fts5(source_id UNINDEXED, page UNINDEXED, text);
 CREATE TABLE IF NOT EXISTS goal_sources (goal_id TEXT NOT NULL, source_id TEXT NOT NULL, PRIMARY KEY (goal_id, source_id));
 -- Book goals (SPEC §18): the 80/20 cut of the chosen sources. rank core | supporting | skip; status kept | cut | restored.
+-- Book study (SPEC §28): one PDF mapped into its own idea graph, then studied one part (section) at a time.
+CREATE TABLE IF NOT EXISTS books (
+  id TEXT PRIMARY KEY, source_id TEXT NOT NULL UNIQUE, title TEXT NOT NULL, status TEXT NOT NULL,
+  chapters_done INTEGER NOT NULL DEFAULT 0, chapters INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS book_parts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, book_id TEXT NOT NULL, ord INTEGER NOT NULL, chapter INTEGER NOT NULL,
+  chapter_title TEXT NOT NULL, title TEXT NOT NULL, page_from INTEGER NOT NULL, page_to INTEGER NOT NULL,
+  summary TEXT NOT NULL DEFAULT '', session_id TEXT, practice_id TEXT, status TEXT NOT NULL DEFAULT 'todo');
+CREATE TABLE IF NOT EXISTS book_nodes (
+  book_id TEXT NOT NULL, node_id TEXT NOT NULL, part_id INTEGER NOT NULL, key TEXT NOT NULL,
+  pages TEXT NOT NULL DEFAULT '', created INTEGER NOT NULL DEFAULT 0, ord INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (book_id, node_id));
 CREATE TABLE IF NOT EXISTS book_cuts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL, ord INTEGER NOT NULL, source_id TEXT NOT NULL,
   chapter TEXT NOT NULL, pages TEXT NOT NULL DEFAULT '', rank TEXT NOT NULL, why TEXT NOT NULL DEFAULT '',
@@ -221,6 +234,7 @@ MIGRATIONS = [
     ("feedback", "angle", "TEXT"),
     ("feedback", "ref", "TEXT"),                           # the part it is about: {kind: text|formula|viz, quote, sectionId}                         # the section's angle when the feedback was given                     # a fact claim sent to the card check
     ("sessions", "probe_start", "TEXT NOT NULL DEFAULT ''"),  # the probe's advice where teaching starts (SPEC §26)
+    ("sessions", "book_part", "INTEGER"),                  # the book part this session studies (SPEC §28)
 ]
 
 

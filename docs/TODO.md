@@ -328,6 +328,65 @@ Open, for the user to decide or do:
 
 ---
 
+## D. Book study: "teach me this book" (the main flow from 2026-11-22)
+
+The user's decision (2026-11-22): the main tool is "teach me X", and above all "teach me this book": one PDF at a
+time. Big goals and the Ohtani table become an extra capability: **on hold, do not delete them**. The UI comes after
+D1-D4 work; the user will discuss it then.
+
+### D1-D5. ✅ DONE (2026-11-22, branch `claude/book-study`, SPEC §28) as a first working version
+Checked with a real map of "Inference Engineering" on a copy of the workspace: 11 chapters, about 300 ideas and 500
+links (200 across chapters) in 9 minutes; links to older graph ideas (matrix multiplication → linear layer as matmul,
+dot product → scaled dot-product attention); a real study session of part 2.2 with ideas from other parts, idea links
+in the explanation, and the hover card. Fixed during the check: big parts are split into sessions of at most 8 ideas;
+the mapper sees all older graph ideas by title (word search missed synonyms); a re-mapped chapter no longer reuses or
+links its own old ideas. Open: the UI design (with the user); a glossary appendix maps terms the book assumes (for
+example softmax) as its own part; the "Study" order does not yet use the knowledge of earlier finished parts beyond
+the graph state; a mapped chapter cannot be re-mapped from the UI (internal option `only`).
+
+### D6. ✅ DONE (2026-11-22, branch `claude/book-study`, SPEC §29): Map views and a mock workspace
+Seven map views to choose from (Tree, Graph, Nebula, Skill wheel, Cells, Territories, Globe), saved per workspace, and
+`dsc mock` for checking the UI with full data. Open: the UI talk (which view is the default; mobile touch zoom).
+
+### D1. Map a book into its own idea graph
+- **Why:** to teach a book, the agents must know what is in it, section by section, and which of its ideas the learner
+  already has in the graph.
+- **What:** "Study this book" on a ready PDF. A job reads the book one chapter at a time (the outline gives chapters,
+  sections and pages; the page text gives the content). For every section it writes the ideas (title, statement,
+  pages, prerequisites, kind) and maps each to an existing graph node when it is the same idea (`same_as`), else makes
+  a new node (origin "book"). Prerequisites become links, also across chapters and to older nodes. A chapter that
+  fails can be retried; the job continues where it stopped.
+- **How:** tables `books(id, source_id, title, status, chapters_done, …)`, `book_parts(id, book_id, ord, chapter,
+  title, page_from, page_to, session_id, status)`, `book_nodes(book_id, node_id, part_id, pages)`. Module `book.py`,
+  prompt `book_map.md`, job `book_map`. A part is one section of the outline (level 2), or a whole chapter without
+  sections. Front matter and parts without ideas are dropped.
+- **Check:** tests with a fake model (parts and nodes made, `same_as` reuses a node, prerequisites become links,
+  resume after a failed chapter). A real map of "Inference Engineering" on a copy of the workspace.
+
+### D2. Study the book one part at a time
+- **Why:** a part is the size of one study session (about 4-10 ideas).
+- **What:** "Study" on a part starts a study session (SPEC §22) with the part's ideas already known (no sketch step).
+  Ideas from earlier parts or other books that a part needs come in as prerequisites; the probe checks them, and an
+  idea the learner lacks (for example softmax) is taught as its own idea. The teaching turns get the part's own pages
+  and cite them. When the session is done, the part is done and the next part is suggested.
+- **How:** `sessions.book_part`; `session.start_from_ideas`; `sources.excerpts` limited to a page range.
+
+### D3. Homework and recall
+- **What:** after a part, "Homework": a recall practice (SPEC §24) over the part's ideas. Every idea then has its own
+  review schedule, so later recall practice includes it.
+
+### D4. Idea links in lessons
+- **Why:** when a lesson uses an idea the learner met before (softmax inside a transformer lesson), hovering over it
+  should show where they learned it and how it connects.
+- **What:** the teaching prompt gets the related graph ideas and links their first mention as `[text](#idea/<id>)`
+  (unknown ids are removed). The page shows such links as a hover card: the statement, the state, the books (with
+  pages), sessions and goals where it appears, and what it builds on and leads to. `GET /api/graph/node/{id}`.
+
+### D5. A book's graph on the map (minimal; the UI is discussed later)
+- **What:** the knowledge map can show one book's ideas, and the ideas it shares with other books.
+
+---
+
 ## Suggested order
 
 1. A1 (merge and test the probe), A3 (sources on the goal page), A2 (dictation check).

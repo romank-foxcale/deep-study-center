@@ -1,16 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { getGraph, useStore } from '../store'
 import Markdown from '../components/Markdown'
 import { ancestors, layout } from '../components/graphLayout'
-import type { GraphNode, GraphView } from '../types'
+import MapCanvas, { type CanvasView } from '../components/MapCanvas'
+import type { GraphNode, GraphView, MapViewId } from '../types'
 
 const R = 13
 const LIT = new Set(['learned', 'mastered'])
 const STATE_LABEL: Record<string, string> = {
-  mastered: 'strong', learned: 'known', learning: 'learning', rusty: 'rusty', ready: 'ready to learn', locked: 'needs others first', pending: 'not started',
+  mastered: 'know strongly', learned: 'learned', learning: 'learning', rusty: 'due for review', ready: 'ready to learn', locked: 'needs others first', pending: 'not started',
 }
-const LEGEND = ['mastered', 'learned', 'learning', 'ready', 'locked']
+const LEGEND = ['mastered', 'learned', 'learning', 'rusty', 'ready', 'locked']
+/** The map views the learner can choose from (SPEC §29). */
+const VIEWS: { id: MapViewId; label: string; hint: string }[] = [
+  { id: 'tree', label: 'Tree', hint: 'Basics at the bottom; an arrow points to the idea it helps you reason toward.' },
+  { id: 'graph', label: 'Graph', hint: 'Every idea colored by its state, pulled together by its links. Zoom in to read the names.' },
+  { id: 'nebula', label: 'Nebula', hint: 'Each book or goal is a cloud of its own color; shared ideas float between clouds.' },
+  { id: 'wheel', label: 'Skill wheel', hint: 'Your goal’s basics in the core; each book a sector, each chapter a spoke from basics to advanced.' },
+  { id: 'cells', label: 'Cells', hint: 'Books hold chapters, chapters hold ideas; sizes follow the number of ideas.' },
+  { id: 'territory', label: 'Territories', hint: 'Every hex is an idea and every book a country; learning lights the land.' },
+  { id: 'globe', label: 'Globe', hint: 'Each book is a region of the sphere. Drag to turn it.' },
+]
 
 /** Two short lines for a node label; the full title is in the tooltip. */
 function labelLines(title: string): string[] {
@@ -27,11 +38,15 @@ function labelLines(title: string): string[] {
 
 /** The knowledge map (SPEC §23): every idea you know or need, as one skill tree. Basics at the bottom. */
 export default function KnowledgeMap() {
-  const { s } = useStore()
+  const { s, dispatch } = useStore()
+  const mode: MapViewId = s.mapView ?? 'tree'
+  const [center, setCenter] = useState<{ id: string; n: number } | null>(null)
+  const location = useLocation()
+  const asked = location.state as { focus?: string; select?: string } | null
   const [g, setG] = useState<GraphView | null>(null)
   const [error, setError] = useState('')
-  const [focus, setFocus] = useState<string>(() => (s.goal ? `goal:${s.goal.id}` : 'all'))
-  const [selected, setSelected] = useState<string | null>(null)
+  const [focus, setFocus] = useState<string>(() => asked?.focus ?? (s.goal ? `goal:${s.goal.id}` : 'all'))
+  const [selected, setSelected] = useState<string | null>(asked?.select ?? null)
   const [query, setQuery] = useState('')
   const [hideNew, setHideNew] = useState(false)
   const [view, setView] = useState({ x: 0, y: 0, k: 1 })
@@ -45,7 +60,7 @@ export default function KnowledgeMap() {
   const members = useMemo(() => {
     if (focus === 'all') return null
     const [kind, id] = focus.split(':')
-    return new Set(nodes.filter(n => (kind === 'goal' ? n.goals : n.sessions).includes(id)).map(n => n.id))
+    return new Set(nodes.filter(n => (kind === 'goal' ? n.goals : kind === 'book' ? n.books : n.sessions).includes(id)).map(n => n.id))
   }, [focus, nodes])
   const inFocus = useMemo(() => {
     if (!members || !g) return null
@@ -66,7 +81,7 @@ export default function KnowledgeMap() {
   const shownIds = useMemo(() => new Set(shown.map(n => n.id)), [shown])
   const links = useMemo(() => (g?.links ?? []).filter(l => shownIds.has(l.src) && shownIds.has(l.dst)), [g, shownIds])
   const pos = useMemo(() => layout(shown.map(n => n.id), links,
-    id => byId.get(id)?.goals[0] ?? byId.get(id)?.sessions[0] ?? ''), [shown, links, byId])
+    id => byId.get(id)?.books[0] ?? byId.get(id)?.goals[0] ?? byId.get(id)?.sessions[0] ?? ''), [shown, links, byId])
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase()
     return q.length < 2 ? new Set<string>() : new Set(shown.filter(n => `${n.title} ${n.statement}`.toLowerCase().includes(q)).map(n => n.id))
@@ -83,6 +98,7 @@ export default function KnowledgeMap() {
   useEffect(() => { fit() }, [fit])
 
   const centerOn = (id: string) => {
+    if (mode !== 'tree') { setCenter(c => ({ id, n: (c?.n ?? 0) + 1 })); return }
     const p = pos.get(id), el = box.current
     if (!p || !el) return
     setView(v => ({ ...v, x: el.clientWidth / 2 - p.x * v.k, y: el.clientHeight / 2 - p.y * v.k }))
@@ -132,29 +148,39 @@ export default function KnowledgeMap() {
         <select className="input input-small" value={focus} onChange={e => { setFocus(e.target.value); setSelected(null) }} aria-label="Show">
           <option value="all">Everything ({nodes.length} ideas)</option>
           {g.goals.length > 0 && <optgroup label="Goals">{g.goals.map(x => <option key={x.id} value={`goal:${x.id}`}>{x.title}</option>)}</optgroup>}
+          {g.books.length > 0 && <optgroup label="Books">{g.books.map(x => <option key={x.id} value={`book:${x.id}`}>{x.title}</option>)}</optgroup>}
           {g.sessions.length > 0 && <optgroup label="Study sessions">{g.sessions.map(x => <option key={x.id} value={`session:${x.id}`}>{x.title}</option>)}</optgroup>}
         </select>
         <input className="input input-small km-search" type="search" placeholder="Find an idea" value={query} aria-label="Find an idea"
           onChange={e => setQuery(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && matches.size) { const id = [...matches][0]; setSelected(id); centerOn(id) } }} />
         {focus === 'all' && <label className="small row"><input type="checkbox" checked={hideNew} onChange={e => setHideNew(e.target.checked)} /> Hide ideas not started</label>}
+        <label className="small row km-view">View
+          <select className="input input-small" value={mode} aria-label="Map view"
+            onChange={e => dispatch({ type: 'setMapView', view: e.target.value as MapViewId })}>
+            {VIEWS.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
+          </select>
+        </label>
         <span className="spacer" />
         <span className="muted small">{members ? `${members.size - needed} of ${members.size} known · ${needed} still needed`
           : `${counts.lit} known · ${counts.learning} learning · ${nodes.length - counts.lit - counts.learning} to learn`}</span>
-        <div className="km-zoom">
+        {mode === 'tree' && <div className="km-zoom">
           <button className="btn btn-small" onClick={() => zoom(1.25)} aria-label="Zoom in">+</button>
           <button className="btn btn-small" onClick={() => zoom(0.8)} aria-label="Zoom out">−</button>
           <button className="btn btn-small" onClick={fit}>Fit</button>
-        </div>
+        </div>}
       </div>
       <div className="km-legend small muted">
-        {LEGEND.map(st => <span key={st} className="km-legend-item"><svg width="14" height="14"><circle cx="7" cy="7" r="5.5" className={`km-dot km-${st}`} /></svg>{STATE_LABEL[st]}</span>)}
-        <span className="km-legend-item">Basics at the bottom; an arrow points to the idea it helps you reason toward.</span>
+        {LEGEND.map(st => <span key={st} className="km-legend-item"><i className={`km-swatch km-swatch-${st}`} />{STATE_LABEL[st]}</span>)}
+        {mode !== 'tree' && <span className="km-legend-item">A second ring: the idea is also in another book.</span>}
+        <span className="km-legend-item">{VIEWS.find(v => v.id === mode)?.hint}</span>
       </div>
 
       <div className="km-canvas" ref={box}>
         {nodes.length === 0 && <p className="muted km-empty">No ideas yet. Research a goal or <Link to="/study">study something</Link>.</p>}
-        <svg width="100%" height="100%" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => { drag.current = null }}
+        {mode !== 'tree' && <MapCanvas view={mode as CanvasView} nodes={shown} links={links} clusters={g.clusters ?? []}
+          selected={selected} matches={matches} center={center} onSelect={setSelected} />}
+        {mode === 'tree' && <svg width="100%" height="100%" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => { drag.current = null }}
           onClick={e => { if (!(e.target as Element).closest('.km-node')) setSelected(null) }}>
           <defs>
             <marker id="km-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -192,7 +218,7 @@ export default function KnowledgeMap() {
               )
             })}
           </g>
-        </svg>
+        </svg>}
         {sel && <NodePanel n={sel} g={g} onPick={id => { setSelected(id); centerOn(id) }} onClose={() => setSelected(null)} />}
       </div>
     </div>
@@ -227,6 +253,8 @@ function NodePanel({ n, g, onPick, onClose }: { n: GraphNode; g: GraphView; onPi
           <li key={l.id}><button className="link" onClick={() => openLesson(l.id, l.goalId)}>{l.title}</button>
             <span className="muted small"> · {goalTitle(l.goalId)}</span></li>
         ))}</ul></>}
+      {n.books.length > 0 && <><div className="eyebrow">Books</div>
+        <ul className="km-list">{n.books.map(id => <li key={id}><Link to={`/book/${id}`}>{g.books.find(x => x.id === id)?.title ?? id}</Link></li>)}</ul></>}
       {n.sessions.length > 0 && <><div className="eyebrow">Study sessions</div>
         <ul className="km-list">{n.sessions.map(id => <li key={id}><Link to={`/study/${id}`}>{g.sessions.find(x => x.id === id)?.title ?? id}</Link></li>)}</ul></>}
       <div className="row">

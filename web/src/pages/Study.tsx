@@ -68,6 +68,7 @@ function StartStudy() {
         <button className="btn btn-primary" disabled={topic.trim().length < 3 || starting !== undefined} onClick={start}>
           {starting !== undefined ? 'Starting…' : 'Start'}</button>
       </div>
+      <StudyBookCard />
       {s.sessions.length > 0 && (
         <>
           <h2>Your sessions</h2>
@@ -81,6 +82,54 @@ function StartStudy() {
         </>
       )}
     </div>
+  )
+}
+
+/** "Teach me this book" (SPEC §28): pick one PDF; DSC maps it into ideas and teaches it part by part. */
+function StudyBookCard() {
+  const { s, dispatch } = useStore()
+  const navigate = useNavigate()
+  const [pick, setPick] = useState('')
+  const [waiting, setWaiting] = useState<string | null | undefined>(undefined)
+  useEffect(() => {
+    if (waiting !== undefined && s.lastBook && s.lastBook !== waiting) navigate(`/book/${s.lastBook}`)
+  }, [s.lastBook, waiting, navigate])
+  const studied = new Map(s.studyBooks.map(b => [b.sourceId, b]))
+  const ready = s.sources.filter(x => x.status === 'ready')
+  const go = async () => {
+    const old = studied.get(pick)
+    if (old) { navigate(`/book/${old.id}`); return }
+    setWaiting(s.lastBook)
+    if (!await dispatch({ type: 'studyBook', sourceId: pick })) setWaiting(undefined)
+  }
+  return (
+    <>
+      <h2>Study a book</h2>
+      <div className="card">
+        <p className="small muted">Pick one of your PDFs. DSC reads it chapter by chapter, maps its ideas into your knowledge graph
+          (joined to what you already know), and then teaches it one part at a time, with the book's own pages.</p>
+        {ready.length === 0
+          ? <p className="small">Add a PDF in the <Link to="/library">Source library</Link> first.</p>
+          : <div className="row">
+              <select className="input" value={pick} onChange={e => setPick(e.target.value)} aria-label="Book">
+                <option value="">Choose a book…</option>
+                {ready.map(x => <option key={x.id} value={x.id}>{x.title}{studied.has(x.id) ? ' (studying)' : ''}</option>)}
+              </select>
+              <button className="btn btn-primary" disabled={!pick || waiting !== undefined} onClick={go}>
+                {studied.has(pick) ? 'Open' : waiting !== undefined ? 'Starting…' : 'Teach me this book'}</button>
+            </div>}
+        {s.studyBooks.length > 0 && (
+          <ul className="study-list">
+            {s.studyBooks.map(b => (
+              <li key={b.id}><Link to={`/book/${b.id}`}>{b.title}</Link>{' '}
+                <span className={b.status === 'ready' ? 'pill' : b.status === 'failed' ? 'pill pill-warn' : 'pill'}>
+                  {b.status === 'mapping' ? `mapping ${b.chaptersDone}/${b.chapters}` : b.status === 'failed' ? 'mapping stopped'
+                    : `${b.partsDone}/${b.parts} parts done`}</span></li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
   )
 }
 
@@ -107,7 +156,12 @@ function SessionPage({ id }: { id: string }) {
   return (
     <div className="page study">
       <div className="row row-between">
-        <div><div className="eyebrow">Study session</div><h1>{v.title}</h1></div>
+        <div>
+          <div className="eyebrow">{v.book
+            ? <><Link to={`/book/${v.book.id}`}>{v.book.title}</Link> · pp. {v.book.pages[0]}–{v.book.pages[1]}</>
+            : 'Study session'}</div>
+          <h1>{v.title}</h1>
+        </div>
         <button className="link small" onClick={async () => {
           if (window.confirm('Delete this session? Ideas it added stay in your graph only if you answered questions on them.')) {
             await dispatch({ type: 'deleteSession', sessionId: v.id }); navigate('/study')
@@ -148,6 +202,18 @@ function SessionPage({ id }: { id: string }) {
                 <Markdown>{v.summary}</Markdown>
                 <p className="muted small">These ideas are now in your knowledge graph. Understanding becomes usable with recall
                   practice, so they show as “learning” until you practise them.</p>
+                {v.book && (
+                  <div className="row">
+                    <button className="btn btn-primary" onClick={async () => {
+                      const before = s.lastPractice
+                      if (await dispatch({ type: 'bookHomework', partId: v.book!.partId })) {
+                        const now = (await fetch('/api/state').then(r => r.json())).lastPractice as string | null
+                        if (now && now !== before) navigate(`/practice/${now}`)
+                      }
+                    }}>Homework: practise these ideas</button>
+                    <Link className="btn" to={`/book/${v.book.id}`}>Back to the book</Link>
+                  </div>
+                )}
               </div>
             )}
             {v.plan.slice(0, v.current + 1).map((k, n) => (
@@ -177,8 +243,11 @@ function PlanView({ v, act }: { v: SessionView; act: (a: Parameters<ReturnType<t
   const order = [...v.plan, ...v.ideas.map(i => i.key).filter(k => !v.plan.includes(k))]
   return (
     <div className="card">
-      <p>The path from what you know to <strong>{v.ideas.find(i => i.target)?.title}</strong>. Untick what you already hold;
-        each step is short.</p>
+      {v.book
+        ? <p>The ideas of <strong>{v.book.part}</strong> (pp. {v.book.pages[0]}–{v.book.pages[1]}), and the ideas they build on.
+            Untick what you already hold; each step is short.</p>
+        : <p>The path from what you know to <strong>{v.ideas.find(i => i.target)?.title}</strong>. Untick what you already hold;
+            each step is short.</p>}
       {v.probeStart && <div className="study-probe-start"><div className="eyebrow">Where to start</div><Markdown>{v.probeStart}</Markdown></div>}
       <ul className="study-ideas">
         {order.map(k => {

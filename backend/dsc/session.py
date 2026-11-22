@@ -20,6 +20,7 @@ practice, step 6), so taught ideas usually show as "learning".
 
 from __future__ import annotations
 
+import re
 import secrets
 from typing import TYPE_CHECKING
 
@@ -281,7 +282,38 @@ def _graph_context(db: DB, topic: str) -> tuple[list[dict], str]:
 def _excerpts(db: DB, s: dict, topic: str, k: int = 6) -> str:
     if not s["source_ids"]:
         return "(none)"
-    return sources.excerpts_text(sources.excerpts(db, None, topic, k=k, ids=s["source_ids"]))
+    pages = None
+    if s.get("book_part"):  # a book part: its own pages (SPEC §28)
+        part = db.one("SELECT page_from, page_to FROM book_parts WHERE id=?", (s["book_part"],))
+        if part:
+            pages = (part["page_from"], part["page_to"])
+    return sources.excerpts_text(sources.excerpts(db, None, topic, k=k, ids=s["source_ids"], pages=pages))
+
+
+def start_from_ideas(db: DB, jobs: Jobs, topic: str, title: str, ideas: list[dict], source_ids: list[str],
+                     book_part: int | None = None) -> str:
+    """A session whose ideas are already known (a book part, SPEC §28): no sketch step. ``ideas`` carry their node;
+    ideas the graph holds as learned are marked known, so the probe and the plan skip them."""
+    st = graph.states(db)
+    sid = f"s-{secrets.token_hex(4)}"
+    ts = now()
+    out = []
+    for i in ideas:
+        ns = st.get(i["node"])
+        level = "known" if ns and ns.state in ("learned", "mastered") else None
+        out.append({**i, "target": False, "level": level, "fromGraph": bool(i.get("fromGraph"))})
+    unknown = [i for i in out if i["level"] != "known"]
+    with db.tx():
+        db.conn.execute("""INSERT INTO sessions(id, topic, title, status, ideas, plan, current, source_ids, summary,
+                           created_at, updated_at, book_part) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        (sid, topic[:500], title[:120], "probing" if unknown else "planning", dumps(out),
+                         dumps(_plan(out)), 0, dumps(source_ids), "", ts, ts, book_part))
+        for i in out:
+            db.conn.execute("INSERT OR IGNORE INTO session_nodes(session_id, node_id, created) VALUES(?,?,0)", (sid, i["node"]))
+    db.set_meta("last_session", sid)
+    if unknown:
+        jobs.enqueue("session_probe", "Find what you know", {"session_id": sid})
+    return sid
 
 
 def run_sketch(jobs: Jobs, jid: int, d: dict) -> dict:
@@ -444,8 +476,10 @@ def run_turn(jobs: Jobs, jid: int, d: dict) -> dict:
             lines.append(f'- explanation given: {r["item"]["body"][:1500]}')
     current = "\n".join(lines + [_answers_text(s, [r for r in now_items if r["phase"] != "explain"])])
     earlier = _answers_text(s, [r for r in _items(db, s["id"]) if r["phase"] == "check" and r["idea_key"] in done][-8:])
+    linkable = _linkable(db, s, idea)
     out = jobs.call(jid, "Study tutor", Call(
         prompt=prompt("session_turn", kind=kind, topic=s["topic"], plan=plan_text, known=known,
+                      links="\n".join(f"- {i}: {t}" for i, t in linkable.items()) or "(none)",
                       idea=f'{idea["title"]}: {idea["statement"]}', current=current, earlier=earlier,
                       probe=probe_note(idea), start=s.get("probe_start") or "(none)",
                       playbook=lr["playbook"], guidelines=lr["guidelines"],
@@ -463,8 +497,9 @@ def run_turn(jobs: Jobs, jid: int, d: dict) -> dict:
             c = out["check"]
             if not 0 <= c["answer"] < len(c["options"]) or not out["body"].strip():
                 raise ValueError("the explanation or its check is empty")
+            body = idea_links(out["body"].strip(), set(linkable))
             db.conn.execute("""INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, answered, created_at)
-                               VALUES(?,?,?,?,?,?,1,?)""", (s["id"], key, "explain", 0, 0, dumps({"body": out["body"].strip(), "kind": kind}), ts))
+                               VALUES(?,?,?,?,?,?,1,?)""", (s["id"], key, "explain", 0, 0, dumps({"body": body, "kind": kind}), ts))
             db.conn.execute("INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, created_at) VALUES(?,?,?,?,?,?,?)",
                             (s["id"], key, "check", 0, 1, dumps(mcq.shuffle(c)), ts))
     return {"kind": kind}
@@ -505,6 +540,9 @@ def run_extract(jobs: Jobs, jid: int, d: dict) -> dict:
                                 (src, dst, link["why"][:300], "session"))
                 added += db.conn.execute("SELECT changes()").fetchone()[0]
     _save(db, s["id"], status="done", summary=out["summary"][:1500])
+    if s.get("book_part"):
+        from . import bookstudy
+        bookstudy.on_session_done(db, s["id"])
     jobs.progress(jid, f"{added} new link(s) in your graph")
     return {"links": added}
 
@@ -545,5 +583,44 @@ def view(db: DB, sid: str) -> dict | None:
               "nodeState": st[i["node"]].state if i.get("node") in st else "pending"} for i in s["ideas"]]
     return {"id": s["id"], "topic": s["topic"], "title": s["title"], "status": s["status"], "busy": running, "error": failed,
             "ideas": ideas, "plan": s["plan"], "current": s["current"], "items": pub, "summary": s["summary"],
-            "probeStart": s.get("probe_start") or "", "probeMax": PROBE_MAX,
+            "probeStart": s.get("probe_start") or "", "probeMax": PROBE_MAX, "book": _book_of(db, s),
             "sources": s["source_ids"], "createdAt": s["created_at"]}
+
+
+def _book_of(db: DB, s: dict) -> dict | None:
+    """The book part a session studies, for the page (SPEC §28)."""
+    if not s.get("book_part"):
+        return None
+    r = db.one("""SELECT p.id, p.title, p.page_from, p.page_to, p.practice_id, b.id AS book_id, b.title AS book_title
+                  FROM book_parts p JOIN books b ON b.id = p.book_id WHERE p.id=?""", (s["book_part"],))
+    if not r:
+        return None
+    return {"partId": r["id"], "part": r["title"], "pages": [r["page_from"], r["page_to"]], "id": r["book_id"],
+            "title": r["book_title"], "practiceId": r["practice_id"]}
+
+
+_IDEA_LINK = re.compile(r"\[([^\]\n]+)\]\(#idea/([\w-]+)\)")
+
+
+def idea_links(text: str, allowed: set[str]) -> str:
+    """Keep ``[text](#idea/<id>)`` links only for ideas the prompt offered; any other becomes plain text (SPEC §28)."""
+    return _IDEA_LINK.sub(lambda m: m.group(0) if m.group(2) in allowed else m.group(1), text)
+
+
+def _linkable(db: DB, s: dict, idea: dict) -> dict[str, str]:
+    """Graph ideas a teaching turn may link (id -> title): this session's ideas, the ideas they build on or lead to,
+    and graph ideas whose words match the current idea. Hovering such a link shows where the learner met the idea."""
+    ids = [i["node"] for i in s["ideas"] if i.get("node")]
+    near: list[str] = []
+    for lk in graph.links(db):
+        if lk["dst"] in ids:
+            near.append(lk["src"])
+        if lk["src"] in ids:
+            near.append(lk["dst"])
+    found = [c["id"] for c in graph.candidates(db, f'{idea["title"]} {idea["statement"]}', k=10)]
+    want = list(dict.fromkeys(ids + near + found))[:40]
+    if not want:
+        return {}
+    rows = db.q(f"SELECT id, title FROM nodes WHERE id IN ({','.join('?' * len(want))})", want)
+    title = {r["id"]: r["title"] for r in rows}
+    return {i: title[i] for i in want if i in title}
