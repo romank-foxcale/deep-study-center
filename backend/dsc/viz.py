@@ -288,7 +288,25 @@ def inspect(spec) -> tuple[dict | None, list[str]]:
         return None, ["the formula widget is not valid (unsafe or empty TeX, a {{part}} that does not exist, or no parts), so it was removed"]
     syntax = validate(spec, numeric=False)
     raw = vizcheck.inspect(syntax)[1] if syntax else []
-    problems = list(dict.fromkeys(raw))
+    # The root cause first: a plot or result dropped before it was computed (a [ref] to no part, or a name that is
+    # no value). Its effects (variants that now change nothing, checks with no plot) are then one line, not many.
+    causes = []
+    ids = sorted(p["id"] for p in out["parts"])
+    for key, what in (("plotExpr", "plot"), ("resultExpr", "result")):
+        e = str(spec.get(key) or "").strip().lower()
+        if not e or (syntax and key in syntax):
+            continue
+        unknown = sorted(set(_REF.findall(e)) - set(ids))
+        causes.append(f'the {what} “{e}” uses {", ".join(f"[{u}]" for u in unknown)}, but no part has that id; it was removed '
+                      f'(a [ref] must be a part id: {", ".join(ids)})' if unknown else
+                      f'the {what} “{e}” uses a name that is not a value the learner sets; it was removed')
+    if causes:
+        effects = [x for x in raw if "changes nothing the learner can see" in x or x.startswith("the widget shows no result")]
+        n = sum(1 for x in effects if x.startswith("variant"))
+        raw = [x for x in raw if x not in effects]
+        if n:
+            causes.append(f"because of this, {n} variant(s) and the checks that need it were removed too")
+    problems = list(dict.fromkeys(causes + raw))
     raw_parts = {p.get("id"): p for p in spec.get("parts") or [] if isinstance(p, dict)}
     kept = {p["id"]: p for p in out["parts"]}
     for pid, p in raw_parts.items():
@@ -298,9 +316,9 @@ def inspect(spec) -> tuple[dict | None, list[str]]:
         if p.get("param") and not kept[pid].get("param"):
             problems.append(f'part “{pid}”: its param “{p["param"]}” is not one of the values, so it has no slider')
         lost = len(p.get("variants") or []) - len(kept[pid].get("variants") or [])
-        if lost > 0 and not any(f'of part “{pid}”' in x for x in problems):
+        if lost > 0 and not causes and not any(f'of part “{pid}”' in x for x in problems):
             problems.append(f'part “{pid}”: {lost} variant(s) were removed (bad TeX or expression, or the same as the real form)')
-    if len(spec.get("checks") or []) > len(out.get("checks") or []) and not any(x.startswith("check") for x in problems):
+    if len(spec.get("checks") or []) > len(out.get("checks") or []) and not causes and not any(x.startswith("check") for x in problems):
         problems.append("some checks were removed (unknown kind, or they need a plot or result the widget does not have)")
     return out, problems
 

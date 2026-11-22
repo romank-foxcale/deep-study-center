@@ -118,10 +118,12 @@ Done 2026-11-22 (branch `claude/small-items`):
 - Found on the way: an extra lesson in a book chapter was never written (book research skipped it); it now goes
   through normal research.
 
-Still open:
-- **Fix round with a real model:** `writer.check_viz` sends a broken formula widget back to an agent once
-  (`fix_widget.md`). It was never run with a real model. Make a lesson with a broken widget and check that the fix is
-  used.
+Done 2026-11-23 (branch `claude/widget-fix`): **Fix round with a real model.** Checked on a copy of the workspace
+with the real normal-density widget, broken three ways (a plot that uses a part that does not exist, a slider no part
+shows, a wrong peak value). The real model fixed every problem in one round, and the fixed widget passes all checks.
+Found on the way: a plot that used an unknown part gave five messages and none named the cause (one even gave wrong
+advice). `viz.inspect` now names the cause first ("uses [scale], but no part has that id"), and adds its effects
+as one line.
 
 ---
 
