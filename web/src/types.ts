@@ -196,6 +196,10 @@ export interface BookLesson {
   /** written: its text is saved; carded: its plan is written from the book; started: opened at least once. */
   written: boolean; carded: boolean; started: boolean
   alsoIn: { id: string; title: string }[]
+  /** What it builds on that you do not hold yet (SPEC §37); ready = nothing missing. */
+  needs: { id: string; title: string; conceptId: string | null }[]; ready: boolean
+  /** One shared block: another book or goal already has this topic as a written lesson. */
+  shared: { conceptId: string; title: string; where: string; bookId: string | null } | null
 }
 export interface BookChapter {
   chapter: number; title: string; summary: string; pages: [number, number]; moduleId: string; mapped: boolean
@@ -217,7 +221,7 @@ export interface FormulaNote {
   kind: 'idea' | 'step'
   /** The frame: green (learned formula lesson, this form), orange (a formula lesson, another form), gray (none yet), step. */
   status: 'green' | 'orange' | 'gray' | 'step'
-  formula: { id: string; title: string; state: string; sameForm: boolean; here: boolean } | null
+  formula: { id: string; title: string; state: string; sameForm: boolean; here: boolean; missing: number } | null
 }
 /** Where a book lesson sits in its book (on the lesson page). */
 export interface LessonBook {
@@ -376,11 +380,22 @@ export interface LessonView {
   writingCards: boolean
   /** While the lesson is written: its steps, the step it is on, and the newest progress line. */
   writing: { steps: string[]; at: number; message: string; queued: boolean } | null
+  /** The versions of this shared block: the same idea in other books and goals (SPEC §37). */
+  blockVersions: { conceptId: string; title: string; where: string; bookId: string | null; written: boolean; current: boolean }[]
   /** Hover notes for the lesson's formulas, by the formula's TeX without spaces (SPEC §33). */
   formulas: Record<string, FormulaNote>
   formulasPending: boolean
   /** A formula lesson (SPEC §34): the forms it covers, where each comes from, and the one you prefer. */
   formulaLesson: { forms: { key: string; tex: string; from: { id: string; title: string } }[]; preferred: string | null
+    /** The learner chose the preferred form (else it is the first form); every writer then uses it (SPEC §36). */
+    chosen: boolean
+    /** formula, or notation (a short lesson about a way of writing). */
+    kind: 'formula' | 'notation'
+    /** The formula tree (SPEC §37): what it is built from, and what is built from it. */
+    blocks: { id: number; name: string; kind: 'notation' | 'formula' | 'idea'; tex: string; meaning: string; basic: boolean
+      state: 'known' | 'new'; link: { id: string | null; title: string; kind: 'lesson' | 'idea' } | null }[]
+    blocksReady: boolean; missing: number
+    usedIn: { id: string; title: string; kind: 'formula' | 'lesson' }[]
     source: { id: string; title: string } } | null
   card: SourceCard | null
   sections: LessonSectionView[]

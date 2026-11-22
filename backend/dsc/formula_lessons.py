@@ -49,48 +49,177 @@ def _slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")[:24] or "formula"
 
 
+def _insert(db: DB, anchor: str, place: str, name: str, objective: str, summary: str, ideas: list[str]) -> str:
+    """Inside a transaction: a new concept right after (``place`` "after") or right before ("before") the lesson
+    ``anchor`` in its module, and in its book chapter when the anchor is a book lesson. Returns the new id."""
+    base = db.conn.execute("SELECT * FROM concepts WHERE id=?", (anchor,)).fetchone()
+    if not base:
+        raise FormulaError("unknown lesson")
+    root = re.sub(r"-fx-.*$", "", anchor)
+    new_id = f"{root}-fx-{_slug(name)}"
+    while db.conn.execute("SELECT 1 FROM concepts WHERE id=?", (new_id,)).fetchone():
+        new_id += "-2"
+    if place == "after":  # after the lesson and its earlier formula lessons
+        rows = db.conn.execute("""SELECT c.ord FROM concepts c JOIN formula_lessons f ON f.id = c.id
+                                  WHERE f.source_concept=?""", (anchor,)).fetchall()
+        pos = max([base["ord"]] + [r[0] for r in rows]) + 1
+    else:
+        pos = base["ord"]
+    db.conn.execute("UPDATE concepts SET ord = ord + 1 WHERE module_id=? AND ord >= ?", (base["module_id"], pos))
+    db.conn.execute("INSERT INTO concepts VALUES(?,?,?,?,?,?,?,?,0)",
+                    (new_id, base["module_id"], pos, name[:200], objective[:400], 10, dumps([]), 0.1))
+    part = db.conn.execute("SELECT * FROM book_parts WHERE concept_id=?", (anchor,)).fetchone()
+    if part:  # a book lesson: listed in the same chapter, next to it
+        ppos = part["ord"] + 1 if place == "after" else part["ord"]
+        db.conn.execute("UPDATE book_parts SET ord = ord + 1 WHERE book_id=? AND ord >= ?", (part["book_id"], ppos))
+        cur = db.conn.execute("""INSERT INTO book_parts(book_id, ord, chapter, chapter_title, title, page_from, page_to, summary,
+                                 concept_id, ideas) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                              (part["book_id"], ppos, part["chapter"], part["chapter_title"], name[:200], part["page_from"],
+                               part["page_to"], summary[:400], new_id, dumps(ideas[:4])))
+        db.conn.execute("""INSERT OR IGNORE INTO book_nodes(book_id, node_id, part_id, key, pages, created, ord)
+                           VALUES(?,?,?,?,?,1,?)""", (part["book_id"], new_id, cur.lastrowid, new_id, "", 0))
+    return new_id
+
+
 def make(db: DB, jobs: Jobs, cid: str, k: str) -> str:
     """Make a lesson about the formula ``k`` of lesson ``cid``: insert it after that lesson and write it."""
     note = _note(db, cid, k)
-    status, info = formulas.status(db, cid, k, note["kind"], note["formula_id"], graph.states(db))
-    if info:
-        raise FormulaError(f'this formula already has a lesson: “{info["title"]}”')
+    status, info_ = formulas.status(db, cid, k, note["kind"], note["formula_id"], graph.states(db))
+    if info_:
+        raise FormulaError(f'this formula already has a lesson: “{info_["title"]}”')
     body = loads(note["body"], {})
     name = body.get("name") or "This formula"
-    base = db.one("SELECT * FROM concepts WHERE id=?", (cid,))
-    if not base:
-        raise FormulaError("unknown lesson")
-    new_id = f"{cid}-fx-{_slug(name)}"
-    while db.one("SELECT 1 FROM concepts WHERE id=?", (new_id,)):
-        new_id += "-2"
-    after = max([base["ord"]] + [r["ord"] for r in db.q("""SELECT c.ord FROM concepts c JOIN formula_lessons f ON f.id = c.id
-                                                            WHERE f.source_concept=?""", (cid,))])
     ts = now()
-    part = db.one("SELECT * FROM book_parts WHERE concept_id=?", (cid,))
     with db.tx():
-        db.conn.execute("UPDATE concepts SET ord = ord + 1 WHERE module_id=? AND ord > ?", (base["module_id"], after))
-        db.conn.execute("INSERT INTO concepts VALUES(?,?,?,?,?,?,?,?,0)",
-                        (new_id, base["module_id"], after + 1, name[:200],
-                         f"Read, use and explain the formula: {body.get('meaning', '')}"[:400], 15, dumps([]), 0.1))
-        db.conn.execute("INSERT INTO formula_lessons(id, name, source_concept, preferred, created_at) VALUES(?,?,?,?,?)",
-                        (new_id, name[:200], cid, None, ts))
+        new_id = _insert(db, cid, "after", name, f"Read, use and explain the formula: {body.get('meaning', '')}",
+                         body.get("meaning") or "", [s["meaning"] for s in body.get("symbols", [])])
+        db.conn.execute("INSERT INTO formula_lessons(id, name, source_concept, preferred, created_at, meaning) VALUES(?,?,?,?,?,?)",
+                        (new_id, name[:200], cid, None, ts, body.get("meaning") or ""))
         db.conn.execute("INSERT INTO formula_forms(formula_id, key, tex, concept_id, added_at) VALUES(?,?,?,?,?)",
                         (new_id, k, note["tex"], cid, ts))
         db.conn.execute("UPDATE formula_notes SET formula_id=?, matched_at=? WHERE concept_id=? AND key=?", (new_id, ts, cid, k))
-        if part:  # a book lesson: the formula lesson is listed in the same chapter, right after it
-            db.conn.execute("UPDATE book_parts SET ord = ord + 1 WHERE book_id=? AND ord > ?", (part["book_id"], part["ord"]))
-            cur = db.conn.execute("""INSERT INTO book_parts(book_id, ord, chapter, chapter_title, title, page_from, page_to, summary,
-                                     concept_id, ideas) VALUES(?,?,?,?,?,?,?,?,?,?)""",
-                                  (part["book_id"], part["ord"] + 1, part["chapter"], part["chapter_title"], name[:200],
-                                   part["page_from"], part["page_to"], (body.get("meaning") or "")[:400], new_id,
-                                   dumps([s["meaning"] for s in body.get("symbols", [])][:4])))
-            db.conn.execute("""INSERT OR IGNORE INTO book_nodes(book_id, node_id, part_id, key, pages, created, ord)
-                               VALUES(?,?,?,?,?,1,?)""", (part["book_id"], new_id, cur.lastrowid, new_id, "", 0))
     graph.sync(db)
     src_node = graph.node_of(db).get(cid, cid)
     db.x("INSERT OR IGNORE INTO links(src, dst, why, origin) VALUES(?,?,?,?)", (new_id, src_node, "the lesson uses this formula", "formula"))
     queue(db, jobs, new_id, "Write the formula lesson")
     return new_id
+
+
+# ---------------------------------------------------------------- the formula tree (SPEC §37)
+
+KNOWN = ("learned", "mastered", "rusty")
+BLOCKS_SCHEMA = {"type": "object", "required": ["blocks"], "properties": {"blocks": {"type": "array", "maxItems": 6, "items": {
+    "type": "object", "required": ["name", "kind", "tex", "meaning", "ref", "basic"], "properties": {
+        "name": {"type": "string"}, "kind": {"enum": ["notation", "formula", "idea"]}, "tex": {"type": "string"},
+        "meaning": {"type": "string"}, "ref": {"type": "string"}, "basic": {"type": "boolean"}}}}}}
+
+
+def _resolve(db: DB, ref: object, fid: str) -> tuple[str | None, str | None]:
+    """A block's reference: ("lesson", id) for a formula lesson, ("idea", id) for a graph idea, else (None, None)."""
+    if not isinstance(ref, str) or not ref or ref == fid:
+        return None, None
+    if db.one("SELECT 1 FROM formula_lessons WHERE id=?", (ref,)):
+        return "lesson", ref
+    if db.one("SELECT 1 FROM nodes WHERE id=?", (ref,)):
+        return "idea", ref
+    return None, None
+
+
+def decompose(jobs: Jobs, jid: int, fid: str) -> int:
+    """Find the building blocks of a formula: the notations it uses and the simpler formulas and ideas it is built
+    from, each matched to a formula lesson or graph idea the learner has, or marked basic. Saved once per formula."""
+    from .jobs import prompt
+    from .providers import Call
+    db = jobs.db
+    f = db.one("SELECT * FROM formula_lessons WHERE id=?", (fid,))
+    main = _main_form(db, f)
+    st = graph.states(db)
+    near = formulas._ideas(db, f["source_concept"], f'{f["name"]} {f["meaning"] or ""}')
+    ideas = "\n".join(f'- {i}: {t} ({st[i].state if i in st else "new"})' for i, t in near.items() if i != fid) or "(none)"
+    jobs.progress(jid, f"finding the building blocks of “{f['name'][:60]}”")
+    out = jobs.call(jid, "Formula notes", Call(
+        prompt=prompt("formula_blocks", title=f["name"], main=main["tex"], meaning=f["meaning"] or "",
+                      known=formulas._known_text(db, fid), ideas=ideas),
+        schema=BLOCKS_SCHEMA, model="sonnet", timeout=300))
+    ts = now()
+    with db.tx():
+        db.conn.execute("DELETE FROM formula_blocks WHERE formula_id=?", (fid,))
+        for n, bl in enumerate((out.get("blocks") or [])[:6]):
+            kind, ref = _resolve(db, bl.get("ref"), fid)
+            db.conn.execute("""INSERT INTO formula_blocks(formula_id, ord, name, kind, tex, meaning, ref_kind, ref, basic, created_at)
+                               VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                            (fid, n, (bl.get("name") or "")[:120], bl.get("kind") if bl.get("kind") in ("notation", "formula", "idea")
+                             else "formula", (bl.get("tex") or "")[:300], (bl.get("meaning") or "")[:400], kind, ref,
+                             int(bool(bl.get("basic")) and not ref and bl.get("kind") != "notation"), ts))  # a notation is never basic
+        db.conn.execute("UPDATE formula_lessons SET blocks_at=? WHERE id=?", (ts, fid))
+    return len(out.get("blocks") or [])
+
+
+def blocks(db: DB, fid: str, st: dict | None = None) -> list[dict]:
+    """The blocks of a formula with what the learner knows: known (a learned lesson or idea, or basic), new, or
+    writing (its lesson is being written)."""
+    st = st if st is not None else graph.states(db)
+    nodes = graph.node_of(db)
+    titles = {r["id"]: r["title"] for r in db.q("SELECT id, title FROM nodes")}
+    out = []
+    for b in db.q("SELECT * FROM formula_blocks WHERE formula_id=? ORDER BY ord", (fid,)):
+        state, link = "new", None
+        if b["basic"]:
+            state = "known"
+        elif b["ref"]:
+            node = nodes.get(b["ref"], b["ref"])
+            s = st.get(node)
+            state = "known" if s and s.state in KNOWN else "new"
+            lesson_id = b["ref"] if b["ref_kind"] == "lesson" else next((c for c, n in nodes.items() if n == b["ref"]), None)
+            link = {"id": lesson_id, "title": titles.get(node, b["name"]), "kind": b["ref_kind"]}
+        out.append({"id": b["id"], "name": b["name"], "kind": b["kind"], "tex": b["tex"], "meaning": b["meaning"],
+                    "basic": bool(b["basic"]), "state": state, "link": link})
+    return out
+
+
+def learn_first(db: DB, jobs: Jobs, fid: str) -> list[str]:
+    """Make a short lesson for every new block of formula ``fid`` (placed right before it) and write them."""
+    if not db.one("SELECT 1 FROM formula_lessons WHERE id=?", (fid,)):
+        raise FormulaError("unknown formula lesson")
+    todo = [b for b in db.q("SELECT * FROM formula_blocks WHERE formula_id=? ORDER BY ord", (fid,)) if not b["ref"] and not b["basic"]]
+    if not todo:
+        raise FormulaError("every building block already has a lesson or is known")
+    made, ts = [], now()
+    with db.tx():
+        for b in todo:
+            kind = "notation" if b["kind"] == "notation" else "formula"
+            obj = (f"Read the notation {b['name']}: what it means and how to use it" if kind == "notation"
+                   else f"Read, use and explain: {b['meaning']}")
+            new_id = _insert(db, fid, "before", b["name"], obj, b["meaning"], [])
+            db.conn.execute("""INSERT INTO formula_lessons(id, name, source_concept, preferred, created_at, meaning, kind)
+                               VALUES(?,?,?,?,?,?,?)""", (new_id, b["name"][:200], fid, None, ts, b["meaning"], kind))
+            if b["tex"]:
+                db.conn.execute("INSERT OR IGNORE INTO formula_forms(formula_id, key, tex, concept_id, added_at) VALUES(?,?,?,?,?)",
+                                (new_id, formulas.key(b["tex"]), b["tex"], fid, ts))
+            db.conn.execute("UPDATE formula_blocks SET ref_kind='lesson', ref=? WHERE id=?", (new_id, b["id"]))
+            made.append(new_id)
+    graph.sync(db)
+    for new_id in made:  # the block comes before the formula that is built from it
+        db.x("INSERT OR IGNORE INTO links(src, dst, why, origin) VALUES(?,?,?,?)", (new_id, fid, "a building block", "formula"))
+        queue(db, jobs, new_id, "Write a building-block lesson")
+    return made
+
+
+def used_in(db: DB, fid: str) -> list[dict]:
+    """The formulas built from this one, and the lessons where its forms appear."""
+    titles = {r["id"]: r["title"] for r in db.q("SELECT id, title FROM concepts")}
+    out = [{"id": r["formula_id"], "title": titles.get(r["formula_id"], ""), "kind": "formula"}
+           for r in db.q("SELECT DISTINCT formula_id FROM formula_blocks WHERE ref=?", (fid,))]
+    out += [{"id": r["concept_id"], "title": titles.get(r["concept_id"], ""), "kind": "lesson"}
+            for r in db.q("SELECT DISTINCT concept_id FROM formula_forms WHERE formula_id=?", (fid,))
+            if r["concept_id"] not in {x["id"] for x in out}]
+    return [x for x in out if x["title"]]
+
+
+def _main_form(db: DB, f: dict) -> dict:
+    forms = db.q("SELECT * FROM formula_forms WHERE formula_id=? ORDER BY added_at", (f["id"],))
+    pref = f["preferred"] or (forms[0]["key"] if forms else None)
+    return next((x for x in forms if x["key"] == pref), {"tex": f["name"], "key": "", "concept_id": f["source_concept"]})
 
 
 def add_form(db: DB, jobs: Jobs, cid: str, k: str, fid: str) -> None:
@@ -119,6 +248,22 @@ def queue(db: DB, jobs: Jobs, fid: str, label: str) -> None:
         jobs.enqueue("formula_lesson", label, {"concept_id": fid})
 
 
+def preferred_text(db: DB) -> str:
+    """Guideline lines for the formulas whose form the learner chose (SPEC §36): every writer uses that form, and shows
+    the source's form once, mapped to it, when the source writes it another way. Empty when there are none."""
+    lines = []
+    for f in db.q("SELECT * FROM formula_lessons WHERE preferred IS NOT NULL ORDER BY created_at"):
+        forms = db.q("SELECT key, tex FROM formula_forms WHERE formula_id=? ORDER BY added_at", (f["id"],))
+        pref = next((x for x in forms if x["key"] == f["preferred"]), None)
+        if not pref or len(forms) < 2:
+            continue
+        others = "; ".join(f'${x["tex"]}$' for x in forms if x["key"] != pref["key"])
+        lines.append(f'- Formula form the learner prefers: write “{f["name"]}” as ${pref["tex"]}$ (not {others}). When the '
+                     "source writes it another way, show the source's form once, map it to this form symbol by symbol, "
+                     "then use this form.")
+    return "\n".join(lines)
+
+
 def is_formula_lesson(db: DB, cid: str) -> bool:
     return bool(db.one("SELECT 1 FROM formula_lessons WHERE id=?", (cid,)))
 
@@ -131,8 +276,11 @@ def info(db: DB, cid: str) -> dict | None:
     titles = {r["id"]: r["title"] for r in db.q("SELECT id, title FROM concepts")}
     forms = [{"key": r["key"], "tex": r["tex"], "from": {"id": r["concept_id"], "title": titles.get(r["concept_id"], r["concept_id"])}}
              for r in db.q("SELECT * FROM formula_forms WHERE formula_id=? ORDER BY added_at", (cid,))]
-    return {"forms": forms, "preferred": f["preferred"] or (forms[0]["key"] if forms else None),
-            "source": {"id": f["source_concept"], "title": titles.get(f["source_concept"], "")}}
+    bl = blocks(db, cid)
+    return {"forms": forms, "preferred": f["preferred"] or (forms[0]["key"] if forms else None), "chosen": bool(f["preferred"]),
+            "source": {"id": f["source_concept"], "title": titles.get(f["source_concept"], "")},
+            "kind": f["kind"] or "formula", "blocks": bl, "blocksReady": bool(f["blocks_at"]),
+            "missing": sum(1 for b in bl if b["state"] == "new" and not b["link"]), "usedIn": used_in(db, cid)}
 
 
 def _context(db: DB, cid: str, tex: str) -> str:
@@ -164,11 +312,18 @@ def run(jobs: Jobs, jid: int, d: dict) -> dict:
     f = db.one("SELECT * FROM formula_lessons WHERE id=?", (fid,))
     if not f:
         return {"skipped": True}
+    if not f["blocks_at"]:
+        decompose(jobs, jid, fid)
     forms = db.q("SELECT * FROM formula_forms WHERE formula_id=? ORDER BY added_at", (fid,))
-    pref = f["preferred"] or forms[0]["key"]
-    main = next(x for x in forms if x["key"] == pref)
+    pref = f["preferred"] or (forms[0]["key"] if forms else None)
+    main = _main_form(db, f)
     note = db.one("SELECT body FROM formula_notes WHERE concept_id=? AND key=?", (main["concept_id"], main["key"]))
-    nb = loads((note or {}).get("body"), {})
+    nb = loads((note or {}).get("body"), {}) or {"meaning": f["meaning"] or ""}
+    bl = blocks(db, fid)
+    blocks_text = "\n".join(f'- {b["name"]} ({b["kind"]}){": $" + b["tex"] + "$" if b["tex"] else ""}: {b["meaning"]} — the learner '
+                             + ("knows it" if b["state"] == "known" else "does not know it yet"
+                                + (f' (its lesson: “{b["link"]["title"]}”)' if b["link"] else ""))
+                             for b in bl) or "(none: it is basic)"
     titles = {r["id"]: r["title"] for r in db.q("SELECT id, title FROM concepts")}
     forms_text = "\n".join(f'- ${x["tex"]}$ (from the lesson “{titles.get(x["concept_id"], x["concept_id"])}”)'
                            + (" — the learner's preferred form" if x["key"] == pref and f["preferred"] else "") for x in forms)
@@ -178,8 +333,9 @@ def run(jobs: Jobs, jid: int, d: dict) -> dict:
     symbols = "\n".join(f'- ${s["tex"]}$: {s["meaning"]}' for s in nb.get("symbols", [])) or "(none)"
     jobs.progress(jid, f"writing the lesson about “{f['name'][:60]}” ({len(forms)} form(s))")
     out = jobs.call(jid, "Research", Call(
-        prompt=prompt("formula_lesson", title=f["name"], main=main["tex"], forms=forms_text, meaning=nb.get("meaning", ""),
-                      symbols=symbols, known=known, context=_context(db, main["concept_id"], main["tex"])),
+        prompt=prompt("formula_lesson" if (f["kind"] or "formula") != "notation" else "notation_lesson", title=f["name"],
+                      main=main["tex"], forms=forms_text, meaning=nb.get("meaning", ""), symbols=symbols, known=known,
+                      blocks=blocks_text, context=_context(db, main["concept_id"], main["tex"])),
         schema=_card_schema(), model="opus", timeout=1200))
     card = out.get("card") or {}
     if not card.get("sections"):

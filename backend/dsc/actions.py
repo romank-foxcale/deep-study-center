@@ -85,6 +85,12 @@ def add_formula_form(db: DB, jobs: Jobs, a: dict) -> None:
 
 
 @_formula
+def learn_blocks_first(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import formula_lessons
+    formula_lessons.learn_first(db, jobs, str(a["formulaId"]))
+
+
+@_formula
 def prefer_formula_form(db: DB, jobs: Jobs, a: dict) -> None:
     from . import formula_lessons
     formula_lessons.prefer(db, jobs, str(a["formulaId"]), str(a["key"]))
@@ -958,7 +964,8 @@ ACTIONS = {
     "linkSource": link_source, "editSource": edit_source, "deleteSource": delete_source, "rereadSource": reread_source, "reset": reset,
     "restoreCut": restore_cut,
     "studyBook": study_book, "bookRetry": book_retry, "bookOpenLesson": book_open_lesson, "reviewReasoning": review_reasoning,
-    "makeFormulaLesson": make_formula_lesson, "addFormulaForm": add_formula_form, "preferFormulaForm": prefer_formula_form, "bookRemapChapter": book_remap_chapter, "bookHomework": book_homework,
+    "makeFormulaLesson": make_formula_lesson, "addFormulaForm": add_formula_form, "preferFormulaForm": prefer_formula_form,
+    "learnBlocksFirst": learn_blocks_first, "bookRemapChapter": book_remap_chapter, "bookHomework": book_homework,
     "deleteBook": delete_book, "setMapView": set_map_view,
     "setDictation": set_dictation, "downloadDictationModel": download_dictation_model,
     "removeDictationModel": remove_dictation_model,

@@ -357,6 +357,13 @@ and the map opening on Territories. Checked on the mock workspace in dark, light
 `claude/page-polish`): Practice, Library, Me and Settings in the new style, and pinch zoom on the map. Open: the goal
 pages keep their old layout while goals are on hold; pinch zoom is not yet tried on a real touch screen.
 
+### D11. ✅ DONE (2026-11-22, branch `claude/formula-tree`, SPEC §36, §37): Preferred forms, building blocks
+Your preferred formula form goes to every lesson writer. Formula lessons are built bottom-up from a formula tree
+(notations, simpler formulas, ideas; "Learn these first" makes the missing blocks), with a new structure (read it
+aloud, every symbol, build it up, tiny numbers, sense checks, then where it is used). Book lessons are shared blocks
+across books ("this book's version" on request), and "Next" picks a lesson whose parts you hold.
+Open: a whole-tree view of all formulas (today each formula lesson shows one level down and up).
+
 ### D10. ✅ DONE (2026-11-22, branch `claude/formulas-3d`, SPEC §33): Formula hover notes and 3D surfaces
 Hovering a formula shows its name, meaning, symbols and where you met it (checked on a copy with the real lesson "Loss
 functions for multiple outputs": 16 notes in one call). A 3D surface widget with gradient descent, momentum, RMSProp

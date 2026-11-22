@@ -190,6 +190,15 @@ def _chapter_rows(db: DB, bid: str, st: dict | None = None) -> list[dict]:
     written = {r["concept_id"] for r in db.q("SELECT DISTINCT concept_id FROM cards")}
     rendered = {r["concept_id"] for r in db.q("SELECT DISTINCT concept_id FROM prose")}
     started = {r["id"] for r in db.q("SELECT id FROM concepts WHERE started=1")}
+    node_titles = {r["id"]: r["title"] for r in db.q("SELECT id, title FROM nodes")}
+    prereqs = {r["id"]: loads(r["prereqs"], []) for r in db.q("SELECT id, prereqs FROM concepts")}
+    incoming: dict[str, list[str]] = {}
+    for lk in db.q("SELECT src, dst FROM links WHERE origin='book'"):
+        incoming.setdefault(lk["dst"], []).append(lk["src"])
+    concepts_of: dict[str, list[str]] = {}
+    for c, n in nodes.items():
+        concepts_of.setdefault(n, []).append(c)
+    formula_ids = {r["id"] for r in db.q("SELECT id FROM formula_lessons")}
     out = []
     for ch in db.q("SELECT * FROM book_chapters WHERE book_id=? ORDER BY chapter", (bid,)):
         lessons = []
@@ -198,14 +207,54 @@ def _chapter_rows(db: DB, bid: str, st: dict | None = None) -> list[dict]:
             cid = p["concept_id"]
             nid = nodes.get(cid, cid)
             s = st.get(nid) or st.get(cid)
+            # what it builds on (this book's earlier lessons, and older ideas the map linked to it) that you do not hold yet
+            needs = []
+            for src in dict.fromkeys([nodes.get(x, x) for x in prereqs.get(cid, [])] + incoming.get(nid, [])):
+                if src == nid:
+                    continue
+                ss = st.get(src)
+                if not (ss and ss.state in KNOWN):
+                    needs.append({"id": src, "title": node_titles.get(src, src), "conceptId": (concepts_of.get(src) or [None])[0]})
+            if cid in formula_ids:  # a formula lesson also needs its building blocks (SPEC §37)
+                from .formula_lessons import blocks as formula_blocks
+                for bl in formula_blocks(db, cid, st):
+                    if bl["state"] == "new":
+                        needs.append({"id": (bl["link"] or {}).get("id") or f"block-{bl['id']}", "title": bl["name"],
+                                      "conceptId": (bl["link"] or {}).get("id")})
+            # a shared block: the same idea another book or goal already has as a written lesson (SPEC §37)
+            home = next((c for c in concepts_of.get(nid, []) if c != cid and c in written), None)
             lessons.append({"id": p["id"], "conceptId": cid, "nodeId": nid, "title": p["title"], "covers": p["summary"],
                             "pages": [p["page_from"], p["page_to"]], "ideas": loads(p["ideas"], []),
                             "state": s.state if s else "pending", "mastery": s.mastery if s else 0.0,
                             "written": cid in rendered, "carded": cid in written, "started": cid in started,
-                            "alsoIn": [{"id": o, "title": titles.get(o, o)} for o in others.get(nid, [])]})
+                            "alsoIn": [{"id": o, "title": titles.get(o, o)} for o in others.get(nid, [])],
+                            "needs": needs[:5], "ready": not needs,
+                            "shared": _where(db, home) if home else None})
         out.append({"chapter": ch["chapter"], "title": ch["title"], "summary": ch["summary"], "pages": [ch["page_from"], ch["page_to"]],
                     "moduleId": ch["module_id"], "mapped": bool(ch["mapped"]), "kind": ch["kind"], "lessons": lessons})
     return out
+
+
+def _where(db: DB, cid: str) -> dict:
+    """A lesson and where it lives: a book (title) or a goal (title)."""
+    c = db.one("SELECT title FROM concepts WHERE id=?", (cid,)) or {"title": cid}
+    b = db.one("SELECT b.id, b.title FROM book_parts p JOIN books b ON b.id = p.book_id WHERE p.concept_id=?", (cid,))
+    if b:
+        return {"conceptId": cid, "title": c["title"], "where": b["title"], "bookId": b["id"]}
+    g = db.one("""SELECT g.title FROM concepts c JOIN modules m ON m.id = c.module_id JOIN tracks t ON t.id = m.track_id
+                  JOIN goals g ON g.id = t.goal_id WHERE c.id=?""", (cid,))
+    return {"conceptId": cid, "title": c["title"], "where": (g or {}).get("title", ""), "bookId": None}
+
+
+def versions_of(db: DB, cid: str) -> list[dict]:
+    """Every lesson of the same idea (one shared block, SPEC §37): this book's version and the other books' and goals'
+    versions, with whether each is written. One mastery for all of them."""
+    node = graph.node_of(db).get(cid, cid)
+    ids = [r["concept_id"] for r in db.q("SELECT concept_id FROM concept_nodes WHERE node_id=? ORDER BY concept_id", (node,))]
+    if len(ids) < 2:
+        return []
+    carded = {r["concept_id"] for r in db.q("SELECT DISTINCT concept_id FROM cards")}
+    return [{**_where(db, i), "written": i in carded, "current": i == cid} for i in ids]
 
 
 def view(db: DB, bid: str) -> dict | None:
@@ -219,8 +268,9 @@ def view(db: DB, bid: str) -> dict | None:
     for ch in chapters:
         ch["writing"] = research.get(ch["moduleId"]) == "researching"
     order = [x for ch in chapters for x in ch["lessons"]]
-    nxt = (next((x for x in order if x["started"] and x["state"] not in KNOWN), None)
-           or next((x for x in order if x["state"] not in KNOWN), None))
+    todo = [x for x in order if x["state"] not in KNOWN]
+    nxt = (next((x for x in todo if x["started"] and x["ready"]), None) or next((x for x in todo if x["ready"]), None)
+           or next((x for x in todo if x["started"]), None) or (todo[0] if todo else None))
     return {"id": b["id"], "sourceId": b["source_id"], "title": b["title"], "status": b["status"], "goalId": b["goal_id"],
             "version": b["version"], "chapters": chapters, "chapterCount": b["chapters"], "chaptersDone": b["chapters_done"],
             "next": nxt["conceptId"] if nxt else None,
@@ -507,7 +557,14 @@ def write_cards(jobs: Jobs, jid: int, d: dict) -> dict:
                       WHERE p.book_id=? AND p.chapter=? ORDER BY p.ord""", (b["id"], ch["chapter"]))
     have = {r["concept_id"] for r in db.q("SELECT DISTINCT concept_id FROM cards")}
     have |= {r["id"] for r in db.q("SELECT id FROM formula_lessons")}  # formula lessons are written by their own job
-    todo = [x for x in lessons if x["concept_id"] not in have]
+    nodes = graph.node_of(db)
+    by_node: dict[str, list[str]] = {}
+    for c, n in nodes.items():
+        by_node.setdefault(n, []).append(c)
+    # a shared block another book or goal already has: this book's version is written only when asked for (SPEC §37)
+    shared = {x["concept_id"] for x in lessons
+              if any(o != x["concept_id"] and o in have for o in by_node.get(nodes.get(x["concept_id"], x["concept_id"]), []))}
+    todo = [x for x in lessons if x["concept_id"] not in have and (x["concept_id"] not in shared or x["concept_id"] == d.get("open"))]
     if not todo:
         db.x("UPDATE modules SET research='ready' WHERE id=?", (ch["module_id"],))
         return {"cards": 0}

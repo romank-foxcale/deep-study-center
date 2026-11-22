@@ -186,15 +186,25 @@ export function LessonList({ lessons, next, full }: { lessons: BookLesson[]; nex
               <Link className="book-lesson-title" to={`/lesson/${x.conceptId}`}><Markdown inline>{x.title}</Markdown></Link>
               <span className="muted small"> · pp. {pageRange(x.pages)}</span>
               {x.covers && <div className="small book-lesson-covers"><Markdown inline>{x.covers}</Markdown></div>}
-              {full && x.ideas.length > 0 && <div className="small muted">{x.ideas.join(' · ')}</div>}
-              {x.alsoIn.length > 0 && <div className="small book-lesson-also">Also in {x.alsoIn.map((b, i) => (
+              {full && x.ideas.length > 0 && <div className="small muted book-lesson-ideas"><Markdown inline>{x.ideas.join(' · ')}</Markdown></div>}
+              {x.shared && <div className="small book-lesson-shared">Shared block: you have this topic in{' '}
+                <Link to={`/lesson/${x.shared.conceptId}`}>{x.shared.where || x.shared.title}</Link>. This book's version is written only when you ask.</div>}
+              {!x.shared && x.alsoIn.length > 0 && <div className="small book-lesson-also">Also in {x.alsoIn.map((b, i) => (
                 <span key={b.id}>{i > 0 && ', '}<Link to={`/book/${b.id}`}>{b.title}</Link></span>))}</div>}
+              {!known && x.needs.length > 0 && <div className="small book-lesson-needs">Builds on what you do not hold yet:{' '}
+                {x.needs.map((d, i) => <span key={d.id}>{i > 0 && ', '}{d.conceptId ? <Link to={`/lesson/${d.conceptId}`}>{d.title}</Link> : d.title}</span>)}</div>}
             </div>
             <span className="book-lesson-side">
               <span className={`pill small state-pill-${x.state}`}><i className={`state-dot state-${x.state}`} /> {STATE_LABEL[x.state] ?? x.state}</span>
-              <Link className={`btn btn-small${x.conceptId === next ? ' btn-primary' : ''}`} to={`/lesson/${x.conceptId}`}
-                title={x.written ? 'The lesson is saved: it opens as you left it' : 'Written from the book when you open it'}>
-                {known ? 'Open again' : x.started ? 'Continue' : 'Open'}</Link>
+              {x.shared && !x.carded
+                ? <>
+                  <Link className={`btn btn-small${x.conceptId === next ? ' btn-primary' : ''}`} to={`/lesson/${x.shared.conceptId}`}
+                    title={`The shared lesson, from ${x.shared.where}`}>{known ? 'Open again' : 'Open'}</Link>
+                  <Link className="link small" to={`/lesson/${x.conceptId}`} title="Write this topic from this book's pages too">This book's version</Link>
+                </>
+                : <Link className={`btn btn-small${x.conceptId === next ? ' btn-primary' : ''}`} to={`/lesson/${x.conceptId}`}
+                    title={x.written ? 'The lesson is saved: it opens as you left it' : 'Written from the book when you open it'}>
+                    {known ? 'Open again' : x.started ? 'Continue' : 'Open'}</Link>}
             </span>
           </li>
         )

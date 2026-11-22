@@ -99,6 +99,8 @@ export default function FormulaHover({ root, notes, pending, conceptId }: {
         {n.status !== 'step' && (
           <div className={`formula-own small fx-own-${n.status}`}>
             {n.status === 'green' && f && <span>You know this formula in this form: <Link to={`/lesson/${f.id}`}>{f.title}</Link></span>}
+            {f && f.missing > 0 && <span className="muted">It is built from {f.missing} block{f.missing > 1 ? 's' : ''} you have not learned yet:
+              <Link to={`/lesson/${f.id}`}> see the formula tree</Link>.</span>}
             {n.status === 'orange' && f && <>
               <span>You know this formula in another form: <Link to={`/lesson/${f.id}`}>{f.title}</Link>.</span>
               {writing ? <span className="muted">Writing the formula lesson…</span>

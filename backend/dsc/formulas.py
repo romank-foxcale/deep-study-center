@@ -216,7 +216,8 @@ def status(db: DB, cid: str, k: str, kind: str, fid: str | None, st: dict) -> tu
     s = st.get(node)
     state_ = s.state if s else "pending"
     same = bool(exact) or bool(db.one("SELECT 1 FROM formula_forms WHERE formula_id=? AND key=?", (fid, k)))
-    info = {"id": fid, "title": row["title"] or row["name"], "state": state_, "sameForm": same, "here": fid == cid}
+    missing = db.one("SELECT COUNT(*) AS n FROM formula_blocks WHERE formula_id=? AND ref IS NULL AND basic=0", (fid,))["n"]
+    info = {"id": fid, "title": row["title"] or row["name"], "state": state_, "sameForm": same, "here": fid == cid, "missing": missing}
     if not same:
         return "orange", info
     return ("green" if state_ in KNOWN else "gray"), info

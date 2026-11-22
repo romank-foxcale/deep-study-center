@@ -32,6 +32,6 @@ Write:
   - `pages`: the pages the lesson follows ("52" or "52-57"), inside the chapter's pages.
   - `ideas`: 2-6 short phrases: the key ideas, formulas or terms the lesson must make clear, in the book's order.
   - `prereq_keys`: what the lesson builds on: keys of earlier lessons in this chapter, ids of lessons from earlier chapters (listed above), or ids of graph ideas listed above. Only real dependencies: what the reader must already understand.
-  - `same_as`: only when the whole lesson is exactly one idea of the graph list above (same idea at the same depth, not a related topic). Then the learner's progress on it is shared. Usually leave it out.
+  - `same_as`: when the lesson teaches the same topic as an idea in the graph list above (another book's lesson, a goal lesson), even if this book explains it a bit differently or writes it in other notation, set that id. Knowledge builds up in blocks: the topic is then ONE shared block, the learner's progress on it is shared, and this book's explanation becomes another version of it (backpropagation taught by five books is one block, not five). Leave it out for a related but different topic, or when this book goes clearly deeper (then use `prereq_keys` to build on it).
 
 Return JSON matching the schema.

@@ -59,6 +59,7 @@ export type Action =
   | { type: 'makeFormulaLesson'; conceptId: string; key: string }
   | { type: 'addFormulaForm'; conceptId: string; key: string; formulaId: string }
   | { type: 'preferFormulaForm'; formulaId: string; key: string }
+  | { type: 'learnBlocksFirst'; formulaId: string }
   | { type: 'bookRemapChapter'; bookId: string; chapter: number; asLessons?: boolean }
   | { type: 'bookHomework'; bookId: string; chapter: number }
   | { type: 'deleteBook'; bookId: string }

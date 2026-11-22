@@ -1002,3 +1002,20 @@ a.shelf-card:hover { text-decoration: none; border-color: var(--border-2); }
 .lesson .md .katex[data-fx="orange"] { --fx-c: color-mix(in srgb, #f08c2e 80%, transparent); background: color-mix(in srgb, #f08c2e 7%, transparent); }
 .lesson .md .katex[data-fx="gray"] { --fx-c: color-mix(in srgb, var(--muted) 45%, transparent); }
 .viz figcaption .md-inline { display: inline; }
+
+/* ---------- The formula tree (SPEC §37) ---------- */
+.formula-tree { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--border); padding-top: 8px; }
+.formula-blocks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.fb { display: flex; gap: 8px; align-items: flex-start; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); }
+.fb-known { border-color: color-mix(in srgb, var(--st-learned, #3fb27f) 55%, var(--border)); }
+.fb-new { border-color: color-mix(in srgb, var(--muted) 40%, var(--border)); border-style: dashed; }
+.fb-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex: none; background: var(--muted); }
+.fb-dot-known { background: var(--st-learned, #3fb27f); }
+.fb-main .md-inline { display: inline; }
+.formula-used { flex-wrap: wrap; gap: 6px; }
+
+/* ---------- Shared blocks and readiness (SPEC §37) ---------- */
+.book-lesson-shared { margin-top: 3px; color: var(--muted); }
+.book-lesson-needs { margin-top: 3px; color: color-mix(in srgb, #e0a63a 80%, var(--muted)); }
+.block-versions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 8px; }
+.book-lesson-ideas .md-inline { display: inline; }
