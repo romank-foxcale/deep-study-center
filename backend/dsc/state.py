@@ -113,11 +113,15 @@ def answers(db: DB, concept_ids: list[str]) -> dict:
     for r in rows:
         key = f'{r["concept_id"]}:{r["item_id"]}'
         item = {"choice": r["choice"], "correct": bool(r["correct"]), "score": r["score"],
-                "thinking": r["thinking"] or "", "confidence": r["confidence"]}
+                "thinking": r["thinking"] or "", "confidence": r["confidence"], "evidenceId": r["id"]}
         check = next((s["check"] for s in secs[r["concept_id"]] if (s.get("check") or {}).get("id") == r["item_id"]), None)
         if check:
             item.update(answer=check["answer"], explanation=check["explanation"])
         out[key] = item
+    from . import reasoning
+    reviews = reasoning.by_evidence(db, [v["evidenceId"] for v in out.values()])
+    for v in out.values():
+        v["review"] = reviews.get(v["evidenceId"])
     return out
 
 
@@ -311,7 +315,7 @@ def settings(db: DB) -> dict:
     from . import planner
     p = planner.settings(db)
     return {"autoResearch": db.meta("auto_research", "1") == "1", "autoRefresh": db.meta("auto_refresh", "1") == "1",
-            "lessonWriting": db.meta("lesson_writing", "steps"),
+            "lessonWriting": db.meta("lesson_writing", "steps"), "writingStyle": db.meta("writing_style", "ste") or "ste",
             "weeklyHours": p["weekly_hours"], "studyDays": p["study_days"], "startTime": p["start_time"]}
 
 

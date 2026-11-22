@@ -201,6 +201,11 @@ CREATE TABLE IF NOT EXISTS book_chapters (
   book_id TEXT NOT NULL, chapter INTEGER NOT NULL, title TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '',
   page_from INTEGER NOT NULL, page_to INTEGER NOT NULL, sections TEXT NOT NULL DEFAULT '[]', module_id TEXT,
   mapped INTEGER NOT NULL DEFAULT 0, kind TEXT NOT NULL DEFAULT 'chapter', PRIMARY KEY (book_id, chapter));
+-- The tutor's reading of a learner's reasoning on one answer (SPEC §32): body = parts marked right/partly/wrong,
+-- the wrong assumption, where following it breaks, and how it really works.
+CREATE TABLE IF NOT EXISTS reasoning_reviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, evidence_id INTEGER NOT NULL, concept_id TEXT NOT NULL,
+  item_id TEXT NOT NULL, status TEXT NOT NULL, body TEXT NOT NULL DEFAULT '{}');
 CREATE TABLE IF NOT EXISTS book_cuts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL, ord INTEGER NOT NULL, source_id TEXT NOT NULL,
   chapter TEXT NOT NULL, pages TEXT NOT NULL DEFAULT '', rank TEXT NOT NULL, why TEXT NOT NULL DEFAULT '',

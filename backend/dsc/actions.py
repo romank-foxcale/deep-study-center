@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from . import books, bookstudy, dictation, engine, guidelines, lesson, library, practice, probe, progress, remedial, session, sources, state, versions, writer
+from . import books, bookstudy, dictation, engine, guidelines, lesson, library, practice, probe, progress, reasoning, remedial, session, sources, state, versions, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now
 from .jobs import Jobs
@@ -53,10 +53,25 @@ def answer(db: DB, jobs: Jobs, a: dict) -> None:
     thinking, conf = progress.reasoning(a)
     # A right answer you marked as a guess is half evidence: it moves P(learned) but does not count as known.
     score = 0.5 if progress.guessed(correct, conf, len(item.get("options") or []) or 4) else (1.0 if correct else 0.0)
-    if progress.record_evidence(db, cid, item_id, score, choice=a.get("choice"), angle=a.get("angle"),
-                                thinking=thinking, confidence=conf, correct=correct):
+    finished = progress.record_evidence(db, cid, item_id, score, choice=a.get("choice"), angle=a.get("angle"),
+                                        thinking=thinking, confidence=conf, correct=correct)
+    eid = db.one("SELECT MAX(id) AS id FROM evidence WHERE concept_id=? AND item_id=?", (cid, item_id))["id"]
+    reasoning.queue(db, jobs, cid, {**item, "id": item_id}, eid, thinking)  # the tutor reads how you thought (SPEC §32)
+    if finished:
         progress.on_finished(db, jobs, cid)
     progress.research_ahead(db, jobs)
+
+
+def review_reasoning(db: DB, jobs: Jobs, a: dict) -> None:
+    """Let the tutor read the thinking of an earlier answer (one given before reviews existed, or one whose review failed)."""
+    cid, item_id = a["conceptId"], a["itemId"]
+    item = _card_item(db, cid, item_id)
+    ev = db.one("""SELECT * FROM evidence WHERE concept_id=? AND item_id=? AND voided=0 AND kind='practice'
+                   ORDER BY id DESC LIMIT 1""", (cid, item_id))
+    if not item or not ev:
+        raise ActionError("no answer to read")
+    if not reasoning.queue(db, jobs, cid, {**item, "id": item_id}, ev["id"], ev["thinking"] or ""):
+        raise ActionError("this answer has no thinking to read")
 
 
 def explain(db: DB, jobs: Jobs, a: dict) -> None:
@@ -756,6 +771,13 @@ def set_setting(db: DB, jobs: Jobs, a: dict) -> None:
             raise ActionError("lesson writing must be steps or single")
         db.set_meta("lesson_writing", a["value"])
         return
+    if a["key"] == "writingStyle":  # "ste": Simplified Technical English (about 80 %); "plain": no style rule
+        if a["value"] not in ("ste", "plain"):
+            raise ActionError("writing style must be ste or plain")
+        db.set_meta("writing_style", a["value"])
+        from .jobs import STYLE
+        STYLE["writing"] = a["value"]
+        return
     keys = {"autoResearch": "auto_research", "autoRefresh": "auto_refresh"}
     if a["key"] not in keys:
         raise ActionError("unknown setting")
@@ -907,7 +929,7 @@ ACTIONS = {
     "setApiKey": set_api_key, "clearApiKey": clear_api_key, "useApiForAll": use_api_for_all,
     "linkSource": link_source, "editSource": edit_source, "deleteSource": delete_source, "rereadSource": reread_source, "reset": reset,
     "restoreCut": restore_cut,
-    "studyBook": study_book, "bookRetry": book_retry, "bookOpenLesson": book_open_lesson, "bookRemapChapter": book_remap_chapter, "bookHomework": book_homework,
+    "studyBook": study_book, "bookRetry": book_retry, "bookOpenLesson": book_open_lesson, "reviewReasoning": review_reasoning, "bookRemapChapter": book_remap_chapter, "bookHomework": book_homework,
     "deleteBook": delete_book, "setMapView": set_map_view,
     "setDictation": set_dictation, "downloadDictationModel": download_dictation_model,
     "removeDictationModel": remove_dictation_model,

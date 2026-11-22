@@ -10,8 +10,13 @@ import type { ReactElement } from 'react'
 /** A line that is only $$...$$ is meant as a display formula, but remark-math reads a one-line $$...$$ as inline math.
  * Rewrite it as a block ($$ on their own lines), so it renders as a centered display formula. */
 const ONE_LINE_DISPLAY = /^([ \t]*)\$\$([^\n]+?)\$\$[ \t]*$/gm
-const displayBlocks = (md: string) =>
+/** A display formula over several lines with text on the fence lines ("$$\begin{aligned}" … "\end{aligned}$$"):
+ * remark-math drops what follows an opening $$ and needs the closing $$ on its own line, so the formula breaks and the
+ * text after it turns into one red KaTeX error. Put both fences on their own lines. */
+const MULTI_LINE_DISPLAY = /^([ \t]*)\$\$([^\n$]*\n[\s\S]*?)\$\$[ \t]*$/gm
+export const displayBlocks = (md: string) =>
   md.replace(ONE_LINE_DISPLAY, (_m, indent: string, tex: string) => `${indent}$$\n${indent}${tex.trim()}\n${indent}$$`)
+    .replace(MULTI_LINE_DISPLAY, (_m, indent: string, tex: string) => `${indent}$$\n${tex.trim()}\n${indent}$$`)
 
 interface HastNode { type: string; value?: string; tagName?: string; properties?: Record<string, unknown>; children?: HastNode[] }
 const textOf = (n: HastNode): string => n.value ?? (n.children ?? []).map(textOf).join('')

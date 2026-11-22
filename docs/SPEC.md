@@ -849,3 +849,35 @@ Change log shows text changes only (not graph or question changes).
   reference chapter into lessons after all. The Book and Chapter pages offer it, with a confirm step.
 - Markdown: a writer's `<details><summary>…</summary>…</details>` is drawn as a collapsible block (raw HTML stays off).
 - The clickable mockup is `docs/mockups/book-lessons.html`.
+
+## 32. The tutor reads your reasoning (2026-11-22)
+- Purpose: a wrong answer is best fixed from the learner's own reasoning. "No, it is B" adds new information next to the
+  wrong idea; following the wrong idea until it breaks connects the two, so the right idea sticks.
+- When a lesson check is answered with thinking (typed or dictated, at least 20 characters), `reasoning.queue` saves a
+  pending row in `reasoning_reviews` and queues the job `reasoning_review` (route "Reasoning review", Sonnet, prompt
+  `reason_review.md`). The job reads the question, the options, the key and its explanation, the lesson's idea and the
+  section (with what the book says), the choice, the confidence and the thinking, and returns:
+  - `verdict`: right, right_with_gaps, wrong or unclear; a `summary`;
+  - `parts`: 2-6 exact quotes from the thinking, each marked right, partly or wrong, with a 1-2 sentence note (quotes
+    that are not in the thinking are dropped; the rest are sorted by where they stand);
+  - `assumption`: the wrong idea behind a wrong answer or step; `follow`: 2-4 steps that take it as true until it breaks
+    ("If it worked your way …"); `truth`: how it really works, derived from where it broke; `takeaway`.
+- Page: under the answer, the thinking with the quoted parts marked in place (green, amber, red, numbered), the notes,
+  "Your assumption", "If it worked your way", "How it really works" and "Remember". While the job runs: "The tutor is
+  reading your reasoning…". An earlier answer with thinking (or a failed review) offers "Let the tutor read my
+  reasoning" (`reviewReasoning`).
+- History: `GET /api/reasoning` (`reasoning.history`) lists every reviewed answer with its thinking, confidence and
+  findings; the Me page shows "Your reasoning" (newest first, with the assumption found), so the learner sees how
+  their understanding changes.
+- Writing style (Settings → Learning → Writing style, `writing_style`, default "ste"): every job's rules get
+  `_ste.md`, so lessons, book summaries and the tutor write in ASD-STE100 Simplified Technical English, about 80 %
+  strict. "Free" turns the rule off. It applies to text written from then on.
+- Lesson progress (2026-11-22): while a lesson is written (book research for its chapter, the render job, or applying
+  feedback), `lesson.view` gives `writing`: the steps ("Plan the chapter's lessons from the book", "Plan the lesson for
+  you", "Make graphs and questions", "Write the text", "Review and fix"; one step when lessons are written in one
+  call), the step it is on (from the job's progress lines) and the newest line. The lesson page shows a sticky banner
+  with a moving bar, the steps and how many sections are ready, and says that text, formulas and graphs can still
+  change.
+- Display formulas: a multi-line `$$` block with text on its fence lines (`$$\begin{aligned}` … `\end{aligned}$$`) is
+  rewritten with the fences on their own lines before rendering; before, the formula broke and the text after it
+  showed as one red KaTeX error.

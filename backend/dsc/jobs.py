@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import books, bookstudy, dictation, engine, graph, guidelines, library, mcq, ohtani, practice, probe, progress, providers, runner, session, sources, state, versions, viz, writer
+from . import books, bookstudy, dictation, reasoning, engine, graph, guidelines, library, mcq, ohtani, practice, probe, progress, providers, runner, session, sources, state, versions, viz, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
@@ -22,9 +22,15 @@ from .providers import Call, ProviderUnavailable
 Runner = Callable[[dict, Call, object], tuple[object, str]]
 
 
+# Writing style of everything the learner reads (Settings → Learning): "ste" = Simplified Technical English (about 80 %).
+STYLE = {"writing": "ste"}
+
+
 def prompt(name: str, **fields: object) -> str:
     text = resources.files("dsc").joinpath(f"prompts/{name}.md").read_text(encoding="utf-8")
     rules = resources.files("dsc").joinpath("prompts/_rules.md").read_text(encoding="utf-8")
+    if STYLE["writing"] == "ste":
+        rules = rules.rstrip("\n") + "\n" + resources.files("dsc").joinpath("prompts/_ste.md").read_text(encoding="utf-8")
     fields.setdefault("rules", rules)
     if "{widgets}" in text:
         fields.setdefault("widgets", resources.files("dsc").joinpath("prompts/_widgets.md").read_text(encoding="utf-8").strip())
@@ -41,6 +47,7 @@ def slug(s: str, n: int = 40) -> str:
 class Jobs:
     def __init__(self, db: DB, runner: Runner | None = None, inline: bool = False):
         self.db = db
+        STYLE["writing"] = db.meta("writing_style", "ste") or "ste"
         self.runner = runner or providers.run_with_fallback
         self.pool = None if inline else ThreadPoolExecutor(max_workers=3, thread_name_prefix="dsc-job")
         db.x("UPDATE jobs SET status='failed', error='interrupted by restart' WHERE status IN ('queued', 'running')")
@@ -822,6 +829,7 @@ def _prewrite_next(jobs: Jobs, jid: int, d: dict) -> None:
 HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "dictation_model": (dictation.run_download, None),
     "book_map": (bookstudy.run_map, None),
+    "reasoning_review": (reasoning.run, reasoning.fallback),
     "render": (run_render, None),
     "tutor": (run_tutor, fallback_tutor),
     "roadmap_review": (run_roadmap_review, fallback_roadmap_review),

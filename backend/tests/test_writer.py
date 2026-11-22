@@ -264,3 +264,16 @@ def test_the_reviewer_sees_how_the_learner_reasons(env):
     lesson.open_lesson(db, jobs, CID)
     review = [c for r, c in runner.calls if r == "Lesson review"][0].prompt
     assert "How the learner reasons" in review and "only if parallel" in review
+
+
+def test_the_page_sees_which_writing_step_a_lesson_is_on(env):
+    db, jobs, runner = env
+    from dsc.db import dumps
+    assert lesson.writing(db, CID) is None
+    db.x("""INSERT INTO jobs(kind, status, label, input, progress, created_at, updated_at) VALUES('render', 'running', 'Write lesson', ?, ?, 't', 't')""",
+         (dumps({"concept_id": CID}), dumps(["planning the lesson for you", "Lesson planner: asking claude (opus)",
+                                              "Lesson assets: asking claude (sonnet)", "writing the text"])))
+    w = lesson.writing(db, CID)
+    assert w["steps"] == ["Plan the lesson for you", "Make graphs and questions", "Write the text", "Review and fix"]
+    assert w["at"] == 2 and w["message"] == "writing the text" and not w["queued"]  # "writing the text" is step 3
+    assert lesson.view(db, CID)["writing"]["at"] == 2

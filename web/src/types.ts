@@ -359,6 +359,8 @@ export interface LessonView {
   book: LessonBook | null
   /** The chapter's lessons are being written from the book's pages. */
   writingCards: boolean
+  /** While the lesson is written: its steps, the step it is on, and the newest progress line. */
+  writing: { steps: string[]; at: number; message: string; queued: boolean } | null
   card: SourceCard | null
   sections: LessonSectionView[]
   rendering: boolean
@@ -496,6 +498,19 @@ export interface ChatMessage { role: 'tutor' | 'me'; text: string }
 export interface Answer {
   choice: number | null; correct: boolean; score?: number | null; answer?: number; explanation?: string
   thinking?: string; confidence?: number | null
+  /** The tutor's reading of your thinking on this answer (SPEC §32). */
+  review?: ReasoningReview | null
+}
+/** What the tutor found in your reasoning: parts marked in place, the wrong assumption, where following it breaks,
+ * and how it really works. */
+export interface ReasoningReview {
+  id: number; status: 'pending' | 'done' | 'failed'
+  verdict: 'right' | 'right_with_gaps' | 'wrong' | 'unclear'; summary: string
+  parts: { quote: string; mark: 'right' | 'partly' | 'wrong'; note: string }[]
+  assumption: string; follow: string[]; truth: string; takeaway: string
+}
+export interface ReasoningEntry extends ReasoningReview {
+  conceptId: string; title: string; itemId: string; at: string; correct: boolean; confidence: number | null; thinking: string
 }
 
 export interface ProviderRoute {
@@ -550,7 +565,7 @@ export interface State {
   gradings: Record<string, Grading>
   probe: ProbeState | null
   reflections: Reflection[]
-  settings: { autoResearch: boolean; autoRefresh: boolean; lessonWriting: 'steps' | 'single'; weeklyHours: number; studyDays: number[]; startTime: string }
+  settings: { autoResearch: boolean; autoRefresh: boolean; lessonWriting: 'steps' | 'single'; writingStyle: 'ste' | 'plain'; weeklyHours: number; studyDays: number[]; startTime: string }
   cardProposals: CardProposal[]
   library: LibraryCard[]
   sources: SourceDoc[]

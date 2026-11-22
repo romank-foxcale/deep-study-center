@@ -1,9 +1,9 @@
-import { useState } from 'react'
-import { jobActive, useStore } from '../store'
+import { useEffect, useState } from 'react'
+import { getReasoning, jobActive, useStore } from '../store'
 import Markdown from '../components/Markdown'
 import { Link } from 'react-router-dom'
 import FeedbackItems from '../components/FeedbackItems'
-import type { Playbook } from '../types'
+import type { Playbook, ReasoningEntry } from '../types'
 
 const ADJUST: { key: keyof Playbook['adjust']; label: string; low: string; high: string }[] = [
   { key: 'pace', label: 'Pace', low: 'smaller steps', high: 'faster' },
@@ -20,6 +20,7 @@ export default function Me() {
       <p className="lead">How lessons are written for you. It is built from what you say and how practice goes, shared by all your
         books, sessions and goals, and you can correct any line.</p>
       <div className="me-grid">
+      <ReasoningHistory />
 
       <div className="card">
         <div className="row row-between">
@@ -173,6 +174,40 @@ function Guidelines() {
         </ol>
       )}
       {g && <p className="muted small">{g.source === 'learner' ? 'Edited by you' : g.summary} · {new Date(g.ts).toLocaleString()}</p>}
+    </div>
+  )
+}
+
+const VERDICT_PILL: Record<string, [string, string]> = {
+  right: ['pill pill-ok', 'sound'], right_with_gaps: ['pill pill-warn', 'a step off'], wrong: ['pill pill-bad', 'went off'], unclear: ['pill', 'unclear'],
+}
+
+/** Your reasoning over time (SPEC §32): each answer you explained, and what the tutor found in it. */
+function ReasoningHistory() {
+  const { s } = useStore()
+  const [items, setItems] = useState<ReasoningEntry[] | null>(null)
+  useEffect(() => { getReasoning().then(setItems, () => setItems([])) }, [s.jobs.length])
+  if (!items || items.length === 0) return null
+  const done = items.filter(x => x.status === 'done')
+  const off = done.filter(x => x.verdict !== 'right').length
+  return (
+    <div className="card reasoning-history">
+      <div className="row row-between"><h2>Your reasoning</h2><span className="muted small">{done.length} read · {off} with a step off</span></div>
+      <p className="muted small">Each answer where you said how you think, newest first, with the wrong assumption the tutor found.
+        It shows how your understanding changes.</p>
+      <ul className="rh-list">
+        {items.slice(0, 20).map(x => {
+          const [cls, label] = VERDICT_PILL[x.verdict] ?? ['pill', x.status]
+          return (
+            <li key={x.id}>
+              <span className="row small"><Link to={`/lesson/${x.conceptId}`}>{x.title}</Link>
+                {x.status === 'done' ? <span className={`${cls} small`}>{label}</span> : <span className="pill small">{x.status}</span>}
+                <span className="muted">{new Date(x.at).toLocaleDateString()}</span></span>
+              {x.status === 'done' && (x.assumption || x.takeaway) && <span className="small muted"><Markdown inline>{x.assumption || x.takeaway}</Markdown></span>}
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }

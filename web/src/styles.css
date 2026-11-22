@@ -905,3 +905,48 @@ a.shelf-card:hover { text-decoration: none; border-color: var(--border-2); }
 
 .book-ch-ref .book-ch-title { color: var(--muted); font-weight: 500; }
 .remap-ask { flex-wrap: wrap; gap: 8px; }
+
+/* ---------- The tutor reads your reasoning (SPEC §32) ---------- */
+.rr { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--text) 4%, var(--surface));
+  border: 1px solid var(--border); color: var(--text); font-weight: 400; }
+.rr-head { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+.rr-summary { margin: 4px 0 8px; }
+.rr-thinking { margin: 6px 0; line-height: 1.7; color: var(--muted); font-style: normal; }
+.rr-mark { background: none; color: var(--text); border-bottom: 2px solid; padding: 0 1px; }
+.rr-mark sup { font: 600 10px var(--mono); margin-left: 2px; }
+.rr-right { border-color: var(--st-learned, #3fb27f); background: color-mix(in srgb, var(--st-learned, #3fb27f) 12%, transparent); }
+.rr-partly { border-color: #e0a63a; background: color-mix(in srgb, #e0a63a 12%, transparent); }
+.rr-wrong { border-color: #e5606f; background: color-mix(in srgb, #e5606f 14%, transparent); }
+.rr-parts { margin: 6px 0 8px; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
+.rr-parts .md-inline { display: inline; }
+.rr-pill-right { color: var(--st-learned, #3fb27f); }
+.rr-pill-partly { color: #e0a63a; }
+.rr-pill-wrong { color: #e5606f; }
+.rr-block { margin: 8px 0; padding: 8px 12px; border-radius: 8px; }
+.rr-assume { background: color-mix(in srgb, #e5606f 8%, transparent); border-left: 3px solid #e5606f; }
+.rr-truth { background: color-mix(in srgb, var(--st-learned, #3fb27f) 8%, transparent); border-left: 3px solid var(--st-learned, #3fb27f); }
+.rr-block p { margin: 2px 0 6px; }
+.rr-follow { margin: 4px 0; padding-left: 22px; }
+.rr-takeaway { margin: 6px 0 0; }
+.rr-takeaway .md-inline { display: inline; }
+.reasoning-history { grid-column: 1 / -1; }
+.rh-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.rh-list li { display: flex; flex-direction: column; gap: 2px; }
+.rh-list .md-inline { display: inline; }
+
+/* ---------- A lesson that is being written: steps and a moving bar ---------- */
+.writing-banner { position: sticky; top: 8px; z-index: 5; margin: 8px 0 14px; padding: 10px 14px; border-radius: 10px;
+  background: color-mix(in srgb, var(--c-1) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--c-1) 40%, var(--border));
+  display: flex; flex-direction: column; gap: 6px; }
+.writing-bar { position: relative; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; }
+.writing-bar span { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--c-1); transition: width .6s ease; }
+.writing-bar::after { content: ''; position: absolute; inset: 0; width: 30%;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, white 35%, transparent), transparent); animation: writing-sweep 1.6s linear infinite; }
+@keyframes writing-sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+@media (prefers-reduced-motion: reduce) { .writing-bar::after { animation: none; } }
+.writing-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); }
+.writing-steps li::before { content: '○ '; }
+.writing-steps li.done { color: var(--text); }
+.writing-steps li.done::before { content: '✓ '; color: var(--st-learned, #3fb27f); }
+.writing-steps li.now { color: var(--text); font-weight: 600; }
+.writing-steps li.now::before { content: '● '; color: var(--c-1); }

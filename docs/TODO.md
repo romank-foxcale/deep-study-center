@@ -357,6 +357,13 @@ and the map opening on Territories. Checked on the mock workspace in dark, light
 `claude/page-polish`): Practice, Library, Me and Settings in the new style, and pinch zoom on the map. Open: the goal
 pages keep their old layout while goals are on hold; pinch zoom is not yet tried on a real touch screen.
 
+### D9. ✅ DONE (2026-11-22, branch `claude/reasoning-feedback`, SPEC §32): The tutor reads your reasoning
+After a lesson check with thinking, the tutor marks the parts of the thinking as right or wrong with a reason, names
+the wrong assumption, follows it until it breaks, and derives how it really works; saved per answer, with a history on
+the Me page. Lessons and the tutor write in 80 % STE (a setting). Checked on the learner's real dictated answer (on a
+copy of the workspace). Open: the same reading for study-session answers and for explain-back grading. Also on this branch: a progress banner while a
+lesson is written, and multi-line display formulas no longer turn red.
+
 ### D8. ✅ DONE (2026-11-22, branch `claude/page-polish`, SPEC §31): Book lessons
 A book is chapters of saved lessons by topic: a chapter summary, lessons written from the book's pages on first open
 (what the book says, what it means), idea links, feedback, a quiz at the end and a drawing board the grader reads.

@@ -118,6 +118,19 @@ export default function Settings() {
                     </div>
                   </div>
                   <div className="card">
+                    <h2>Writing style</h2>
+                    <p className="muted small">How lessons, summaries and the tutor's answers are written. It applies to text written from now on.</p>
+                    <div className="layout-pick" role="radiogroup" aria-label="Writing style">
+                      <fieldset>
+                        <label><input type="radio" checked={s.settings.writingStyle === 'ste'} onChange={() => dispatch({ type: 'setSetting', key: 'writingStyle', value: 'ste' })} />
+                          <span><strong>Simple English</strong> <span className="muted small">ASD-STE100 Simplified Technical English, about 80 %:
+                            short sentences, one fact per sentence, active voice, common words. Technical terms stay.</span></span></label>
+                        <label><input type="radio" checked={s.settings.writingStyle === 'plain'} onChange={() => dispatch({ type: 'setSetting', key: 'writingStyle', value: 'plain' })} />
+                          <span><strong>Free</strong> <span className="muted small">No style rule: the writers choose their own style.</span></span></label>
+                      </fieldset>
+                    </div>
+                  </div>
+                  <div className="card">
                     <h2>Goal research</h2>
                     <label className="row">
                       <input type="checkbox" checked={s.settings.autoResearch}
