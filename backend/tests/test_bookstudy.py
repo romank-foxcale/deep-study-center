@@ -26,10 +26,10 @@ def act(db, jobs, **a):
     return state.snapshot(db)
 
 
-def add_book(db, pages=12):
+def add_book(db, pages=12, outline=None):
     db.x("""INSERT INTO sources(id, title, author, kind, filename, bytes, pages, status, outline, added_at)
             VALUES('src-1', 'Inference Book', 'A. Author', 'book', 'b.pdf', 1, ?, 'ready', ?, '2026-01-01')""",
-         (pages, dumps(OUTLINE)))
+         (pages, dumps(outline or OUTLINE)))
     for p in range(1, pages + 1):
         text = f"page {p} text about attention softmax kv cache memory bandwidth serving"
         db.x("INSERT INTO source_pages(source_id, page, text) VALUES('src-1', ?, ?)", (p, text))
@@ -223,3 +223,48 @@ def test_the_grader_sees_the_drawing_board(book):
     assert g["status"] == "graded" and g["drawing"].endswith(".png")
     with pytest.raises(actions.ActionError):
         act(db, jobs, type="explain", conceptId=cid, itemId="e-s-why", answer="short")  # no drawing: words needed
+
+
+def test_reference_chapters_get_no_lessons_and_left_out_entries_still_end_chapters(env):
+    db, jobs, runner = env
+    outline = OUTLINE + [{"title": "Appendix A: Inference Glossary", "page": 11, "level": 1},
+                         {"title": "Index", "page": 12, "level": 1}]
+    ch = bookstudy.chapters_from_outline(outline, 12)
+    assert [(c["title"], c["page_from"], c["page_to"], c["kind"]) for c in ch][-2:] == [
+        ("Chapter 3: Hardware", 10, 10, "chapter"), ("Appendix A: Inference Glossary", 11, 11, "reference")]  # the index ends it
+    add_book(db, outline=outline)
+    map_reply.prompts, map_reply.fail_chapter_2 = [], False
+    runner.responses["Book map"] = map_reply
+    bid = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]["id"]
+    v = bookstudy.view(db, bid)
+    assert v["status"] == "ready" and len(map_reply.prompts) == 3  # no call for the glossary
+    ref = v["chapters"][-1]
+    assert ref["kind"] == "reference" and ref["mapped"] and ref["lessons"] == []
+    # the learner can still cut it into lessons
+    act(db, jobs, type="bookRemapChapter", bookId=bid, chapter=ref["chapter"], asLessons=True)
+    ref = bookstudy.view(db, bid)["chapters"][-1]
+    assert ref["kind"] == "chapter" and [x["title"] for x in ref["lessons"]] == ["Memory bandwidth"]
+
+
+def test_a_chapter_is_mapped_again_and_keeps_what_the_learner_did(book):
+    db, jobs, runner = book
+    bid = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]["id"]
+    att = lessons(db, bid)["Attention"]
+    lesson.open_lesson(db, jobs, att["conceptId"])  # writes the chapter's cards and this lesson
+    db.x("""INSERT INTO evidence(ts, concept_id, item_id, kind, correct, score) VALUES('2026-01-01', ?, 'x', 'check', 1, 1.0)""",
+         (att["conceptId"],))
+    db.x("INSERT INTO notes(ts, concept_id, quote, text) VALUES('t', ?, '', 'my note')", (att["conceptId"],))
+    calls = len(map_reply.prompts)
+    act(db, jobs, type="bookRemapChapter", bookId=bid, chapter=1)
+    assert len(map_reply.prompts) == calls + 1 and "Chapter: Chapter 1" in map_reply.prompts[-1]  # only this chapter
+    again = lessons(db, bid)["Attention"]
+    assert again["conceptId"] == att["conceptId"] and not again["carded"] and not again["written"]  # same key: same lesson
+    assert db.one("SELECT 1 FROM evidence WHERE concept_id=?", (att["conceptId"],))
+    assert db.one("SELECT 1 FROM notes WHERE concept_id=?", (att["conceptId"],))
+    assert len(lessons(db, bid)) == 5 and bookstudy.view(db, bid)["status"] == "ready"
+    # a chapter the mapper finds is only reference material (no lessons) becomes a reference chapter
+    runner.responses["Book map"] = {"summary": "A glossary.", "lessons": []}
+    act(db, jobs, type="bookRemapChapter", bookId=bid, chapter=3)
+    assert bookstudy.view(db, bid)["chapters"][2]["kind"] == "reference"
+    with pytest.raises(actions.ActionError):
+        act(db, jobs, type="bookRemapChapter", bookId=bid, chapter=99)

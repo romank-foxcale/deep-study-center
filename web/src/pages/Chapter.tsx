@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getBook, useStore } from '../store'
 import Markdown from '../components/Markdown'
+import RemapChapter from '../components/RemapChapter'
 import type { BookView } from '../types'
 import { KNOWN, LessonList, pageRange } from './Book'
 
@@ -38,7 +39,8 @@ export default function Chapter() {
         <span><b className="text">{known}</b> known</span>
       </div>
       {ch.summary && <div className="card chapter-summary"><div className="eyebrow">The chapter in short</div><Markdown>{ch.summary}</Markdown></div>}
-      {!ch.mapped && <p className="muted">This chapter is not cut into lessons yet: the book is still being mapped.</p>}
+      {!ch.mapped && <p className="muted">This chapter is not cut into lessons yet: the book is being mapped.</p>}
+      {ch.mapped && ch.kind === 'reference' && <p className="muted">Reference material: looked up, not studied, so it has no lessons.</p>}
       {ch.writing && <p className="muted">Writing this chapter's lessons from the book's pages…</p>}
       <LessonList lessons={ch.lessons} next={v.next} full />
       <div className="row">
@@ -49,6 +51,7 @@ export default function Chapter() {
         {prev && <Link className="btn" to={`/book/${v.id}/chapter/${prev.chapter}`}>← {prev.title}</Link>}
         {nextCh && <Link className="btn" to={`/book/${v.id}/chapter/${nextCh.chapter}`}>{nextCh.title} →</Link>}
       </div>
+      <div className="row"><RemapChapter bookId={v.id} ch={ch} busy={v.busy || ch.writing} /></div>
     </div>
   )
 }

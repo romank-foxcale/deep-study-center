@@ -537,6 +537,11 @@ def book_open_lesson(db: DB, jobs: Jobs, a: dict) -> None:
 
 
 @_book
+def book_remap_chapter(db: DB, jobs: Jobs, a: dict) -> None:
+    bookstudy.remap_chapter(db, jobs, str(a["bookId"]), int(a["chapter"]), bool(a.get("asLessons")))
+
+
+@_book
 def book_homework(db: DB, jobs: Jobs, a: dict) -> None:
     db.set_meta("last_practice", bookstudy.homework(db, jobs, str(a["bookId"]), int(a["chapter"])))
 
@@ -902,7 +907,7 @@ ACTIONS = {
     "setApiKey": set_api_key, "clearApiKey": clear_api_key, "useApiForAll": use_api_for_all,
     "linkSource": link_source, "editSource": edit_source, "deleteSource": delete_source, "rereadSource": reread_source, "reset": reset,
     "restoreCut": restore_cut,
-    "studyBook": study_book, "bookRetry": book_retry, "bookOpenLesson": book_open_lesson, "bookHomework": book_homework,
+    "studyBook": study_book, "bookRetry": book_retry, "bookOpenLesson": book_open_lesson, "bookRemapChapter": book_remap_chapter, "bookHomework": book_homework,
     "deleteBook": delete_book, "setMapView": set_map_view,
     "setDictation": set_dictation, "downloadDictationModel": download_dictation_model,
     "removeDictationModel": remove_dictation_model,

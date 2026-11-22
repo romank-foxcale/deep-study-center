@@ -55,6 +55,7 @@ export type Action =
   | { type: 'studyBook'; sourceId: string }
   | { type: 'bookRetry'; bookId: string }
   | { type: 'bookOpenLesson'; conceptId: string }
+  | { type: 'bookRemapChapter'; bookId: string; chapter: number; asLessons?: boolean }
   | { type: 'bookHomework'; bookId: string; chapter: number }
   | { type: 'deleteBook'; bookId: string }
   | { type: 'setMapView'; view: import('./types').MapViewId }

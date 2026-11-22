@@ -200,7 +200,7 @@ CREATE TABLE IF NOT EXISTS book_nodes (
 CREATE TABLE IF NOT EXISTS book_chapters (
   book_id TEXT NOT NULL, chapter INTEGER NOT NULL, title TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '',
   page_from INTEGER NOT NULL, page_to INTEGER NOT NULL, sections TEXT NOT NULL DEFAULT '[]', module_id TEXT,
-  mapped INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (book_id, chapter));
+  mapped INTEGER NOT NULL DEFAULT 0, kind TEXT NOT NULL DEFAULT 'chapter', PRIMARY KEY (book_id, chapter));
 CREATE TABLE IF NOT EXISTS book_cuts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL, ord INTEGER NOT NULL, source_id TEXT NOT NULL,
   chapter TEXT NOT NULL, pages TEXT NOT NULL DEFAULT '', rank TEXT NOT NULL, why TEXT NOT NULL DEFAULT '',
@@ -245,6 +245,7 @@ MIGRATIONS = [
     ("books", "version", "INTEGER NOT NULL DEFAULT 1"),    # 1 = parts taught as study sessions; 2 = chapters of saved lessons
     ("book_parts", "concept_id", "TEXT"),                  # v2: the lesson (concept) this part is
     ("book_parts", "ideas", "TEXT NOT NULL DEFAULT '[]'"), # v2: the lesson's key ideas
+    ("book_chapters", "kind", "TEXT NOT NULL DEFAULT 'chapter'"),  # chapter | reference (glossary, reading list: no lessons)
 ]
 
 
