@@ -9,6 +9,8 @@ dependencies = [
   "fsrs==5.1.3",
   "genanki==0.13.1",
   "pypdf==6.10.2",
+  "faster-whisper==1.2.1",  # local dictation (SPEC §27)
+  "av==15.1.0",             # audio decoding for faster-whisper; av 16+ breaks faster-whisper 1.2.1
 ]
 
 [project.optional-dependencies]

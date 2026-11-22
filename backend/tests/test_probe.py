@@ -1,4 +1,4 @@
-"""The probe (SPEC §20): rounds of quick questions picked from earlier answers, then an assessment."""
+"""The probe (SPEC §20, §26): quick questions one at a time, picked from earlier answers, then an assessment."""
 
 import json
 
@@ -25,13 +25,13 @@ ASSESSMENT = {"summary": "You know linear algebra; calculus is new.", "edge": "S
 
 
 def fake_probe(call):
-    """Round 1: two questions; round 2: one question; then the assessment (or at once when told to end)."""
+    """Question 1, then (after an unknown step id is dropped) question 2, then the assessment (or at once when told to end)."""
     if "Must you end now? yes" in call.prompt:
         return {"done": True, "questions": [], "assessment": ASSESSMENT}
-    if "this is the first round" in call.prompt:
-        return {"done": False, "questions": [q("m-la", 1), q("m-calc", 2), q("m-merge-unknown", 3)]}
-    if "round 2" not in call.prompt:
-        return {"done": False, "questions": [q("m-calc", 4)]}
+    if "this is the first question" in call.prompt:
+        return {"done": False, "questions": [q("m-merge-unknown", 0), q("m-la", 1)]}
+    if "- question 2," not in call.prompt:
+        return {"done": False, "questions": [q("m-calc", 2)]}
     return {"done": True, "questions": [], "assessment": ASSESSMENT}
 
 
@@ -45,13 +45,14 @@ def test_probe_rounds_use_thinking_and_end_with_an_assessment(env):
     first = p["question"]
     s = act(db, jobs, type="probeAnswer", itemId=first["id"], choice=0, confidence=0.9, thinking="vectors add tip to tail")
     assert s["probe"]["answered"][0]["correct"] and s["probe"]["answered"][0]["explanation"] == "because"
-    s = act(db, jobs, type="probeAnswer", itemId=s["probe"]["question"]["id"], choice=None, thinking="no idea about the chain rule")
-    # the unknown module id was dropped, so round 1 is complete and round 2 was asked for with the answers
+    # one question at a time: the unknown step id was dropped, and question 2 was chosen from answer 1
     p = s["probe"]
-    assert p["rounds"] == 2 and p["asked"] == 2
+    assert p["rounds"] == 2 and p["asked"] == 1
     call = [c for r, c in runner.calls if r == "Placement"][-1]
-    assert "vectors add tip to tail" in call.prompt and "did not know" in call.prompt and "confidence 90%" in call.prompt
-    s = act(db, jobs, type="probeAnswer", itemId=p["question"]["id"], choice=1)
+    assert "vectors add tip to tail" in call.prompt and "confidence 90% (chance: 33%)" in call.prompt
+    s = act(db, jobs, type="probeAnswer", itemId=p["question"]["id"], choice=None, thinking="no idea about the chain rule")
+    call = [c for r, c in runner.calls if r == "Placement"][-1]
+    assert "did not know" in call.prompt and "no idea about the chain rule" in call.prompt
     a = s["probe"]["assessment"]
     assert s["probe"]["status"] == "done" and [m["moduleId"] for m in a["modules"]] == ["m-la", "m-calc"]
     assert a["modules"][0]["title"] == "Linear algebra" and not a["applied"]

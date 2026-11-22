@@ -175,6 +175,11 @@ npm run dev                               # http://localhost:5173 (proxies /api 
 Or build the frontend once (`npm run build` in `web/`) and `dsc serve` serves the whole app on port 8000.
 Tests: `.venv/Scripts/python -m pytest` in `backend/`.
 
+Dictation: by default the browser's speech API writes down what you say (Chrome and Edge send the audio to Google).
+For dictation that keeps your voice on your computer, open Settings → Dictation, choose "On this computer (Whisper)"
+and download a model once (base, about 140 MB). It is stored in `<workspace>/models/whisper` and then works offline.
+See docs/SPEC.md §27.
+
 ## Layout
 
 ```

@@ -4,7 +4,7 @@ import { getSession, useStore } from '../store'
 import Markdown from '../components/Markdown'
 import ThinkingInput, { DictationArea, NO_REASONING, ReasoningShown, type Reasoning } from '../components/ThinkingInput'
 import { SourceStatus } from '../components/Sources'
-import type { SessionItem, SessionQuestion, SessionView } from '../types'
+import type { SessionIdea, SessionItem, SessionQuestion, SessionView } from '../types'
 
 const STEPS = [
   { id: 'sketching', label: 'Map the topic' }, { id: 'probing', label: 'What you know' }, { id: 'planning', label: 'Plan' },
@@ -129,7 +129,7 @@ function SessionPage({ id }: { id: string }) {
       {v.status === 'probing' && (
         <>
           {lastProbe && <QuestionCard q={lastProbe} label="Last answer" />}
-          {openProbe && <QuestionCard key={openProbe.id} q={openProbe} label={`Quick question · ${idea(openProbe.idea)?.title ?? ''}`}
+          {openProbe && <QuestionCard key={openProbe.id} q={openProbe} label={`Question ${openProbe.round} of at most ${v.probeMax} · ${idea(openProbe.idea)?.title ?? ''}`}
             onAnswer={(c, r) => answer(openProbe, c, r)} allowDunno />}
           {probeItems.filter(i => i.answered).length >= 2 && !v.busy && (
             <button className="link small" onClick={() => act({ type: 'sessionAssessNow', sessionId: v.id })}>Stop asking and show the plan</button>
@@ -179,6 +179,7 @@ function PlanView({ v, act }: { v: SessionView; act: (a: Parameters<ReturnType<t
     <div className="card">
       <p>The path from what you know to <strong>{v.ideas.find(i => i.target)?.title}</strong>. Untick what you already hold;
         each step is short.</p>
+      {v.probeStart && <div className="study-probe-start"><div className="eyebrow">Where to start</div><Markdown>{v.probeStart}</Markdown></div>}
       <ul className="study-ideas">
         {order.map(k => {
           const i = v.ideas.find(x => x.key === k)!
@@ -193,6 +194,8 @@ function PlanView({ v, act }: { v: SessionView; act: (a: Parameters<ReturnType<t
                   {known && <span className="pill pill-ok small">{i.fromGraph && i.level === 'known' ? 'in your graph' : 'you know this'}</span>}
                   {!known && i.level === 'partial' && <span className="pill pill-warn small">partly</span>}
                   {i.fromGraph && <span className={NODE_STATE[i.nodeState] ?? 'pill'} title="This idea is already in your knowledge graph"> graph: {i.nodeState}</span>}
+                  {i.probe?.level === 'untested' && <span className="pill small" title="No question reached this idea">not tested</span>}
+                  <ProbeNote p={i.probe} />
                 </span>
               </label>
             </li>
@@ -202,6 +205,18 @@ function PlanView({ v, act }: { v: SessionView; act: (a: Parameters<ReturnType<t
       <button className="btn btn-primary" onClick={() => act({ type: 'sessionTeach', sessionId: v.id })}>
         Start learning ({v.plan.length} step{v.plan.length === 1 ? '' : 's'})</button>
     </div>
+  )
+}
+
+/** What the probe found on one idea: what you reason from, where your reasoning stopped, and wrong beliefs it saw. */
+function ProbeNote({ p }: { p: SessionIdea['probe'] }) {
+  if (!p || p.level === 'untested' || !(p.reasonsFrom || p.runsOut || p.misconceptions.length)) return null
+  return (
+    <span className="study-probe-note small">
+      {p.reasonsFrom && <span><strong>You reason from:</strong> <Markdown inline>{p.reasonsFrom}</Markdown></span>}
+      {p.runsOut && <span><strong>Your reasoning stopped at:</strong> <Markdown inline>{p.runsOut}</Markdown></span>}
+      {p.misconceptions.map((m, n) => <span key={n} className="study-misconception"><strong>To fix:</strong> <Markdown inline>{m}</Markdown></span>)}
+    </span>
   )
 }
 

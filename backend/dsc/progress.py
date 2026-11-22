@@ -6,14 +6,13 @@ from __future__ import annotations
 import threading
 from typing import TYPE_CHECKING
 
-from . import engine, state
+from . import engine, mcq, state
 from .db import DB, now
 
 if TYPE_CHECKING:
     from .jobs import Jobs
 
 
-GUESS = 0.25  # confidence at or below this marks an answer as a guess
 
 
 def reasoning(a: dict) -> tuple[str, float | None]:
@@ -27,8 +26,9 @@ def reasoning(a: dict) -> tuple[str, float | None]:
     return thinking, conf
 
 
-def guessed(correct: bool, confidence: float | None) -> bool:
-    return correct and confidence is not None and confidence <= GUESS
+def guessed(correct: bool, confidence: float | None, n_options: int = 4) -> bool:
+    """A right answer the learner did not trust: confidence at or below chance (1/n) or at or below 30%."""
+    return correct and confidence is not None and confidence <= mcq.guess_line(n_options) + 1e-9
 
 
 def record_evidence(db: DB, cid: str, item_id: str, score: float, *, choice: int | None = None,

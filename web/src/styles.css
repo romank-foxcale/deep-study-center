@@ -578,6 +578,10 @@ pre.code-output.bad { color: #f48771; }
 .study-idea-row { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
 .study-idea-row input { margin-top: 4px; flex: none; }
 .study-statement { display: block; margin-top: 2px; }
+.study-probe-start { margin: 0 0 12px; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--surface-2); }
+.study-probe-note { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; color: var(--muted); }
+.study-probe-note .md-inline { display: inline; }
+.study-misconception strong { color: var(--warn); }
 .study-idea h2 .md-inline, .study-ideas strong .md-inline, .study-plan .md-inline { display: inline; }
 
 /* The knowledge map (SPEC §23) */
@@ -628,3 +632,8 @@ pre.code-output.bad { color: #f48771; }
 .practice-thinking { border-left: 3px solid var(--border); padding-left: 10px; }
 .practice-thinking p { margin: 2px 0; white-space: pre-wrap; }
 .practice-hint { margin-top: 6px; }
+
+/* Settings → Dictation (SPEC §27) */
+.dictation-models { list-style: none; padding: 0; margin: 10px 0; display: flex; flex-direction: column; gap: 6px; }
+.dictation-models li { gap: 10px; flex-wrap: wrap; }
+.dictation-try { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }

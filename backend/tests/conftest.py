@@ -22,6 +22,13 @@ class FakeRunner:
         return (r(call) if callable(r) else r), route["provider"]
 
 
+@pytest.fixture(autouse=True)
+def keep_option_order(monkeypatch):
+    """Fixtures put the right option first; tests of the shuffle turn it back on."""
+    from dsc import mcq
+    monkeypatch.setattr(mcq, "SHUFFLE", False)
+
+
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     monkeypatch.setenv("DSC_WORKSPACE", str(tmp_path))

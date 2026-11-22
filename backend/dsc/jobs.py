@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import books, engine, graph, guidelines, library, ohtani, practice, probe, progress, providers, runner, session, sources, state, versions, viz, writer
+from . import books, dictation, engine, graph, guidelines, library, mcq, ohtani, practice, probe, progress, providers, runner, session, sources, state, versions, viz, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
@@ -277,9 +277,7 @@ def run_outline(jobs: Jobs, jid: int, d: dict) -> dict:
 
 # ---------------------------------------------------------------- research a module into cards
 
-_CHECK = {"type": "object", "required": ["prompt", "options", "answer", "explanation"], "properties": {
-    "prompt": {"type": "string"}, "options": {"type": "array", "minItems": 2, "maxItems": 5, "items": {"type": "string"}},
-    "answer": {"type": "integer"}, "explanation": {"type": "string"}}}
+_CHECK = mcq.SCHEMA
 _CODE = {"type": "object", "required": ["prompt", "starter", "tests"], "properties": {
     "prompt": {"type": "string"}, "starter": {"type": "string"}, "tests": {"type": "string"},
     "runtime": {"enum": ["pyodide", "local"]}}}
@@ -380,7 +378,7 @@ def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
                 if s.get("code") and s["code"].get("runtime") not in ("pyodide", "local"):
                     s["code"]["runtime"] = "pyodide"
                 if s.get("check"):
-                    s["check"]["id"] = f'q-{s["id"]}'
+                    s["check"] = {**mcq.shuffle(s["check"]), "id": f'q-{s["id"]}'}
                 if s.get("code"):
                     s["code"]["id"] = f'x-{s["id"]}'
                 if s.get("explain"):
@@ -545,6 +543,8 @@ def run_refresh_card(jobs: Jobs, jid: int, d: dict) -> dict:
     old_ids = {s["id"]: s for s in card.get("sections", [])}
     for s in new.get("sections", []):
         prev = old_ids.get(s["id"], {})
+        if s.get("check") and not prev.get("check"):  # a new check; a kept one keeps its order for past answers
+            s["check"] = mcq.shuffle(s["check"])
         for kind, prefix in (("check", "q"), ("code", "x"), ("explain", "e")):
             if s.get(kind):  # keep item ids stable so past answers still line up
                 s[kind]["id"] = prev.get(kind, {}).get("id") or f'{prefix}-{s["id"]}'
@@ -811,6 +811,7 @@ def _prewrite_next(jobs: Jobs, jid: int, d: dict) -> None:
 
 
 HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
+    "dictation_model": (dictation.run_download, None),
     "render": (run_render, None),
     "tutor": (run_tutor, fallback_tutor),
     "roadmap_review": (run_roadmap_review, fallback_roadmap_review),

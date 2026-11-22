@@ -25,10 +25,17 @@ SKETCH = {"title": "Dot products", "target_key": "cos", "ideas": [
     {"key": "cos", "title": "Cosine similarity", "statement": "The angle from the dot product.", "prereq_keys": ["proj", "len"]}]}
 
 
+RESULT = {"start": "Start with the projection; the length is solid.", "ideas": [
+    {"idea_key": "len", "level": "known", "reasons_from": "Pythagoras", "runs_out": "", "misconceptions": []},
+    {"idea_key": "proj", "level": "unknown", "reasons_from": "", "runs_out": "the projection as a length",
+     "misconceptions": ["thinks the projection is a number"]},
+    {"idea_key": "cos", "level": "untested", "reasons_from": "", "runs_out": "", "misconceptions": []}]}
+
+
 def probe_reply(call):
     if "Must you end now? yes" in call.prompt or "idea len" in call.prompt:
-        return {"done": True, "questions": [], "levels": [{"idea_key": "len", "level": "known"}, {"idea_key": "proj", "level": "unknown"}]}
-    return {"done": False, "questions": [{"idea_key": "len", **mcq("Length of (3, 4)?")}]}
+        return {"done": True, "result": RESULT}
+    return {"done": False, "question": {"idea_key": "len", **mcq("Length of (3, 4)?")}}
 
 
 def turn_reply(call):
@@ -76,11 +83,17 @@ def test_full_session_from_topic_to_graph(env):
     proj = next(i for i in v["ideas"] if i["key"] == "proj")
     assert proj["node"].startswith("n-") and ("c-vectors", proj["node"]) in {(lk["src"], lk["dst"]) for lk in graph.links(db)}
 
-    # probe: one question on "len" (answered right and sure) -> levels -> planning
+    # probe: one question on "len" (answered right and sure) -> the result per idea -> planning
     q = answer_open(db, jobs, choice=0, confidence=0.9, thinking="3-4-5 triangle")
     assert q["phase"] == "probe"
+    probe_prompt = [c.prompt for r, c in runner.calls if r == "Study tutor"][-1]
+    assert "confidence 90% (chance: 33%)" in probe_prompt and "3-4-5 triangle" in probe_prompt
     v = view(db)
     assert v["status"] == "planning" and v["plan"] == ["proj", "cos"]  # vec known from the graph, len from the probe
+    by = {i["key"]: i for i in v["ideas"]}
+    assert by["proj"]["level"] == "unknown" and by["proj"]["probe"]["misconceptions"] == ["thinks the projection is a number"]
+    assert by["cos"]["level"] is None and by["cos"]["probe"]["level"] == "untested"  # untested is not a finding
+    assert v["probeStart"].startswith("Start with the projection")
     len_node = next(i for i in v["ideas"] if i["key"] == "len")["node"]
     assert db.one("SELECT score FROM evidence WHERE concept_id=?", (len_node,))["score"] == 1.0
 
@@ -96,6 +109,7 @@ def test_full_session_from_topic_to_graph(env):
     assert [i["phase"] for i in v["items"] if i["idea"] == "proj"] == ["predict", "explain", "check"]
     turn_prompt = [c.prompt for r, c in runner.calls if r == "Study tutor"][-1]
     assert "I think it is the length" in turn_prompt and "Your task: **explain**" in turn_prompt
+    assert "misconceptions: thinks the projection is a number" in turn_prompt and "Start with the projection" in turn_prompt
     answer_open(db, jobs, choice=2)  # wrong check
     assert "Your task: **repair**" in [c.prompt for r, c in runner.calls if r == "Study tutor"][-1]
     answer_open(db, jobs, choice=0)  # right
@@ -149,8 +163,31 @@ def test_errors_retry_and_delete(env):
     v = view(db)
     assert v["status"] == "probing" and not v["error"]
     made = [i["node"] for i in v["ideas"] if not i["fromGraph"]]
-    act(db, jobs, type="sessionAssessNow", sessionId=v["id"])
-    assert view(db)["status"] == "planning"
+    act(db, jobs, type="sessionAssessNow", sessionId=v["id"])  # no answers yet: plan at once, no result
+    assert view(db)["status"] == "planning" and not view(db)["probeStart"]
     s = act(db, jobs, type="deleteSession", sessionId=v["id"])
     assert s["sessions"] == [] and not db.q(f"SELECT * FROM nodes WHERE id IN ({','.join('?' * len(made))})", made)
     assert db.one("SELECT 1 FROM nodes WHERE id='c-vectors'")  # graph ideas that were reused stay
+
+
+def test_one_question_at_a_time_and_assess_now_writes_the_result(env):
+    db, jobs, runner = env
+    setup(runner)
+    calls = []
+
+    def reply(call):
+        calls.append(call.prompt)
+        if "Must you end now? yes" in call.prompt:
+            return {"done": True, "result": RESULT}
+        return {"done": False, "question": {"idea_key": "proj", **mcq(f"Q{len(calls)}?")}}
+    runner.responses["Study tutor"] = reply
+    act(db, jobs, type="startSession", topic="cosine similarity")
+    for n in range(3):
+        v = view(db)
+        assert [i["round"] for i in v["items"] if not i["answered"]] == [n + 1]  # exactly one open question
+        answer_open(db, jobs, choice=1, confidence=0.3, thinking=f"thought {n}")
+    assert "thought 2" in calls[-1] and "(chance: 33%)" in calls[-1]
+    act(db, jobs, type="sessionAssessNow", sessionId=view(db)["id"])
+    v = view(db)
+    assert v["status"] == "planning" and "Must you end now? yes" in calls[-1] and v["probeStart"]
+    assert len([i for i in v["items"] if i["phase"] == "probe"]) == 3  # the open question was dropped

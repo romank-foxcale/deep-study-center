@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
+import { useDictationSettings } from '../store'
+import { localDictationSupported, startLocalDictation, type LocalDictation } from './localDictation'
 
 /** What the learner sends with an answer, besides the answer itself. */
 export interface Reasoning { thinking: string; confidence: number | null }
 export const NO_REASONING: Reasoning = { thinking: '', confidence: null }
 
-/** Confidence labels; the value sent is 0..1. A right answer at "Guess" counts as half. */
-const LEVELS = [
-  { at: 0.1, label: 'Guess' }, { at: 0.35, label: 'Unsure' }, { at: 0.6, label: 'Fairly sure' },
-  { at: 0.85, label: 'Sure' }, { at: 1.01, label: 'Certain' },
+/** Confidence = how likely you think your pick is right (0..1). The slider snaps to these stops, with more of them near
+ *  the top, where "sure" and "certain" differ. A right answer at or below chance (1/n) or 30% counts as a guess (SPEC §26). */
+const STOPS = [
+  { at: 0, label: 'I think it is wrong' }, { at: 0.3, label: 'Doubtful' }, { at: 0.5, label: 'Coin flip' },
+  { at: 0.7, label: 'Fairly sure' }, { at: 0.9, label: 'Sure' }, { at: 1, label: 'Certain' },
 ]
-export const confidenceLabel = (c: number) => (LEVELS.find(l => c <= l.at) ?? LEVELS[LEVELS.length - 1]).label
+const nearest = (c: number) => STOPS.reduce((best, s, i) => (Math.abs(s.at - c) < Math.abs(STOPS[best].at - c) ? i : best), 0)
+export const confidenceLabel = (c: number) => STOPS[nearest(c)].label
 
 // ---------------------------------------------------------------- dictation (browser speech recognition)
 
@@ -26,17 +30,35 @@ const speechCtor = (): RecognizerCtor | undefined => {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition
 }
 
-/** Speech to text: final phrases are appended through onText; interim text is shown while you speak. */
+/** Speech to text: final phrases are appended through onText; interim text is shown while you speak.
+ *  Two engines: the browser's speech API (audio goes to the browser maker's servers), or local Whisper (SPEC §27),
+ *  used when Settings → Dictation says "local", or when the browser has no speech API and a model is installed. */
 export function useDictation(onText: (text: string) => void) {
   const rec = useRef<Recognizer | null>(null)
+  const local = useRef<LocalDictation | null>(null)
   const sink = useRef(onText)
   const [on, setOn] = useState(false)
   const [interim, setInterim] = useState('')
   const [error, setError] = useState('')
+  const settings = useDictationSettings()
   useEffect(() => { sink.current = onText }, [onText])
-  useEffect(() => () => rec.current?.stop(), [])
-  const supported = !!speechCtor()
+  useEffect(() => () => { rec.current?.stop(); local.current?.stop() }, [])
+  const localReady = !!settings?.ready && localDictationSupported()
+  const useLocal = localReady && (settings?.mode === 'local' || !speechCtor())
+  const supported = useLocal || !!speechCtor()
+  const startLocal = async () => {
+    setError('')
+    setOn(true)
+    setInterim('Listening…')
+    local.current = await startLocalDictation({
+      onText: t => sink.current(t),
+      onBusy: n => setInterim(n > 0 ? 'Writing down what you said…' : 'Listening…'),
+      onError: m => setError(m),
+      onEnd: () => { setOn(false); setInterim(''); local.current = null },
+    })
+  }
   const start = () => {
+    if (useLocal) { void startLocal(); return }
     const Ctor = speechCtor()
     if (!Ctor) return
     const r = new Ctor()
@@ -59,15 +81,15 @@ export function useDictation(onText: (text: string) => void) {
     r.start()
     setOn(true)
   }
-  const stop = () => rec.current?.stop()
-  return { supported, on, interim, error, toggle: () => (on ? stop() : start()) }
+  const stop = () => { rec.current?.stop(); local.current?.stop() }
+  return { supported, on, interim, error, local: useLocal, toggle: () => (on ? stop() : start()) }
 }
 
 export function MicButton({ dictation }: { dictation: ReturnType<typeof useDictation> }) {
   if (!dictation.supported) return null
   return (
     <button type="button" className={`btn btn-small mic ${dictation.on ? 'mic-on' : ''}`} onClick={dictation.toggle}
-      title={dictation.on ? 'Stop dictation' : 'Dictate: speak your thinking'} aria-pressed={dictation.on}>
+      title={dictation.on ? 'Stop dictation' : `Dictate: speak your thinking${dictation.local ? ' (on this computer)' : ''}`} aria-pressed={dictation.on}>
       <span className="mic-dot" aria-hidden />{dictation.on ? 'Listening… stop' : 'Dictate'}
     </button>
   )
@@ -96,10 +118,11 @@ export function DictationArea({ value, onChange, rows = 3, placeholder, disabled
 export function ConfidenceSlider({ value, onChange, disabled }: { value: number | null; onChange: (v: number | null) => void; disabled?: boolean }) {
   return (
     <div className={`confidence ${value === null ? 'confidence-unset' : ''}`}>
-      <span className="small">How sure are you?</span>
-      <input type="range" min={0} max={100} step={5} value={value === null ? 50 : Math.round(value * 100)} disabled={disabled}
-        aria-label="Confidence" onChange={e => onChange(Number(e.target.value) / 100)}
-        onClick={e => { if (value === null) onChange(Number((e.target as HTMLInputElement).value) / 100) }} />
+      <span className="small">How likely is your pick right?</span>
+      <input type="range" min={0} max={STOPS.length - 1} step={1} value={nearest(value ?? 0.5)} disabled={disabled}
+        aria-label="Confidence" aria-valuetext={value === null ? 'not set' : confidenceLabel(value)}
+        onChange={e => onChange(STOPS[Number(e.target.value)].at)}
+        onClick={e => { if (value === null) onChange(STOPS[Number((e.target as HTMLInputElement).value)].at) }} />
       <span className="small confidence-value">{value === null ? 'not set' : `${Math.round(value * 100)}% · ${confidenceLabel(value)}`}</span>
       {value !== null && !disabled && <button type="button" className="link small" onClick={() => onChange(null)}>clear</button>}
     </div>

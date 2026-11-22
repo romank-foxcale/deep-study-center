@@ -220,6 +220,7 @@ MIGRATIONS = [
     ("feedback", "routed_at", "TEXT"),
     ("feedback", "angle", "TEXT"),
     ("feedback", "ref", "TEXT"),                           # the part it is about: {kind: text|formula|viz, quote, sectionId}                         # the section's angle when the feedback was given                     # a fact claim sent to the card check
+    ("sessions", "probe_start", "TEXT NOT NULL DEFAULT ''"),  # the probe's advice where teaching starts (SPEC §26)
 ]
 
 

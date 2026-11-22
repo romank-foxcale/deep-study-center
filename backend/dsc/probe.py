@@ -1,9 +1,9 @@
 """The probe: find the edge of what the learner knows for a goal (SPEC §20). It replaces the placement quiz.
 
-An agent asks short rounds of quick multiple-choice questions. It sees the roadmap, what the learner learned in other
-goals, and every earlier answer with the learner's thinking and confidence. It binary-searches each area (middle
-first, then toward the basics after a miss or toward advanced steps after a sure hit) and then drills into the edge
-with specific questions. When the edge is clear (or at the limit) it writes an assessment: per step known / partial /
+An agent asks quick multiple-choice questions, one at a time (SPEC §26). It sees the roadmap, what the learner learned
+in other goals, and every earlier answer with the learner's thinking and confidence. It brackets the edge of each area
+(it starts high; a well-reasoned right answer allows a big jump, a miss moves toward the basics) and drills in only
+where the answer would change what gets taught. Options are shuffled when stored. When the edge is clear (or at the limit) it writes an assessment: per step known / partial /
 unknown, the edge in words, and the misconceptions it saw. "Use this" turns known steps into a roadmap proposal and
 adds the edge and misconceptions to the goal profile, so research and every lesson see them.
 """
@@ -12,24 +12,22 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from . import state
+from . import mcq, state
 from .db import DB, dumps, loads, now
 
 if TYPE_CHECKING:
     from .jobs import Jobs
 
-ROUND = 4           # questions per round
-MAX_ROUNDS = 5
-MAX_QUESTIONS = 20
+ROUND = 1           # one question at a time, each chosen from the answers so far (SPEC §26)
+MAX_QUESTIONS = 15
+MAX_ROUNDS = MAX_QUESTIONS
 LEVELS = ("known", "partial", "unknown")
 
 SCHEMA = {"type": "object", "required": ["done", "questions"], "properties": {
     "done": {"type": "boolean"},
     "questions": {"type": "array", "maxItems": ROUND, "items": {"type": "object",
-        "required": ["module_id", "prompt", "options", "answer", "explanation"], "properties": {
-            "module_id": {"type": "string"}, "prompt": {"type": "string"},
-            "options": {"type": "array", "minItems": 2, "maxItems": 5, "items": {"type": "string"}},
-            "answer": {"type": "integer"}, "explanation": {"type": "string"}}}},
+        "required": ["module_id", *mcq.SCHEMA["required"]],
+        "properties": {"module_id": {"type": "string"}, **mcq.SCHEMA["properties"]}}},
     "assessment": {"type": "object", "required": ["summary", "edge", "modules", "misconceptions"], "properties": {
         "summary": {"type": "string"}, "edge": {"type": "string"},
         "modules": {"type": "array", "items": {"type": "object", "required": ["module_id", "level", "note"], "properties": {
@@ -92,14 +90,14 @@ def answers_text(db: DB, gid: str) -> str:
             continue
         it = loads(r["item"])
         chose = "I don't know" if r["choice"] is None else it["options"][r["choice"]]
-        line = (f'- round {r["round"]}, step {r["module_id"]} ({titles.get(r["module_id"], "?")}): {it["prompt"]} '
+        line = (f'- question {r["round"]}, step {r["module_id"]} ({titles.get(r["module_id"], "?")}): {it["prompt"]} '
                 f'| chose: {chose} ({"right" if r["correct"] else "wrong" if r["choice"] is not None else "did not know"})')
         if r["confidence"] is not None:
-            line += f' | confidence {round(r["confidence"] * 100)}%'
+            line += f' | confidence {round(r["confidence"] * 100)}% (chance: {round(mcq.chance(len(it["options"])) * 100)}%)'
         if r["thinking"]:
             line += f' | thinking: "{r["thinking"][:600]}"'
         lines.append(line)
-    return "\n".join(lines) or "(none yet: this is the first round)"
+    return "\n".join(lines) or "(none yet: this is the first question)"
 
 
 def known_elsewhere(db: DB, gid: str) -> str:
@@ -144,10 +142,10 @@ def run_round(jobs: Jobs, jid: int, d: dict) -> dict:
         return {"assessed": True, "asked": asked}
     with db.tx():
         for i, q in enumerate(questions[:ROUND]):
-            item = {"prompt": q["prompt"], "options": q["options"], "answer": q["answer"], "explanation": q["explanation"]}
+            item = mcq.shuffle({"prompt": q["prompt"], "options": q["options"], "answer": q["answer"], "explanation": q["explanation"]})
             db.conn.execute("INSERT INTO probe_items(goal_id, round, ord, module_id, item) VALUES(?,?,?,?,?)",
                             (gid, rounds + 1, i, q["module_id"], dumps(item)))
-    jobs.progress(jid, f"round {rounds + 1}: {min(len(questions), ROUND)} question(s)")
+    jobs.progress(jid, f"question {rounds + 1}")
     return {"round": rounds + 1}
 
 

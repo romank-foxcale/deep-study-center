@@ -4,7 +4,9 @@ Phases (``sessions.status``):
 1. ``sketching``: an agent turns the topic into 4-12 ideas with their dependencies, matched to the learner's graph
    (``same_as``). Each idea becomes a node at once (existing node or a new one, origin "session"), so every answer
    below is evidence on a node. Ideas the graph already holds as learned are marked known.
-2. ``probing``: short rounds of quick questions on the ideas that are not known yet (like the probe, SPEC §20).
+2. ``probing``: quick questions on the ideas that are not known yet, one at a time, each chosen from the last answer
+   (SPEC §26). It ends with a result per idea: what the learner reasons from, where their reasoning stops, and the
+   misconceptions. The teaching turns of an idea get its result.
 3. ``planning``: the ideas to teach, prerequisites first and the target last. The learner can mark ideas as known.
 4. ``teaching``: one idea at a time: **predict** (a question before any explanation) → **explain** (short, fitted to
    the prediction and the learner's thinking) + **check**. A wrong check gets one **repair** step.
@@ -21,20 +23,17 @@ from __future__ import annotations
 import secrets
 from typing import TYPE_CHECKING
 
-from . import graph, guidelines, progress, sources, state
+from . import graph, guidelines, mcq, progress, sources, state
 from .db import DB, dumps, loads, now
 
 if TYPE_CHECKING:
     from .jobs import Jobs
 
-PROBE_ROUND = 4
-PROBE_MAX_ROUNDS = 3
-PROBE_MAX = 12
+PROBE_MAX = 10  # questions; one per probe job, each chosen from the answers so far
 LEVELS = ("known", "partial", "unknown")
+PROBE_LEVELS = (*LEVELS, "untested")
 
-_MCQ = {"type": "object", "required": ["prompt", "options", "answer", "explanation"], "properties": {
-    "prompt": {"type": "string"}, "options": {"type": "array", "minItems": 2, "maxItems": 5, "items": {"type": "string"}},
-    "answer": {"type": "integer"}, "explanation": {"type": "string"}}}
+_MCQ = mcq.SCHEMA
 
 SKETCH_SCHEMA = {"type": "object", "required": ["title", "target_key", "ideas"], "properties": {
     "title": {"type": "string"}, "target_key": {"type": "string"},
@@ -43,13 +42,17 @@ SKETCH_SCHEMA = {"type": "object", "required": ["title", "target_key", "ideas"],
             "key": {"type": "string"}, "title": {"type": "string"}, "statement": {"type": "string"},
             "prereq_keys": {"type": "array", "items": {"type": "string"}}, "same_as": {"type": "string"}}}}}}
 
-PROBE_SCHEMA = {"type": "object", "required": ["done", "questions"], "properties": {
+PROBE_SCHEMA = {"type": "object", "required": ["done"], "properties": {
     "done": {"type": "boolean"},
-    "questions": {"type": "array", "maxItems": PROBE_ROUND, "items": {"type": "object",
-        "required": ["idea_key", "prompt", "options", "answer", "explanation"],
-        "properties": {"idea_key": {"type": "string"}, **_MCQ["properties"]}}},
-    "levels": {"type": "array", "items": {"type": "object", "required": ["idea_key", "level"], "properties": {
-        "idea_key": {"type": "string"}, "level": {"enum": list(LEVELS)}}}}}}
+    "question": {"type": "object", "required": ["idea_key", *_MCQ["required"]],
+                 "properties": {"idea_key": {"type": "string"}, **_MCQ["properties"]}},
+    "result": {"type": "object", "required": ["start", "ideas"], "properties": {
+        "start": {"type": "string"},
+        "ideas": {"type": "array", "items": {"type": "object",
+            "required": ["idea_key", "level", "reasons_from", "runs_out", "misconceptions"], "properties": {
+                "idea_key": {"type": "string"}, "level": {"enum": list(PROBE_LEVELS)},
+                "reasons_from": {"type": "string"}, "runs_out": {"type": "string"},
+                "misconceptions": {"type": "array", "items": {"type": "string"}}}}}}}}}
 
 PREDICT_SCHEMA = {"type": "object", "required": ["predict"], "properties": {"predict": _MCQ}}
 EXPLAIN_SCHEMA = {"type": "object", "required": ["body", "check"], "properties": {"body": {"type": "string"}, "check": _MCQ}}
@@ -127,7 +130,7 @@ def answer(db: DB, jobs: Jobs, sid: str, item_id: int, choice: int | None, think
     if row["phase"] in ("probe", "check"):  # evidence on the idea's node; a prediction is not evidence
         idea = _idea(s, row["idea_key"])
         if idea and idea.get("node"):
-            score = 0.5 if progress.guessed(correct, confidence) else (1.0 if correct else 0.0)
+            score = 0.5 if progress.guessed(correct, confidence, len(item["options"])) else (1.0 if correct else 0.0)
             db.x("""INSERT INTO evidence(ts, concept_id, item_id, kind, choice, correct, score, thinking, confidence)
                     VALUES(?,?,?,?,?,?,?,?,?)""",
                  (now(), idea["node"], f"{sid}-{item_id}", "practice", choice, int(correct), score, thinking, confidence))
@@ -157,10 +160,14 @@ def start_teaching(db: DB, jobs: Jobs, sid: str) -> None:
 
 
 def assess_now(db: DB, jobs: Jobs, sid: str) -> None:
-    """Stop probing: drop open questions and plan from what is known so far."""
+    """Stop probing: drop the open question and write the result from the answers so far."""
     db.x("DELETE FROM session_items WHERE session_id=? AND phase='probe' AND answered=0", (sid,))
     s = get(db, sid)
-    if s and s["status"] == "probing" and not _active(db, sid):
+    if not s or s["status"] != "probing" or _active(db, sid):
+        return
+    if db.one("SELECT 1 FROM session_items WHERE session_id=? AND phase='probe' AND answered=1", (sid,)):
+        jobs.enqueue("session_probe", "What you know", {"session_id": sid, "assess": True})
+    else:
         _to_planning(db, s)
 
 
@@ -333,34 +340,69 @@ def run_probe(jobs: Jobs, jid: int, d: dict) -> dict:
     if s["status"] != "probing":
         return {"skipped": True}
     items = [i for i in _items(db, s["id"]) if i["phase"] == "probe"]
-    rounds = max((i["round"] for i in items), default=0)
-    asked = sum(1 for i in items if i["answered"])
-    must_end = rounds >= PROBE_MAX_ROUNDS or asked >= PROBE_MAX
+    if any(not i["answered"] for i in items):
+        return {"skipped": True}  # a question is still open
+    asked = len(items)
+    must_end = bool(d.get("assess")) or asked >= PROBE_MAX
     ideas_text = "\n".join(f'- {i["key"]}: {i["title"]} - {i["statement"]}'
                            f'{" (needs: " + ", ".join(i["prereqs"]) + ")" if i["prereqs"] else ""}'
+                           f'{" [target]" if i.get("target") else ""}'
                            f'{" [known from the graph]" if i["level"] == "known" else ""}' for i in s["ideas"])
     out = jobs.call(jid, "Study tutor", Call(
         prompt=prompt("session_probe", topic=s["topic"], ideas=ideas_text, answers=_answers_text(s, items),
-                      asked=asked, max_questions=PROBE_MAX, round_size=PROBE_ROUND,
-                      must_end="yes: give the levels now, no more questions" if must_end else "no"),
+                      asked=asked, max_questions=PROBE_MAX,
+                      must_end="yes: write the result now, no more questions" if must_end else "no"),
         schema=PROBE_SCHEMA, model="sonnet", timeout=300))
     keys = {i["key"] for i in s["ideas"]}
-    questions = [q for q in out.get("questions") or [] if q["idea_key"] in keys and 0 <= q["answer"] < len(q["options"])]
-    if not (out.get("done") or must_end or questions):
-        raise ValueError("the probe returned no usable questions")
+    q = out.get("question") or {}
+    usable = q.get("idea_key") in keys and isinstance(q.get("answer"), int) and 0 <= q["answer"] < len(q.get("options") or [])
     if out.get("done") or must_end:
-        levels = {lv["idea_key"]: lv["level"] for lv in out.get("levels") or [] if lv["level"] in LEVELS}
-        for i in s["ideas"]:
-            if i["level"] != "known" and i["key"] in levels:
-                i["level"] = levels[i["key"]]
-        _to_planning(db, s)
-        return {"planned": True}
-    with db.tx():
-        for n, q in enumerate(questions[:PROBE_ROUND]):
-            db.conn.execute("INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, created_at) VALUES(?,?,?,?,?,?,?)",
-                            (s["id"], q["idea_key"], "probe", rounds + 1, n,
-                             dumps({k: q[k] for k in ("prompt", "options", "answer", "explanation")}), now()))
-    return {"round": rounds + 1}
+        apply_result(db, s, out.get("result") or {})
+        jobs.progress(jid, f"result ready after {asked} question(s)")
+        return {"planned": True, "asked": asked}
+    if not usable:
+        raise ValueError("the probe returned no usable question")
+    item = mcq.shuffle({k: q[k] for k in ("prompt", "options", "answer", "explanation")})
+    db.x("INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, created_at) VALUES(?,?,?,?,?,?,?)",
+         (s["id"], q["idea_key"], "probe", asked + 1, 0, dumps(item), now()))
+    return {"question": asked + 1}
+
+
+def apply_result(db: DB, s: dict, result: dict) -> None:
+    """Store the probe's result per idea and move to planning. An idea without evidence keeps no level (it is taught);
+    "untested" is kept apart from "tested and missed" so the teacher does not take a guess for a finding."""
+    by_key = {r.get("idea_key"): r for r in result.get("ideas") or [] if r.get("level") in PROBE_LEVELS}
+    for i in s["ideas"]:
+        i.pop("probe", None)  # a new result replaces an earlier one completely
+        if not (i.get("fromGraph") and i["level"] == "known"):
+            i["level"] = None
+        r = by_key.get(i["key"])
+        if not r:
+            continue
+        i["probe"] = {"level": r["level"], "reasonsFrom": (r.get("reasons_from") or "")[:400],
+                      "runsOut": (r.get("runs_out") or "")[:400],
+                      "misconceptions": [m[:300] for m in r.get("misconceptions") or [] if m.strip()][:5]}
+        if i["level"] != "known" and r["level"] in LEVELS:
+            i["level"] = r["level"]
+    _save(db, s["id"], probe_start=(result.get("start") or "")[:1200])
+    _to_planning(db, get(db, s["id"]) | {"ideas": s["ideas"]})
+
+
+def probe_note(idea: dict) -> str:
+    """What the probe found about one idea, for the teaching prompt."""
+    p = idea.get("probe")
+    if not p:
+        return "(not probed: no evidence either way)"
+    if p["level"] == "untested":
+        return "not tested in the probe"
+    parts = [f'level: {p["level"]}']
+    if p.get("reasonsFrom"):
+        parts.append(f'reasons from: {p["reasonsFrom"]}')
+    if p.get("runsOut"):
+        parts.append(f'reasoning runs out at: {p["runsOut"]}')
+    if p.get("misconceptions"):
+        parts.append("misconceptions: " + "; ".join(p["misconceptions"]))
+    return " | ".join(parts)
 
 
 def _answers_text(s: dict, items: list[dict]) -> str:
@@ -373,7 +415,8 @@ def _answers_text(s: dict, items: list[dict]) -> str:
         res = "right" if r["correct"] else ("did not know" if r["choice"] is None else "wrong")
         line = f'- [{r["phase"]}, idea {r["idea_key"]}] {it["prompt"]} | chose: {chose} ({res})'
         if r["confidence"] is not None:
-            line += f' | confidence {round(r["confidence"] * 100)}%'
+            line += (f' | confidence {round(r["confidence"] * 100)}%'
+                     f' (chance: {round(mcq.chance(len(it["options"])) * 100)}%)')
         if r["thinking"]:
             line += f' | thinking: "{r["thinking"][:600]}"'
         lines.append(line)
@@ -404,6 +447,7 @@ def run_turn(jobs: Jobs, jid: int, d: dict) -> dict:
     out = jobs.call(jid, "Study tutor", Call(
         prompt=prompt("session_turn", kind=kind, topic=s["topic"], plan=plan_text, known=known,
                       idea=f'{idea["title"]}: {idea["statement"]}', current=current, earlier=earlier,
+                      probe=probe_note(idea), start=s.get("probe_start") or "(none)",
                       playbook=lr["playbook"], guidelines=lr["guidelines"],
                       sources=_excerpts(db, s, f'{idea["title"]} {idea["statement"]}', k=4)),
         schema=PREDICT_SCHEMA if kind == "predict" else EXPLAIN_SCHEMA, model="sonnet", timeout=300))
@@ -414,7 +458,7 @@ def run_turn(jobs: Jobs, jid: int, d: dict) -> dict:
             if not 0 <= q["answer"] < len(q["options"]):
                 raise ValueError("the prediction question has no valid answer")
             db.conn.execute("INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, created_at) VALUES(?,?,?,?,?,?,?)",
-                            (s["id"], key, "predict", 0, 0, dumps(q), ts))
+                            (s["id"], key, "predict", 0, 0, dumps(mcq.shuffle(q)), ts))
         else:
             c = out["check"]
             if not 0 <= c["answer"] < len(c["options"]) or not out["body"].strip():
@@ -422,7 +466,7 @@ def run_turn(jobs: Jobs, jid: int, d: dict) -> dict:
             db.conn.execute("""INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, answered, created_at)
                                VALUES(?,?,?,?,?,?,1,?)""", (s["id"], key, "explain", 0, 0, dumps({"body": out["body"].strip(), "kind": kind}), ts))
             db.conn.execute("INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, created_at) VALUES(?,?,?,?,?,?,?)",
-                            (s["id"], key, "check", 0, 1, dumps(c), ts))
+                            (s["id"], key, "check", 0, 1, dumps(mcq.shuffle(c)), ts))
     return {"kind": kind}
 
 
@@ -496,8 +540,10 @@ def view(db: DB, sid: str) -> dict | None:
                      thinking=r["thinking"], confidence=r["confidence"])
         pub.append(q)
     st = graph.states(db)
-    ideas = [{**{k: i.get(k) for k in ("key", "title", "statement", "node", "prereqs", "target", "level", "skip", "fromGraph")},
+    ideas = [{**{k: i.get(k) for k in ("key", "title", "statement", "node", "prereqs", "target", "level", "skip", "fromGraph",
+                                       "probe")},
               "nodeState": st[i["node"]].state if i.get("node") in st else "pending"} for i in s["ideas"]]
     return {"id": s["id"], "topic": s["topic"], "title": s["title"], "status": s["status"], "busy": running, "error": failed,
             "ideas": ideas, "plan": s["plan"], "current": s["current"], "items": pub, "summary": s["summary"],
+            "probeStart": s.get("probe_start") or "", "probeMax": PROBE_MAX,
             "sources": s["source_ids"], "createdAt": s["created_at"]}

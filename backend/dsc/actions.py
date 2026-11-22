@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from . import books, engine, guidelines, lesson, library, practice, probe, progress, remedial, session, sources, state, versions, writer
+from . import books, dictation, engine, guidelines, lesson, library, practice, probe, progress, remedial, session, sources, state, versions, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now
 from .jobs import Jobs
@@ -52,7 +52,7 @@ def answer(db: DB, jobs: Jobs, a: dict) -> None:
     correct = (a.get("choice") == item["answer"]) if item["kind"] == "check" else bool(a.get("correct"))
     thinking, conf = progress.reasoning(a)
     # A right answer you marked as a guess is half evidence: it moves P(learned) but does not count as known.
-    score = 0.5 if progress.guessed(correct, conf) else (1.0 if correct else 0.0)
+    score = 0.5 if progress.guessed(correct, conf, len(item.get("options") or []) or 4) else (1.0 if correct else 0.0)
     if progress.record_evidence(db, cid, item_id, score, choice=a.get("choice"), angle=a.get("angle"),
                                 thinking=thinking, confidence=conf, correct=correct):
         progress.on_finished(db, jobs, cid)
@@ -81,7 +81,7 @@ def review(db: DB, jobs: Jobs, a: dict) -> None:
         raise ActionError("nothing to review")
     correct = a.get("choice") == item["answer"]
     thinking, conf = progress.reasoning(a)
-    recalled = correct and not progress.guessed(correct, conf)  # a lucky guess is not recall
+    recalled = correct and not progress.guessed(correct, conf, len(item["options"]))  # a lucky guess is not recall
     ts = now()
     db.x("""INSERT INTO evidence(ts, concept_id, item_id, kind, choice, correct, score, thinking, confidence)
             VALUES(?,?,?,?,?,?,?,?,?)""",
@@ -486,6 +486,32 @@ def delete_session(db: DB, jobs: Jobs, a: dict) -> None:
     session.delete(db, a["sessionId"])
 
 
+# ---------------------------------------------------------------- local dictation (SPEC §27)
+
+def _dictation(fn):
+    def wrapped(db: DB, jobs: Jobs, a: dict) -> None:
+        try:
+            fn(db, jobs, a)
+        except dictation.DictationError as e:
+            raise ActionError(str(e)) from e
+    return wrapped
+
+
+@_dictation
+def set_dictation(db: DB, jobs: Jobs, a: dict) -> None:
+    dictation.set_settings(db, a.get("mode"), a.get("model"))
+
+
+@_dictation
+def download_dictation_model(db: DB, jobs: Jobs, a: dict) -> None:
+    dictation.start_download(db, jobs, a["model"])
+
+
+@_dictation
+def remove_dictation_model(db: DB, jobs: Jobs, a: dict) -> None:
+    dictation.remove(a["model"])
+
+
 # ---------------------------------------------------------------- recall practice
 
 @_session
@@ -768,6 +794,8 @@ ACTIONS = {
     "setGoal": set_goal, "correctEntry": correct_entry, "adjust": adjust, "route": route, "useRecommendedRoutes": use_recommended_routes,
     "linkSource": link_source, "editSource": edit_source, "deleteSource": delete_source, "rereadSource": reread_source, "reset": reset,
     "restoreCut": restore_cut,
+    "setDictation": set_dictation, "downloadDictationModel": download_dictation_model,
+    "removeDictationModel": remove_dictation_model,
 }
 
 

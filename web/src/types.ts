@@ -167,6 +167,8 @@ export type SessionItem = SessionQuestion | SessionExplain
 export interface SessionIdea {
   key: string; title: string; statement: string; node: string; prereqs: string[]; target: boolean
   level: 'known' | 'partial' | 'unknown' | null; skip?: boolean; fromGraph: boolean; nodeState: string
+  /** What the probe found on this idea (SPEC §26); absent when no question reached it. */
+  probe?: { level: 'known' | 'partial' | 'unknown' | 'untested'; reasonsFrom: string; runsOut: string; misconceptions: string[] } | null
 }
 
 /** A study session, "teach me X" (SPEC §22). */
@@ -175,6 +177,8 @@ export interface SessionView {
   status: 'sketching' | 'probing' | 'planning' | 'teaching' | 'extracting' | 'done'
   busy: boolean; error: string | null; ideas: SessionIdea[]; plan: string[]; current: number; items: SessionItem[]
   summary: string; sources: string[]; createdAt: string
+  /** The probe's advice where teaching starts, and its question limit. */
+  probeStart: string; probeMax: number
 }
 
 export interface ProbeAnswered {
@@ -432,6 +436,11 @@ export interface ProviderRoute {
 
 export interface ProviderStatus { id: Provider; cli: string; detected: boolean; implemented: boolean; models: string[] }
 
+export interface DictationStatus {
+  mode: 'browser' | 'local'; model: string; available: boolean; ready: boolean
+  models: { id: string; label: string; mb: number; installed: boolean }[]
+}
+
 export interface Job {
   id: number
   kind: string
@@ -473,6 +482,8 @@ export interface State {
   sources: SourceDoc[]
   sessions: { id: string; title: string; topic: string; status: string; createdAt: string }[]
   lastSession: string | null
+  /** Local dictation with Whisper (SPEC §27). */
+  dictation: DictationStatus
   practices: { id: string; title: string; status: string; createdAt: string }[]
   lastPractice: string | null
   practiceDue: number
