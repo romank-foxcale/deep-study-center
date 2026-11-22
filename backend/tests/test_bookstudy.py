@@ -268,3 +268,35 @@ def test_a_chapter_is_mapped_again_and_keeps_what_the_learner_did(book):
     assert bookstudy.view(db, bid)["chapters"][2]["kind"] == "reference"
     with pytest.raises(actions.ActionError):
         act(db, jobs, type="bookRemapChapter", bookId=bid, chapter=99)
+
+
+def test_an_extra_lesson_in_a_book_chapter_is_researched_and_sure_wrong_answers_count_double(book):
+    from dsc import remedial
+    db, jobs, runner = book
+    bid = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]["id"]
+    cid = lessons(db, bid)["Attention"]["conceptId"]
+    act(db, jobs, type="bookOpenLesson", conceptId=cid)
+    lesson.open_lesson(db, jobs, cid)
+    for i, conf in enumerate((0.9, 0.3, None)):
+        db.x("""INSERT INTO evidence(ts, concept_id, item_id, kind, choice, correct, score, confidence, thinking)
+                VALUES('2026-01-01', ?, 'q-s-what', 'practice', 1, 0, 0, ?, ?)""", (cid, conf, "longer keys win" if i == 0 else ""))
+    s = remedial.signals(db, cid)
+    assert len(s["sureWrong"]) == 1 and s["score"] == 4  # 3 wrong + 1 extra for the sure one
+    assert "while sure (90 %): likely a misconception" in remedial.brief(db, cid) and 'Their thinking: "longer keys win"' in remedial.brief(db, cid)
+    # the extra lesson goes through normal research, not the book-chapter writer
+    runner.responses["Research"] = lambda call: {"concepts": [{"key": "x", "title": "Attention (b)", "objective": "o", "bloom": "understand",
+        "minutes": 10, "prereq_keys": [], "card": {"core": "c", "formal": "", "why": "w", "angles": [], "examples": [], "misconceptions": [],
+        "sources": [], "sections": [{"id": "s-a", "heading": "A", "purpose": "p", "angles": ["geometric"]},
+                                    {"id": "s-b", "heading": "B", "purpose": "p", "angles": ["geometric"]}]}}]}
+    new_id = remedial.add(db, jobs, cid)
+    assert state.latest_card(db, new_id) is not None
+
+
+def test_a_goal_lesson_opens_while_a_book_goal_is_active(book):
+    db, jobs, runner = book
+    goal = state.active_goal(db)
+    bid = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]["id"]
+    act(db, jobs, type="bookOpenLesson", conceptId=lessons(db, bid)["Softmax"]["conceptId"])
+    assert state.active_goal(db) != goal
+    act(db, jobs, type="bookOpenLesson", conceptId="c-dot")
+    assert state.active_goal(db) == goal

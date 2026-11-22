@@ -22,6 +22,10 @@ def folder() -> Path:
 def backup_now(db: DB) -> Path:
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     target = folder() / f"study-{stamp}.db"
+    n = 1
+    while target.exists():  # two backups in one second: never overwrite the first
+        n += 1
+        target = folder() / f"study-{stamp}_{n}.db"
     with db.lock:
         dst = sqlite3.connect(target)
         try:

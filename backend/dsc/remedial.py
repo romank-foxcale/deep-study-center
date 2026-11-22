@@ -30,16 +30,20 @@ def extra_lessons(db: DB, cid: str) -> list[dict]:
     return db.q("SELECT id, title, objective FROM concepts WHERE id LIKE ? ORDER BY id", (f"{root}-r_",))
 
 
+SURE = 0.75  # a wrong answer given at least this sure is a likely misconception
+
+
 def signals(db: DB, cid: str) -> dict:
-    wrong = db.q("""SELECT e.item_id, e.choice FROM evidence e WHERE e.concept_id=? AND e.kind='practice' AND e.voided=0
-                    AND COALESCE(e.score, e.correct) < 0.5""", (cid,))
+    wrong = db.q("""SELECT e.item_id, e.choice, e.confidence, e.thinking FROM evidence e WHERE e.concept_id=? AND e.kind='practice'
+                    AND e.voided=0 AND COALESCE(e.score, e.correct) < 0.5""", (cid,))
+    sure = [w for w in wrong if w["confidence"] is not None and w["confidence"] >= SURE]
     explain_fail = db.q("SELECT * FROM gradings WHERE concept_id=? AND status='graded' AND score < 0.5", (cid,))
     questions = db.q("SELECT text FROM chats WHERE concept_id=? AND role='me' ORDER BY id", (cid,))
     fb = db.q("SELECT * FROM feedback WHERE concept_id=? AND deleted=0 ORDER BY id", (cid,))
     confused = [f for f in fb if CONFUSED in loads(f["tags"], [])]
-    score = len(wrong) + 1.5 * len(explain_fail) + 0.5 * len(questions) + 2 * len(confused)
-    return {"wrong": wrong, "explainFail": explain_fail, "questions": questions, "feedback": fb, "confused": confused,
-            "score": score, "struggle": len(wrong) + len(explain_fail) + len(confused)}
+    score = len(wrong) + len(sure) + 1.5 * len(explain_fail) + 0.5 * len(questions) + 2 * len(confused)  # sure + wrong counts 2
+    return {"wrong": wrong, "sureWrong": sure, "explainFail": explain_fail, "questions": questions, "feedback": fb,
+            "confused": confused, "score": score, "struggle": len(wrong) + len(explain_fail) + len(confused)}
 
 
 def offer(db: DB, cid: str) -> dict | None:
@@ -60,6 +64,10 @@ def offer(db: DB, cid: str) -> dict | None:
     reasons = []
     if s["wrong"]:
         reasons.append(f'{len(s["wrong"])} wrong answer{"s" if len(s["wrong"]) > 1 else ""}')
+    if s["sureWrong"]:
+        n = len(s["sureWrong"])
+        reasons.append(f'{n} of them given while sure: a likely misconception' if n == 1 else
+                       f'{n} of them given while sure: likely misconceptions')
     if s["explainFail"]:
         reasons.append(f'{len(s["explainFail"])} explain-back{"s" if len(s["explainFail"]) > 1 else ""} not passed')
     if s["questions"]:
@@ -90,11 +98,14 @@ def brief(db: DB, cid: str) -> str:
     lines = []
     for w in s["wrong"][-6:]:
         c = checks.get(w["item_id"])
+        sure = w["confidence"] is not None and w["confidence"] >= SURE
+        tail = (f' while sure ({round(w["confidence"] * 100)} %): likely a misconception' if sure else "") + \
+            (f'. Their thinking: "{w["thinking"][:300]}"' if w["thinking"] else "")
         if c and w["choice"] is not None and 0 <= w["choice"] < len(c["options"]):
             lines.append(f'- Wrong answer to "{c["prompt"]}": chose "{c["options"][w["choice"]]}" '
-                         f'(right: "{c["options"][c["answer"]]}")')
+                         f'(right: "{c["options"][c["answer"]]}"){tail}')
         else:
-            lines.append(f'- Failed exercise or check {w["item_id"]}')
+            lines.append(f'- Failed exercise or check {w["item_id"]}{tail}')
     for g in s["explainFail"][-3:]:
         lines.append(f'- Explain-back not passed; missing: {", ".join(loads(g["missing"], [])) or "(not given)"}')
     for q in s["questions"][-8:]:

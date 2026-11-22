@@ -307,7 +307,7 @@ def review(jobs: Jobs, jid: int, cid: str, card: dict, r: dict) -> dict:
         parts.append("\n".join(block))
     out = jobs.call(jid, "Lesson review", Call(
         prompt=prompt("review_lesson", card=_card_text(card), playbook=lr["playbook"], guidelines=lr["guidelines"],
-                      feedback=lr["feedback"], lesson="\n\n".join(parts)),
+                      feedback=lr["feedback"], reasoning=lr["reasoning"], lesson="\n\n".join(parts)),
         schema=REVIEW_SCHEMA, model="sonnet", timeout=300))
     ids = {s["id"] for s in card["sections"]}
     issues = [{"sectionId": i["section_id"], "part": i["part"], "problem": i["problem"][:300], "fix": i["fix"][:300],

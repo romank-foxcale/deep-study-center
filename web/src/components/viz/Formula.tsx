@@ -22,6 +22,15 @@ const COLORS: Record<string, string> = {
 }
 const FUNCS = /^(sin|cos|tan|exp|log|sqrt|abs|tanh|sigmoid|relu|max|min)$/
 const decimals = (p?: Param) => (p && p.max - p.min > 20 ? 0 : p && p.max - p.min <= 2 ? 2 : 1)
+/** One symbol, maybe with a subscript or superscript: N_A, \sigma, x_{0}. */
+const SYMBOL = /^\\?[A-Za-z]+(?:_\{?[A-Za-z0-9]+\}?)?(?:\^\{?[A-Za-z0-9]+\}?)?$/
+/** TeX commands that are functions or layout, not variables. */
+const TEX_FUNCS = /\\(?:cos|sin|tan|exp|log|ln|sqrt|frac|left|right|lVert|rVert|lvert|rvert|cdot|times|mathrm|operatorname|max|min)(?![a-zA-Z])/g
+/** Variable symbols: a Greek letter command or a lone Latin letter. */
+const VARS = /\\(?:alpha|beta|gamma|delta|epsilon|eta|theta|lambda|mu|nu|pi|rho|sigma|tau|phi|omega)(?![a-zA-Z])|(?<![\\a-zA-Z])[a-zA-Z](?![a-zA-Z])/g
+/** The parameter's name appears in the TeX as itself (\sigma, or a lone letter). */
+const nameIn = (tex: string, name: string) => (name.length > 1
+  ? new RegExp(`\\\\${name}(?![a-zA-Z])`) : new RegExp(`(?<![\\\\a-zA-Z0-9#])${name}(?![a-zA-Z0-9])`)).test(tex)
 const fmt = (v: number, p?: Param) => (Number.isFinite(v) ? v.toFixed(decimals(p)) : '—')
 const fmtResult = (v: number) => (!Number.isFinite(v) ? '—' : Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 1 ? v.toFixed(2) : v.toPrecision(3))
 const norm = (e: string) => e.replace(/\s+/g, '').toLowerCase()
@@ -128,7 +137,20 @@ export default function Formula({ spec }: { spec: Spec }) {
     [spec, edits, anyEdit])
   const result = calc(trees.result, values)
   const filled = useMemo(() => {
-    const tex = fillValues(expand(spec.tex, spec.parts, () => null, false, swap))
+    // A part that is one symbol for a parameter with another name (N_A for na) gets the value through the part; every
+    // other name is filled where it stands (cos θ → cos(1.0)).
+    const byPart = (pt: Part) => {
+      const prm = pt.param ? spec.params.find(x => x.name === pt.param) : undefined
+      if (!prm || swap(pt) || nameIn(pt.tex, prm.name)) return null
+      const v = fmt(values[prm.name], prm)
+      if (pt.tex.replace(TEX_FUNCS, '') === pt.tex && SYMBOL.test(pt.tex.replace(/\s+/g, ''))) return v
+      // a function of one symbol (\cos\theta): put the value in place of that symbol
+      const syms = [...new Set(pt.tex.replace(TEX_FUNCS, ' ').match(VARS) ?? [])]
+      if (syms.length !== 1) return null
+      const at = syms[0].startsWith('\\') ? new RegExp(`\\${syms[0]}(?![a-zA-Z])`, 'g') : new RegExp(`(?<![\\\\a-zA-Z])${syms[0]}(?![a-zA-Z])`, 'g')
+      return pt.tex.replace(at, `{\\left(${v}\\right)}`)
+    }
+    const tex = fillValues(expand(spec.tex, spec.parts, byPart, false, swap))
     return tex2html(spec.resultExpr ? `${tex} = ${fmtResult(result)}` : tex, true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spec, values, result, edits])

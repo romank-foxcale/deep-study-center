@@ -55,7 +55,8 @@ def test_backups_are_daily_and_capped(env):
         (backup.folder() / f"study-2026-01-{i + 1:02d}_000000.db").write_bytes(b"x")
     backup.backup_now(db)
     names = [b["name"] for b in backup.listing()]
-    assert len(names) == backup.KEEP and names[-1] == "study-2026-01-04_000000.db"  # oldest ones pruned
+    # 16 old files + 2 new ones (never overwritten, even in the same second) -> the 4 oldest pruned
+    assert len(names) == backup.KEEP and names[-1] == "study-2026-01-05_000000.db"
     import sqlite3
     newest = backup.folder() / names[0]
     assert sqlite3.connect(newest).execute("SELECT COUNT(*) FROM concepts").fetchone()[0] == 10  # a real, consistent copy
@@ -130,3 +131,16 @@ def test_stream_events_become_progress():
     assert providers.describe_event(search) == ["searching: best SVD explanation", "reading: https://example.org/svd"]
     assert providers.describe_event('{"type":"system","subtype":"init"}') == []
     assert providers.describe_event("not json") == []
+
+
+def test_two_backups_in_one_second_both_stay(env, monkeypatch):
+    db, jobs, _ = env
+    from datetime import datetime as real
+
+    class Frozen(real):
+        @classmethod
+        def now(cls, tz=None):
+            return real(2026, 3, 1, 12, 0, 0, tzinfo=tz)
+    monkeypatch.setattr(backup, "datetime", Frozen)
+    a, b = backup.backup_now(db), backup.backup_now(db)
+    assert a != b and a.exists() and b.exists() and b.name == "study-2026-03-01_120000_2.db"
