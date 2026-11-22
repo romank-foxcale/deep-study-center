@@ -142,7 +142,8 @@ export default function Lesson() {
     {sec.check && (
       <InlineCheck key={sec.check.id} check={sec.check} previous={s.answers[`${id}:${sec.check.id}`]}
         onAnswer={(choice, r) => dispatch({ type: 'answer', conceptId: id, checkId: sec.check!.id, angle: sec.angle, choice, ...r })}
-        onUndo={() => dispatch({ type: 'undoAnswer', conceptId: id, itemId: sec.check!.id })} />
+        onUndo={() => dispatch({ type: 'undoAnswer', conceptId: id, itemId: sec.check!.id })}
+        onReadReasoning={() => dispatch({ type: 'reviewReasoning', conceptId: id, itemId: sec.check!.id })} />
     )}
     {sec.code?.runtime === 'local' && (
       <LocalExercise key={sec.code.id} conceptId={id} exercise={sec.code} angle={sec.angle}
@@ -209,6 +210,23 @@ export default function Lesson() {
         {loadError && <p className="error">{loadError}</p>}
         {!view && !loadError && <p className="muted">Opening…</p>}
 
+        {view?.writing && (() => {
+          const w = view.writing
+          const done = sections.filter(x => x.body && !x.pending).length
+          return (
+            <div className="writing-banner" role="status" aria-live="polite">
+              <div className="row row-between small">
+                <strong>{w.queued ? 'Waiting to write this lesson…' : 'This lesson is being written'}</strong>
+                <span className="muted">{sections.length > 0 && `${done} of ${sections.length} sections ready · `}step {w.at + 1} of {w.steps.length}</span>
+              </div>
+              <div className="writing-bar" aria-hidden><span style={{ width: `${((w.at + 0.5) / w.steps.length) * 100}%` }} /></div>
+              <ol className="writing-steps small">
+                {w.steps.map((st, i) => <li key={st} className={i < w.at ? 'done' : i === w.at ? 'now' : ''}>{st}</li>)}
+              </ol>
+              <div className="muted small">{w.message}. Text, formulas and graphs can change until this is done.</div>
+            </div>
+          )
+        })()}
         {view?.applying && <div className="banner"><span>Applying your feedback: the next version of this lesson is being written.</span></div>}
         {newVersion !== null && !view?.applying && (
           <div className="banner banner-ok">

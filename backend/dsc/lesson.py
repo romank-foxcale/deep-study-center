@@ -101,6 +101,36 @@ def _viz_notes(s: dict) -> list[str]:
     return [n for n in notes if "has no colored part" not in n]
 
 
+# The writing steps a lesson page shows while a lesson is written, keyed by the role each step calls.
+_STEPS = [("Research", "Plan the chapter's lessons from the book"), ("Lesson planner", "Plan the lesson for you"),
+          ("Lesson assets", "Make graphs and questions"), ("Renditions", "Write the text"), ("Lesson review", "Review and fix")]
+
+
+def writing(db: DB, cid: str) -> dict | None:
+    """While this lesson is being written: the steps, the step it is on and the newest progress line (for the page's
+    progress bar). None when nothing is written for it now."""
+    mod = (db.one("SELECT module_id FROM concepts WHERE id=?", (cid,)) or {}).get("module_id")
+    active = [j for j in state.jobs(db) if j["status"] in ("queued", "running")
+              and ((j["kind"] in ("render", "apply_feedback") and j["input"].get("concept_id") == cid)
+                   or (j["kind"] == "research_module" and mod and j["input"].get("module_id") == mod))]
+    if not active:
+        return None
+    research = any(j["kind"] == "research_module" for j in active)
+    single = db.meta("lesson_writing", "steps") != "steps" or any(j["kind"] == "apply_feedback" for j in active)
+    roles = (["Research"] if research else []) + (["Renditions"] if single else ["Lesson planner", "Lesson assets", "Renditions",
+                                                                                   "Lesson review"])
+    lines = [m for j in sorted(active, key=lambda j: j["id"]) for m in j["progress"]]
+    at = 0
+    said = {"writing the text": "Renditions", "planning the lesson": "Lesson planner", "writing ": "Research"}
+    for m in lines:  # "<role>: asking …", or a step's own line, marks the step the job reached
+        for i, r in enumerate(roles):
+            if m.startswith(f"{r}:") or any(m.startswith(k) and v == r for k, v in said.items()):
+                at = max(at, i)
+    label = dict(_STEPS)
+    return {"steps": [label[r] for r in roles], "at": at, "message": lines[-1] if lines else "waiting to start",
+            "queued": all(j["status"] == "queued" for j in active)}
+
+
 def view(db: DB, cid: str) -> dict:
     """Lesson as the page shows it: the head version's text where it fits the rendition, else cached prose.
     Missing prose falls back to the same angle in another style (marked approximate) while a render job runs.
@@ -139,10 +169,10 @@ def view(db: DB, cid: str) -> dict:
     from . import bookstudy
     book = bookstudy.lesson_book(db, cid)
     mod = db.one("SELECT module_id FROM concepts WHERE id=?", (cid,)) if book else None
-    writing = bool(mod) and any(j["status"] in ("queued", "running") and j["kind"] == "research_module"
+    writing_cards = bool(mod) and any(j["status"] in ("queued", "running") and j["kind"] == "research_module"
                                 and j["input"].get("module_id") == mod["module_id"] for j in state.jobs(db))
     return {
-        "book": book, "writingCards": writing,
+        "book": book, "writingCards": writing_cards, "writing": writing(db, cid),
         "conceptId": cid, "card": state.public_card(card) if card else None, "sections": sections,
         "rendering": rendering, "renderError": failed if not rendering else None,
         "rendition": r and {"cardVersion": r["card_version"], "playbookVersion": r["playbook_version"],

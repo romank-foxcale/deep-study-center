@@ -2,7 +2,7 @@
 // /api/action and return the next snapshot. While agent jobs run, the snapshot is polled.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Angle, BookView, TodayView, FeedbackKind, IdeaDetail, FeedbackRef, GraphView, LessonDiff, LessonView, Plan, PracticeDue, PracticeView, RunResult, SearchHit, SessionView, SourceDoc, State, Verdict } from './types'
+import type { Angle, BookView, ReasoningEntry, TodayView, FeedbackKind, IdeaDetail, FeedbackRef, GraphView, LessonDiff, LessonView, Plan, PracticeDue, PracticeView, RunResult, SearchHit, SessionView, SourceDoc, State, Verdict } from './types'
 
 export type Action =
   | { type: 'answer'; conceptId: string; checkId: string; angle?: Angle; choice?: number; correct?: boolean; thinking?: string; confidence?: number | null }
@@ -55,6 +55,7 @@ export type Action =
   | { type: 'studyBook'; sourceId: string }
   | { type: 'bookRetry'; bookId: string }
   | { type: 'bookOpenLesson'; conceptId: string }
+  | { type: 'reviewReasoning'; conceptId: string; itemId: string }
   | { type: 'bookRemapChapter'; bookId: string; chapter: number; asLessons?: boolean }
   | { type: 'bookHomework'; bookId: string; chapter: number }
   | { type: 'deleteBook'; bookId: string }
@@ -72,6 +73,7 @@ export type Action =
   | { type: 'decideProposal'; reflectionId: number; index: number; accept: boolean }
   | { type: 'setSetting'; key: 'autoResearch' | 'autoRefresh'; value: boolean }
   | { type: 'setSetting'; key: 'lessonWriting'; value: 'steps' | 'single' }
+  | { type: 'setSetting'; key: 'writingStyle'; value: 'ste' | 'plain' }
   | { type: 'refreshCard'; conceptId: string }
   | { type: 'decideCardProposal'; id: number; approve: boolean }
   | { type: 'setPlanSettings'; weeklyHours?: number; studyDays?: number[]; startTime?: string; goalId?: string; hours?: number }
@@ -133,6 +135,7 @@ export const getGraph = () => api<GraphView>('/api/graph')
 export const getSession = (id: string) => api<SessionView>(`/api/session/${encodeURIComponent(id)}`)
 export const getBook = (id: string) => api<BookView>(`/api/book/${encodeURIComponent(id)}`)
 export const getToday = () => api<TodayView>('/api/today')
+export const getReasoning = () => api<ReasoningEntry[]>('/api/reasoning')
 export const getIdea = (id: string) => api<IdeaDetail>(`/api/graph/node/${encodeURIComponent(id)}`)
 export const getPlan = () => api<Plan>('/api/plan')
 export const searchAll = (q: string) => api<SearchHit[]>(`/api/search?q=${encodeURIComponent(q)}`)

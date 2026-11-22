@@ -49,6 +49,12 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
             raise HTTPException(404, "no such book")
         return v
 
+    @app.get("/api/reasoning")
+    def get_reasoning(concept: str | None = None) -> list:
+        """Your reasoning over time, with what the tutor found (SPEC §32)."""
+        from . import reasoning
+        return reasoning.history(db, concept)
+
     @app.get("/api/drawing/{name}")
     def get_drawing(name: str):
         """A drawing the learner made on the drawing board (SPEC §31)."""
