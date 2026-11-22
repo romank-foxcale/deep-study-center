@@ -3,6 +3,19 @@
 The history of Deep Study Center, newest first. The full design and the decisions are in [SPEC.md](SPEC.md); the
 work still open is in [TODO.md](TODO.md).
 
+## 0.4.0 (2026-11-23): book study, the first public release
+
+- **Teach me this book** (SPEC §28, §31): a PDF becomes chapters of lessons by topic. Lessons are written from the
+  book's pages when you open them, with idea links, a quiz and a drawing board the grader reads.
+- **Map views and the redesign** (§29, §30): seven map views; Today, Books, Learn, Practice and Map; dark theme.
+- **The tutor reads your reasoning** (§32, §35): it marks each part of your thinking right or wrong, names the wrong
+  assumption, follows it until it breaks, and derives how it really works. In checks, study sessions and
+  explain-backs. Lessons are written in Simplified Technical English by default.
+- **Formulas** (§33, §34, §36): hover notes, formula lessons with interactive widgets, green / orange / gray frames,
+  your preferred form in every lesson, and 3D surfaces for gradient descent.
+- **Building blocks** (§37, §38): formula lessons are built bottom-up from a formula tree; one topic is one shared
+  block across books; "Next" picks a lesson whose parts you hold; the whole formula tree on one page.
+
 ## 2026-11: knowledge graph, study sessions, desktop app
 
 - **Knowledge graph** (SPEC §21): every idea you learn is one node, with reasoning links between nodes.
