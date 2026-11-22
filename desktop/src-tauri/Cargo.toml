@@ -1,6 +1,7 @@
 [package]
 name = "deep-study-center"
 version = "0.3.0"
+license = "MIT"
 description = "Deep Study Center desktop app"
 edition = "2021"
 

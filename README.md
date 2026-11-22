@@ -1,20 +1,34 @@
 # Deep Study Center
 
-A personal study platform for big, multi-step goals, like "become a world-class AI researcher
-and engineer". You state the goal in a conversation; agents research it into a concise source
-knowledge base; every lesson is rendered *for you*, and every piece of feedback reshapes the lessons
-after it (and offers to refresh the ones before it).
+A local study app for big goals and deep understanding. You say what you want to learn. AI agents find what you
+already know, teach the next idea one reasoning step at a time, and make you practise it until you can use it. All
+your progress lives in one knowledge graph on your own computer.
 
-Two knowledge centers:
+It runs on your machine and uses the AI models you already have: the Claude Code, Codex or Cursor command-line tools
+with your subscription, or an Anthropic API key. There is no account, no server of ours and no telemetry.
 
-1. **Source KB**: canonical, fact-checked, versioned concept cards (the same for everyone).
-2. **Learner lens**: your profile, teaching playbook, notes, feedback log, mastery evidence, and
-   your personal *renditions* of each lesson, which go stale and get re-rendered when your playbook changes.
+## What it does
 
-It runs locally and uses your own Claude / ChatGPT / Cursor subscriptions through their CLIs.
-See [docs/SPEC.md](docs/SPEC.md) for the full design and the decisions behind it.
+- **"Teach me X" study sessions.** A short probe asks one question at a time to find the edge of what you know. Then
+  each idea is taught as predict → explain → check, fitted to your answers and to the thinking you type or dictate.
+- **Knowledge map.** Everything you learn becomes a node in one skill tree, with the reasoning links between ideas.
+- **Recall practice.** Problems that need the right idea without naming it. Hints, never answers. Each idea gets its
+  own review schedule (FSRS).
+- **Goals and roadmaps.** A big goal becomes a roadmap (an Ohtani 9x9 table or classic tracks) of researched,
+  fact-checked lessons. A book goal teaches the 80/20 core of your own PDFs and cites the pages.
+- **Lessons that adapt to you.** Give feedback on any part of a lesson; later lessons follow it. Interactive graphs,
+  explain-back grading, runnable Python, Anki export, a weekly plan across goals.
+- **Think out loud.** Every question has a thinking box and a confidence slider. Dictation works through the browser
+  or, privately, with a Whisper model on your computer.
 
-## Quick start
+The design and the reasons behind it are in [docs/SPEC.md](docs/SPEC.md). What changed when:
+[docs/CHANGELOG.md](docs/CHANGELOG.md).
+
+## Install
+
+### From source (Windows, macOS, Linux)
+
+You need Python 3.11+, Node 20+, and at least one model provider (see below).
 
 ```powershell
 .\start.ps1        # Windows
@@ -24,138 +38,73 @@ See [docs/SPEC.md](docs/SPEC.md) for the full design and the decisions behind it
 ./start.sh         # macOS / Linux
 ```
 
-The first run creates the Python environment, builds the frontend, starts the app on http://127.0.0.1:8000 and
-opens your browser. You choose between starting your own goal and exploring the demo. Your data lives in `~/DeepStudy`
-(override with `DSC_WORKSPACE`) and is backed up daily to `~/DeepStudy/backups`.
+The first run creates the Python environment, builds the web UI, starts the app on http://127.0.0.1:8000 and opens
+your browser. Start with your own goal or explore the demo.
+
+### Desktop app (Windows)
+
+A [Tauri](https://tauri.app) window around the same app; it needs no Python, Node or terminal. There is no published
+installer yet, so build it yourself (needs Rust, Node 20+ and the backend environment with the dev extras):
+
+```bash
+cd desktop
+npm install
+npm run build     # the UI, the bundled backend and the installer
+```
+
+The installer is `desktop/src-tauri/target/release/bundle/nsis/Deep Study Center_<version>_x64-setup.exe` (per-user,
+no admin rights). It is not code-signed, so Windows SmartScreen warns on the first run. See SPEC §25.
+
+## Model providers
+
+Deep Study Center sends each agent job to a provider. Choose which job goes where in Settings → "Who does what".
+
+| Provider | What you need | Billing |
+|---|---|---|
+| Claude Code CLI | `claude` on PATH, logged in | your Claude subscription |
+| Codex CLI | `codex` on PATH, logged in | your ChatGPT subscription |
+| Cursor CLI | `cursor-agent` on PATH, logged in | your Cursor subscription |
+| Claude API | an Anthropic API key (Settings → Anthropic API key) | your API account |
+
+The CLI adapters remove API-key variables from their environment, so your subscription is used, not an API account.
+When no CLI works, jobs fall back to the Claude API if a key is set.
+
+## Privacy: what stays on your computer and what does not
+
+Stays local:
+
+- Your workspace: `~/DeepStudy` (or `DSC_WORKSPACE`), a SQLite database, daily backups, your PDFs and downloaded models.
+- Your API key: in the system credential store (Windows Credential Manager, macOS Keychain). Never in the database,
+  logs or the UI.
+- Local dictation: the audio goes to the Whisper model on your computer and is never stored.
+
+Sent to other services:
+
+- **To the model provider you chose:** the text each job needs. This includes your goal, your answers, your typed or
+  dictated thinking, your notes and feedback, and pages of your PDFs when a lesson uses them. Research jobs also let
+  the provider search and read the web.
+- **To Google**, only if you use the browser's dictation (Chrome and Edge send the audio to Google). Choose "On this
+  computer (Whisper)" in Settings → Dictation to avoid this.
+- **To jsDelivr (a CDN):** the page loads Pyodide from it the first time you run Python in a lesson.
+- **To Hugging Face:** the one-time download of a dictation model, only when you click "Download".
 
 ## Daily roadmap (terminal)
 
-A fixed 6-12 month plan to become an ML/AI engineer, a little every day. It works without the web app:
-
-- Coding interviews from day 1: 155 LeetCode problems in pattern order, with spaced reviews.
-- Topic tracks: ML and LLM fundamentals, ML system design, ML for Earth and climate, LLM agents and
-  agent collaboration, and public output.
-- A weekly post about what you studied that week.
-
-Every unit has a goal, free resources, an exercise and a "done when" check.
+A separate, fixed 6-12 month plan to become an ML/AI engineer, a little every day. It works without the web app and
+uses only the Python standard library: coding-interview problems with spaced reviews, topic tracks (ML and LLM
+fundamentals, ML system design, ML for Earth and climate, LLM agents, public output) and a weekly post.
 
 ```bash
 dsc roadmap init --start 2026-11-12   # writes ~/DeepStudy/roadmap/config.toml: edit it
-dsc roadmap plan --days 7             # preview the first week
 dsc roadmap                           # today's plan
-dsc roadmap done dsa-two-sum          # log progress (kept in ~/DeepStudy, never in the repo)
+dsc roadmap done dsa-two-sum          # log progress (kept in your workspace, never in the repository)
 ```
 
-Without the app: `python -m dsc.roadmap` from `backend/`. You personalize it with data, not by
-editing prose: your config sets the time budget, study days, tracks on or off with weights, the
-units you already know, and the post weekday. See [docs/ROADMAP.md](docs/ROADMAP.md).
+See [docs/ROADMAP.md](docs/ROADMAP.md).
 
-## Status
+## Development
 
-**Book goals** (current): no time to read whole books? In the Source library, "Understand books (80/20)" builds a goal
-from one or more of your PDFs. Tick them or drag them into the goal basket, answer two questions, and an agent ranks every
-chapter as core, supporting or left out. The roadmap (Ohtani table or classic) teaches only the core, with lessons that
-cite the pages; the Roadmap page lists what was left out, and "Bring back" adds a chapter again. See SPEC §18.
-
-**Lessons written in steps**: a whole lesson is planned, its graphs and quiz questions are made for you,
-its text is written, and a reviewer checks it against your lesson guidelines and feedback before you see it (one round
-of fixes). Each section's angle is a mix that follows the section's purpose and your playbook, not one angle everywhere.
-The lesson page shows how it was written; graphs and questions made for you are marked.
-
-**Ohtani table** added: a new goal can be built as an Ohtani table (a Mandala Chart), the default shape.
-
-- The goal is in the middle of a 9x9 grid. 8 areas (for example Linear Algebra, Statistics) sit around it, each with
-  8 steps; every step has as many lessons as it needs.
-- The 8 cells around the goal are merge steps: each joins two neighbouring areas in one task toward the goal (top-left
-  merges the top-left and top-middle areas). The outline orders the areas so that neighbours combine well.
-- A merge step unlocks when the steps it builds on are learned. Steps are learned wave by wave across the areas.
-- The Roadmap page shows the grid. A cell fills as you pass its lessons' checks; the current step has a ring. Pick a
-  cell for its "done when" check, what it builds on, and its lessons.
-- The classic roadmap (3-7 tracks) is still available on the goal setup page.
-
-**Personal lessons** added: feedback on any part of a lesson, lessons that learn from your feedback, and extra
-lessons when you are stuck.
-
-- Select text, or point at a formula or an interactive graph, to give feedback on exactly that part (or add a note).
-  Applying it changes that part, and other parts only where they are directly relevant or have the same issue.
-- Lesson guidelines: when you finish a lesson, the main points and patterns of your feedback are distilled into a
-  short list (Me page, editable). The next lesson is then written with them, and so is every later lesson.
-- Extra lessons: when wrong answers, failed explain-backs, tutor questions or "I got lost" pile up, the lesson offers
-  an extra lesson ("Vectors (b)") aimed at exactly what got in the way. One click adds it; it is researched and
-  fact-checked like any lesson.
-
-**Feedback you can apply** added:
-
-- Apply one or more pieces of feedback to the lesson you are on (from the lesson's Feedback log or Me → Feedback log).
-  One agent job writes the next version of the lesson and says, per change, which feedback caused it, why and how.
-- Lesson versions: every version is kept. Compare any two in a GitHub-style prose diff (deleted text red, inserted
-  green, each change with its reason and feedback), and go back to any version of the current card.
-- Add, edit and delete feedback. Each item has a kind (about this lesson / about me / possible error) that an agent
-  proposes and you can correct, and a status: pending, applied in vN, reverted, or sent to the card check.
-- Fact guard: a revision changes only explanations, examples, angle and pace. Facts, checks and exercises stay as
-  fact-checked; a report that the material is wrong goes to the card check instead.
-- Going back from applied feedback teaches the playbook which way of applying it did not work for you.
-
-**Milestone 6** added daily-use readiness:
-
-- One command to set up and start (`start.ps1` / `start.sh`, or `dsc start`); the frontend is rebuilt only when it changed.
-- First run starts empty and lets you pick your own goal or the demo; goals can be removed in Settings (after a backup).
-- Daily backups of the workspace database (newest 14 kept), plus "Back up now".
-- Undo an answer (mis-click) or remove a grade you disagree with; mastery is recomputed from what remains.
-- Live research progress: each web search and page the research agent reads shows up as it happens.
-- This week: per-goal hours, and time actually spent (counted while a lesson is open and you're active).
-- Library: suggestions for which cards to share (fact-checked, and you've learned the concept).
-- Docker option for exercises (no network, read-only, resource limits, unprivileged user). Untested until Docker is installed.
-
-**Milestone 5** added:
-
-- **This week**: one plan across all your goals. Your weekly hours are split by goal; each study day starts with the
-  spaced reviews due, then lessons in roadmap order from the goal furthest behind its share, with a confirmation
-  review the day after each lesson. Set hours, study days and a start time; export the week to your calendar (.ics).
-  Today's plan is on Home.
-- **Card refresh**: cards not reviewed in 30 days are re-checked against the web (a few a day, or on demand per card)
-  for errors, outdated claims and better sources. A proposed update is shown as a diff; approving it creates the
-  next card version, which is fact-checked again, and your lessons re-render. Nothing changes without approval.
-
-**Milestone 4** added:
-
-- **Interactive visuals**: built-in widgets (draggable vectors with tip-to-tail sums, linear-combination sliders,
-  a 2x2 matrix transforming the plane, function plots with parameter sliders). Agents place them in lessons as a
-  JSON spec that the backend validates; no agent-written code runs in your browser.
-- **Local Python runner** for exercises that need PyTorch: a separate environment in your workspace (set up once from
-  Settings), and you review each exercise's test code before it first runs. A static check blocks networking,
-  process, file-system and introspection code. It is not a sandbox; see `backend/dsc/runner.py`.
-- **Shared card library**: promote fact-checked cards; research for any goal reuses them instead of rewriting.
-- **Search** across your notes, lessons and source cards (SQLite FTS5).
-- **Anki export** of the questions and explain-back prompts of the concepts you've learned.
-
-**Milestone 3** added, on top of the milestone-2 backend:
-
-- **Explain-back**: lessons ask you to explain an idea in your own words; an independent grader agent scores it
-  against a hidden rubric (1 / 0.5 / 0, with what's missing and a follow-up question). Passing it is part of the
-  mastery gate, and partial credit counts as soft evidence.
-- **Placement**: a quiz over the roadmap outline (one question per module, binary search per track, "I don't know"
-  welcome) proposes compressing the modules you already know; you approve it on the roadmap.
-- **Research ahead**: the next module is researched automatically while you work on the current one
-  (Settings → Research to turn it off).
-- **Weekly reflection**: once a week, after a few pieces of feedback, an agent reviews your feedback log, practice
-  results and notes, writes a short summary, and proposes playbook changes you accept or reject.
-- **Codex and Cursor adapters**: `codex exec` (structured output via `--output-schema`) and the Cursor CLI
-  (`cursor-agent` / `agent`, JSON parsed from the result). Both strip API-key variables so your plan is used.
-  Not yet tested against the real CLIs.
-- **CI**: backend tests and the frontend type-check, lint and build run on every push and pull request.
-
-Milestone 2 built the backend: the deterministic engine (BKT, FSRS, playbook replay), the SQLite workspace
-(`~/DeepStudy`, override with `DSC_WORKSPACE`), and agent jobs on your own subscription for research, roadmap
-outlines, lesson rendering, tutor chat, roadmap reviews and fact-checks, each with an offline fallback.
-
-The app starts from a demo roadmap (AI researcher & engineer). "Vectors" has pre-written prose; every other lesson is
-written for you on first open. *+ New goal* runs the real interview → outline → placement → research pipeline.
-
-## Run
-
-Manual setup (what the start scripts do). Requires Python 3.11+, Node 20+, and the [Claude Code](https://code.claude.com) CLI logged in with your subscription
-(`claude` on PATH). Optional: `codex` and the Cursor CLI, logged in, if you route jobs to them in Settings.
+Run the parts by hand (this is what the start scripts do):
 
 ```bash
 cd backend
@@ -169,75 +118,43 @@ In a second terminal:
 ```bash
 cd web
 npm install
-npm run dev                               # http://localhost:5173 (proxies /api to the backend)
+npm run dev                               # http://localhost:5173 (sends /api to the backend)
 ```
 
-Or build the frontend once (`npm run build` in `web/`) and `dsc serve` serves the whole app on port 8000.
-Tests: `.venv/Scripts/python -m pytest` in `backend/`.
-
-No Claude CLI? Add an Anthropic API key in Settings (it is kept in the system credential store); jobs then run on the
-Claude API and are billed to that account.
-
-Dictation: by default the browser's speech API writes down what you say (Chrome and Edge send the audio to Google).
-For dictation that keeps your voice on your computer, open Settings → Dictation, choose "On this computer (Whisper)"
-and download a model once (base, about 140 MB). It is stored in `<workspace>/models/whisper` and then works offline.
-See docs/SPEC.md §27.
-
-## Desktop app (Windows)
-
-The desktop app is a [Tauri](https://tauri.app) window around the same backend, bundled with PyInstaller, so it needs
-no Python, Node or terminal on the user's machine. Build it (needs Rust, Node 20+ and the backend venv with the dev
-extras):
+Checks (CI runs the same on every pull request):
 
 ```bash
-cd desktop
-npm install
-npm run build     # builds the UI, the backend (desktop/backend/dist) and the installer
+cd backend && .venv/Scripts/python -m pytest -q
+cd web && npx tsc -b && npm run lint && npx vite build
 ```
 
-The installer is `desktop/src-tauri/target/release/bundle/nsis/Deep Study Center_<version>_x64-setup.exe`
-(per-user install, no admin rights). The app keeps its data in the same workspace (`~/DeepStudy`, or `DSC_WORKSPACE`)
-and writes the backend log to `%LOCALAPPDATA%\app.deepstudycenter.desktop\logs\backend.log`. See docs/SPEC.md §25.
+The tests use a fake provider, so they need no model and no network. See [CONTRIBUTING.md](CONTRIBUTING.md) before
+you open a pull request.
 
 ## Layout
 
 ```
-docs/SPEC.md            product spec and decisions
+docs/SPEC.md            product spec and decisions (one section per feature)
+docs/TODO.md            open work, in order
 backend/dsc/
-  engine.py             BKT, mastery gate, FSRS, playbook replay, angle choice (pure, no I/O)
-  db.py                 workspace + SQLite schema (append-only logs)
-  state.py              read side: snapshots for the UI
-  actions.py            write side: every UI action
-  lesson.py             renditions: open, refresh, prose cache, render scheduling
-  versions.py           lesson versions, revert, word-level prose diff, fact guard for applied feedback
-  feedback.py           feedback kinds, the playbook signals each item owns, edit and delete
-  guidelines.py         lesson guidelines distilled from feedback patterns (versioned, editable)
-  remedial.py           struggle signals and extra lessons ("Vectors (b)")
-  books.py              book goals: the 80/20 cut of chosen sources, bringing a chapter back
-  jobs.py               agent jobs (research, outline, render, tutor, roadmap review, fact-check,
-                        grading, placement quiz, reflection) + offline fallbacks
-  progress.py           evidence recording, research one module ahead
-  runner.py             local Python runner: approval by test hash, static check, isolated run
-  viz.py                interactive-visual specs and their validation
-  library.py            shared card library, full-text search, Anki export
-  planner.py            weekly plan across goals and its calendar (.ics) export
-  backup.py             daily workspace backups
-  roadmap/              daily roadmap: planner, CLI, link check, config.example.toml,
-                        data/ (curriculum and resources as TOML)
-  providers.py          agent-CLI adapters (claude -p, codex exec, Cursor CLI), routing and fallback
+  engine.py             BKT, mastery gate, FSRS, playbook replay (pure, no I/O)
+  db.py                 workspace + SQLite schema
+  state.py / actions.py read side (UI snapshots) / write side (every UI action)
+  jobs.py               agent jobs and their offline fallbacks
+  providers.py          Claude Code, Codex and Cursor CLI adapters, the Claude API, routing and fallback
+  graph.py              the knowledge graph
+  session.py            "teach me X" study sessions (sketch, probe, plan, teach, extract)
+  practice.py           recall practice
+  probe.py, mcq.py      the goal probe; shared multiple-choice helpers
+  dictation.py          local Whisper dictation
+  lesson.py, writer.py  lessons: planning, writing, review, versions
   prompts/              one prompt per job
-  seed/demo.json        demo roadmap
-backend/tests/          engine and end-to-end flow tests (fake provider)
-web/src/
-  store.tsx             API client: snapshot + actions, polling while jobs run
-  pages/                Home, This week, Goal setup, Placement, Roadmap, Lesson, Reviews, Search, Me, Library,
-                        Settings
-  components/           inline checks, explain-back, Pyodide and local exercises, side panel (tutor, notes,
-                        source card), feedback dialog, feedback log with apply, lesson versions and prose diff
-  components/viz/       interactive widgets and a safe expression evaluator for plots
+  roadmap/              the daily roadmap (terminal)
+backend/tests/          unit and end-to-end tests (fake provider)
+web/src/                React UI: pages/, components/, store.tsx (API client)
+desktop/                the Tauri desktop app and the PyInstaller backend bundle
 ```
 
-## Next
+## License
 
-Ideas: phone reviews over the home network (needs a pairing/login design first), and test the Docker runner once
-Docker Desktop is installed.
+[MIT](LICENSE).

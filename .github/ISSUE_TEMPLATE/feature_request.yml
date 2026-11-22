@@ -1,0 +1,20 @@
+name: Feature request
+description: Propose a new feature or a change.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What do you want to do that is hard or impossible now?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: How could Deep Study Center solve it?
+  - type: textarea
+    id: other
+    attributes:
+      label: Other options you considered

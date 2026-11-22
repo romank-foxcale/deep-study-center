@@ -21,7 +21,7 @@ title = "Gridded data with xarray, Zarr and dask"
 minutes = 75
 goal = "Work with large labeled N-D climate arrays without loading everything into memory."
 resources = ["xarray-tutorial: fundamentals and intermediate", "arco-era5"]
-exercise = "Open the ARCO-ERA5 Zarr store lazily. Select 2 m temperature over Japan for 10 years. Compute a daily climatology and anomalies with groupby, and plot one anomaly map."
+exercise = "Open the ARCO-ERA5 Zarr store lazily. Select 2 m temperature over a region you choose for 10 years. Compute a daily climatology and anomalies with groupby, and plot one anomaly map."
 done_when = "Your notebook computes the anomaly with lazy dask arrays and shows the map."
 
 [[unit]]
@@ -129,7 +129,7 @@ minutes = 60
 requires = ["ea-probabilistic"]
 goal = "Understand km-scale downscaling with diffusion models."
 resources = ["corrdiff", "earth2studio"]
-exercise = "Read CorrDiff. Explain the regression-plus-diffusion split. Write how you would evaluate downscaled precipitation over Japan."
+exercise = "Read CorrDiff. Explain the regression-plus-diffusion split. Write how you would evaluate downscaled precipitation over a region you choose."
 done_when = "Your evaluation plan names data, metrics and one extreme-event check."
 
 [[unit]]
@@ -138,7 +138,7 @@ title = "Remote sensing data: Sentinel-2, STAC and spectral indices"
 minutes = 75
 goal = "Search and load satellite imagery from a STAC catalog and compute indices."
 resources = ["planetary-computer", "stac-intro"]
-exercise = "Query the Planetary Computer STAC API for cloud-free Sentinel-2 scenes over a place in Japan for one year. Compute an NDVI time series and plot it."
+exercise = "Query the Planetary Computer STAC API for cloud-free Sentinel-2 scenes over a place you choose for one year. Compute an NDVI time series and plot it."
 done_when = "Your NDVI curve shows a clear seasonal cycle, and the cloud filter is documented."
 
 [[unit]]
