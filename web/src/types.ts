@@ -67,6 +67,7 @@ export type VizSpec =
   | { type: 'lincomb2d'; caption: string; u: number[]; v: number[]; target?: number[] }
   | { type: 'matrix2d'; caption: string; matrix: number[][] }
   | { type: 'plot'; caption: string; expr: string; xmin: number; xmax: number; params: { name: string; min: number; max: number; value: number }[] }
+  | import('./components/viz/Surface3D').SurfaceSpec
   | { type: 'formula'; caption: string; tex: string
       parts: { id: string; tex: string; label: string; color: string; side: 'above' | 'below'; param: string | null
         expr?: string; variants?: { tex: string; expr: string; why: string }[] }[]
@@ -205,6 +206,16 @@ export interface BookView {
   chapters: BookChapter[]; chapterCount: number; chaptersDone: number
   /** The concept id of the lesson to continue with. */
   next: string | null; error: string | null; progress: string; busy: boolean
+}
+/** A formula's hover note: its name, what it says, its symbols and the graph ideas it belongs to. */
+export interface FormulaNote {
+  name: string; meaning: string; symbols: { tex: string; meaning: string }[]
+  ideas: { id: string; title: string; state: string; lesson: string | null; here: boolean }[]
+  /** idea: worth knowing on its own; step: a line of a derivation (neutral frame). */
+  kind: 'idea' | 'step'
+  /** The frame: green (learned formula lesson, this form), orange (a formula lesson, another form), gray (none yet), step. */
+  status: 'green' | 'orange' | 'gray' | 'step'
+  formula: { id: string; title: string; state: string; sameForm: boolean; here: boolean } | null
 }
 /** Where a book lesson sits in its book (on the lesson page). */
 export interface LessonBook {
@@ -361,6 +372,12 @@ export interface LessonView {
   writingCards: boolean
   /** While the lesson is written: its steps, the step it is on, and the newest progress line. */
   writing: { steps: string[]; at: number; message: string; queued: boolean } | null
+  /** Hover notes for the lesson's formulas, by the formula's TeX without spaces (SPEC §33). */
+  formulas: Record<string, FormulaNote>
+  formulasPending: boolean
+  /** A formula lesson (SPEC §34): the forms it covers, where each comes from, and the one you prefer. */
+  formulaLesson: { forms: { key: string; tex: string; from: { id: string; title: string } }[]; preferred: string | null
+    source: { id: string; title: string } } | null
   card: SourceCard | null
   sections: LessonSectionView[]
   rendering: boolean

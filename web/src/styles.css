@@ -950,3 +950,55 @@ a.shelf-card:hover { text-decoration: none; border-color: var(--border-2); }
 .writing-steps li.done::before { content: '✓ '; color: var(--st-learned, #3fb27f); }
 .writing-steps li.now { color: var(--text); font-weight: 600; }
 .writing-steps li.now::before { content: '● '; color: var(--c-1); }
+
+/* ---------- 3D surface with optimizer paths (SPEC §33) ---------- */
+.surface3d { display: flex; flex-direction: column; gap: 8px; }
+.surface3d-canvas { width: 100%; max-width: 640px; align-self: center; border-radius: 10px; cursor: grab; touch-action: none;
+  background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--c-1) 8%, var(--surface)), var(--surface)); }
+.surface3d-canvas:active { cursor: grabbing; }
+.surface3d-tools { gap: 8px; align-items: center; flex-wrap: wrap; }
+.surface3d-step { flex: 1 1 160px; max-width: 260px; }
+.surface3d-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.surface3d-opt { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; opacity: 0.55; }
+.surface3d-opt.on { opacity: 1; }
+.surface3d-opt i { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
+.surface3d-sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px 16px; }
+.surface3d-sliders label { display: flex; flex-direction: column; gap: 2px; }
+
+/* ---------- Formula hover notes (SPEC §33) ---------- */
+.formula-card { position: fixed; z-index: 50; width: 380px; max-width: calc(100vw - 24px); padding: 10px 12px; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  display: flex; flex-direction: column; gap: 6px; }
+.formula-card.above { transform: translateY(-100%); }
+.formula-card .md-inline { display: inline; }
+.formula-symbols { border-collapse: collapse; width: 100%; }
+.formula-symbols td { padding: 2px 6px 2px 0; vertical-align: top; }
+.formula-symbols td:first-child { white-space: nowrap; width: 1%; padding-right: 12px; }
+.formula-ideas { display: flex; flex-direction: column; gap: 3px; border-top: 1px solid var(--border); padding-top: 6px; }
+.formula-ideas .row { gap: 6px; align-items: center; flex-wrap: wrap; }
+.lesson .katex-display, .lesson .md .katex { cursor: help; }
+.lesson .viz .katex { cursor: default; }
+
+/* ---------- Formula frames and formula lessons (SPEC §34) ---------- */
+.lesson .katex-display[data-fx] { border: 1.5px solid transparent; border-radius: 10px; padding: 8px 12px; margin: 12px 0; }
+.lesson .katex-display[data-fx="green"] { border-color: color-mix(in srgb, var(--st-learned, #3fb27f) 75%, transparent);
+  background: color-mix(in srgb, var(--st-learned, #3fb27f) 6%, transparent); }
+.lesson .katex-display[data-fx="orange"] { border-color: color-mix(in srgb, #f08c2e 80%, transparent);
+  background: color-mix(in srgb, #f08c2e 6%, transparent); }
+.lesson .katex-display[data-fx="gray"] { border-color: color-mix(in srgb, var(--muted) 45%, transparent); }
+.lesson .katex-display[data-fx="step"] { border: 1px dashed color-mix(in srgb, var(--muted) 22%, transparent); }
+.lesson .katex-display[data-fx="none"] { border: 1px dashed color-mix(in srgb, var(--muted) 15%, transparent); }
+.formula-own { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding: 6px 8px; border-radius: 8px;
+  border-left: 3px solid var(--border); background: color-mix(in srgb, var(--text) 4%, transparent); }
+.fx-own-green { border-left-color: var(--st-learned, #3fb27f); }
+.fx-own-orange { border-left-color: #f08c2e; }
+.fx-own-gray { border-left-color: var(--muted); }
+.formula-forms { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.formula-form { padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); }
+.formula-form.preferred { border-color: color-mix(in srgb, var(--st-learned, #3fb27f) 60%, var(--border)); }
+.formula-form .row { gap: 8px; align-items: center; }
+.lesson .md .katex[data-fx] { border-radius: 5px; padding: 1px 4px; box-shadow: inset 0 0 0 1.5px var(--fx-c); }
+.lesson .md .katex[data-fx="green"] { --fx-c: color-mix(in srgb, var(--st-learned, #3fb27f) 75%, transparent); background: color-mix(in srgb, var(--st-learned, #3fb27f) 7%, transparent); }
+.lesson .md .katex[data-fx="orange"] { --fx-c: color-mix(in srgb, #f08c2e 80%, transparent); background: color-mix(in srgb, #f08c2e 7%, transparent); }
+.lesson .md .katex[data-fx="gray"] { --fx-c: color-mix(in srgb, var(--muted) 45%, transparent); }
+.viz figcaption .md-inline { display: inline; }

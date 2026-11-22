@@ -2,6 +2,8 @@
 // the backend); everything that runs here is our own code.
 
 import Formula from './Formula'
+import Surface3D from './Surface3D'
+import Markdown from '../Markdown'
 import { useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import type { VizSpec } from '../../types'
 import { evaluate, parse } from './expr'
@@ -215,7 +217,8 @@ export default function Viz({ spec }: { spec: VizSpec }) {
       {spec.type === 'matrix2d' && <Matrix2D spec={spec} />}
       {spec.type === 'plot' && <Plot spec={spec} />}
       {spec.type === 'formula' && <Formula spec={spec} />}
-      {spec.caption && <figcaption className="muted small">{spec.caption}</figcaption>}
+      {spec.type === 'surface3d' && <Surface3D spec={spec} />}
+      {spec.caption && <figcaption className="muted small"><Markdown inline>{spec.caption}</Markdown></figcaption>}
     </figure>
   )
 }

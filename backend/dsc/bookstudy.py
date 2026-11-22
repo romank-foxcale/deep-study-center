@@ -506,6 +506,7 @@ def write_cards(jobs: Jobs, jid: int, d: dict) -> dict:
     lessons = db.q("""SELECT p.*, c.objective FROM book_parts p JOIN concepts c ON c.id = p.concept_id
                       WHERE p.book_id=? AND p.chapter=? ORDER BY p.ord""", (b["id"], ch["chapter"]))
     have = {r["concept_id"] for r in db.q("SELECT DISTINCT concept_id FROM cards")}
+    have |= {r["id"] for r in db.q("SELECT id FROM formula_lessons")}  # formula lessons are written by their own job
     todo = [x for x in lessons if x["concept_id"] not in have]
     if not todo:
         db.x("UPDATE modules SET research='ready' WHERE id=?", (ch["module_id"],))
@@ -572,7 +573,8 @@ def ensure_written(db: DB, jobs: Jobs, cid: str) -> bool:
     db.x("UPDATE books SET updated_at=? WHERE id=(SELECT book_id FROM book_parts WHERE concept_id=?)", (now(), cid))
     row = db.one("""SELECT m.id, m.research, t.goal_id FROM concepts c JOIN modules m ON m.id = c.module_id
                     JOIN tracks t ON t.id = m.track_id WHERE c.id=?""", (cid,))
-    if not row or not is_book_goal(db, row["goal_id"]) or db.one("SELECT 1 FROM cards WHERE concept_id=?", (cid,)):
+    if not row or not is_book_goal(db, row["goal_id"]) or db.one("SELECT 1 FROM cards WHERE concept_id=?", (cid,)) \
+            or db.one("SELECT 1 FROM formula_lessons WHERE id=?", (cid,)):
         return False
     if not jobs.active("research_module", module_id=row["id"]):
         db.x("UPDATE modules SET research='researching' WHERE id=?", (row["id"],))

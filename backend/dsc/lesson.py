@@ -69,6 +69,10 @@ def open_lesson(db: DB, jobs: Jobs, cid: str) -> dict:
     elif r:
         ensure_prose(db, jobs, cid)
     db.x("UPDATE concepts SET started=1 WHERE id=?", (cid,))
+    from . import formulas
+    if not any(j["status"] in ("queued", "running") and j["kind"] == "render" and j["input"].get("concept_id") == cid
+               for j in state.jobs(db)):
+        formulas.ensure(db, jobs, cid)  # hover notes for formulas written before notes existed
     progress.research_ahead(db, jobs)
     return {**view(db, cid), "refreshed": refreshed}
 
@@ -102,7 +106,7 @@ def _viz_notes(s: dict) -> list[str]:
 
 
 # The writing steps a lesson page shows while a lesson is written, keyed by the role each step calls.
-_STEPS = [("Research", "Plan the chapter's lessons from the book"), ("Lesson planner", "Plan the lesson for you"),
+_STEPS = [("Formula", "Plan the formula lesson"), ("Research", "Plan the chapter's lessons from the book"), ("Lesson planner", "Plan the lesson for you"),
           ("Lesson assets", "Make graphs and questions"), ("Renditions", "Write the text"), ("Lesson review", "Review and fix")]
 
 
@@ -111,13 +115,14 @@ def writing(db: DB, cid: str) -> dict | None:
     progress bar). None when nothing is written for it now."""
     mod = (db.one("SELECT module_id FROM concepts WHERE id=?", (cid,)) or {}).get("module_id")
     active = [j for j in state.jobs(db) if j["status"] in ("queued", "running")
-              and ((j["kind"] in ("render", "apply_feedback") and j["input"].get("concept_id") == cid)
+              and ((j["kind"] in ("render", "apply_feedback", "formula_lesson") and j["input"].get("concept_id") == cid)
                    or (j["kind"] == "research_module" and mod and j["input"].get("module_id") == mod))]
     if not active:
         return None
     research = any(j["kind"] == "research_module" for j in active)
+    formula = any(j["kind"] == "formula_lesson" for j in active)
     single = db.meta("lesson_writing", "steps") != "steps" or any(j["kind"] == "apply_feedback" for j in active)
-    roles = (["Research"] if research else []) + (["Renditions"] if single else ["Lesson planner", "Lesson assets", "Renditions",
+    roles = (["Formula"] if formula else []) + (["Research"] if research else []) + (["Renditions"] if single else ["Lesson planner", "Lesson assets", "Renditions",
                                                                                    "Lesson review"])
     lines = [m for j in sorted(active, key=lambda j: j["id"]) for m in j["progress"]]
     at = 0
@@ -166,13 +171,17 @@ def view(db: DB, cid: str) -> dict:
             "book": s.get("book"),  # book lessons: a close summary of what the book says here, and its pages
         })
     p = writer.current_plan(db, cid, card["version"]) if card else None
-    from . import bookstudy
+    from . import bookstudy, formula_lessons, formulas
     book = bookstudy.lesson_book(db, cid)
     mod = db.one("SELECT module_id FROM concepts WHERE id=?", (cid,)) if book else None
     writing_cards = bool(mod) and any(j["status"] in ("queued", "running") and j["kind"] == "research_module"
                                 and j["input"].get("module_id") == mod["module_id"] for j in state.jobs(db))
     return {
         "book": book, "writingCards": writing_cards, "writing": writing(db, cid),
+        "formulas": formulas.notes(db, cid),
+        "formulaLesson": formula_lessons.info(db, cid),
+        "formulasPending": any(j["status"] in ("queued", "running") and j["kind"] == "formula_notes"
+                               and j["input"].get("concept_id") == cid for j in state.jobs(db)),
         "conceptId": cid, "card": state.public_card(card) if card else None, "sections": sections,
         "rendering": rendering, "renderError": failed if not rendering else None,
         "rendition": r and {"cardVersion": r["card_version"], "playbookVersion": r["playbook_version"],

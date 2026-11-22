@@ -357,6 +357,14 @@ and the map opening on Territories. Checked on the mock workspace in dark, light
 `claude/page-polish`): Practice, Library, Me and Settings in the new style, and pinch zoom on the map. Open: the goal
 pages keep their old layout while goals are on hold; pinch zoom is not yet tried on a real touch screen.
 
+### D10. ✅ DONE (2026-11-22, branch `claude/formulas-3d`, SPEC §33): Formula hover notes and 3D surfaces
+Hovering a formula shows its name, meaning, symbols and where you met it (checked on a copy with the real lesson "Loss
+functions for multiple outputs": 16 notes in one call). A 3D surface widget with gradient descent, momentum, RMSProp
+and Adam paths (checked on the mock). Open: existing lessons get 3D surfaces only when they are written again
+(Refresh or "Explain differently"). Then (same branch, SPEC §34): formula lessons from the hover card, forms added to
+them and a preferred form, and green / orange / gray frames on formulas. Checked on a copy with the real gradient
+descent lesson: the formula lesson was written with its widget, and the other form of the update rule showed orange.
+
 ### D9. ✅ DONE (2026-11-22, branch `claude/reasoning-feedback`, SPEC §32): The tutor reads your reasoning
 After a lesson check with thinking, the tutor marks the parts of the thinking as right or wrong with a reason, names
 the wrong assumption, follows it until it breaks, and derives how it really works; saved per answer, with a history on

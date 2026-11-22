@@ -122,6 +122,7 @@ def build(folder: Path) -> Path:
     _dot_lesson(db)
     titles = _books(db, rnd)
     _book_lesson(db, titles)
+    _descent_lesson(db, titles)
     _states(db, rnd, base, titles)
     _sessions(db, titles)
     _practice(db, titles)
@@ -327,6 +328,57 @@ def _book_lesson(db: DB, by_title: dict[str, str]) -> None:
         db.conn.execute("UPDATE concepts SET started=1 WHERE id=?", (cid,))
         mid = db.conn.execute("SELECT module_id FROM concepts WHERE id=?", (cid,)).fetchone()[0]
         db.conn.execute("UPDATE modules SET research='ready' WHERE id=?", (mid,))
+
+
+DESCENT = [
+    ("s-valley", "Walk downhill", "90",
+     "The book fits a model by walking downhill on the loss. Each step moves the parameters against the gradient, by a "
+     "step size called the learning rate. In a long narrow valley, plain gradient descent bounces between the walls.",
+     "The loss of two weights $w_1, w_2$ is a surface. The gradient $\\nabla L$ points uphill, so each step goes the other way:\n\n"
+     "$$\\phi \\leftarrow \\phi - \\alpha \\nabla L(\\phi)$$\n\nHere the valley is narrow in $y$ and long in $x$. Play the steps. Plain "
+     "gradient descent (red) crosses the valley again and again, and moves slowly along it. Momentum (orange) keeps the "
+     "direction of earlier steps, so the side-to-side moves cancel and the long moves add up.",
+     {"type": "surface3d", "caption": "A narrow valley: L = 0.15x² + 2y². Drag to turn it; try a larger learning rate.",
+      "expr": "0.15*x^2 + 2*y^2", "xmin": -3, "xmax": 3, "ymin": -2, "ymax": 2, "start": [-2.7, 1.5],
+      "optimizers": ["sgd", "momentum"], "lr": 0.35, "steps": 60}),
+    ("s-adaptive", "Adaptive steps", "92-93",
+     "The book compares methods that adapt the step for each parameter. Adam keeps a moving average of the gradient and of "
+     "its square, and divides one by the root of the other.",
+     "In a curved valley (the Rosenbrock function), the gradient is large across the valley and tiny along it. RMSProp and "
+     "Adam divide each step by the recent size of the gradient, so every direction moves at about the same speed:\n\n"
+     "$$m_t = \\beta_1 m_{t-1} + (1-\\beta_1) g_t, \\qquad v_t = \\beta_2 v_{t-1} + (1-\\beta_2) g_t^2$$\n\n"
+     "$$\\phi \\leftarrow \\phi - \\alpha \\frac{\\hat m_t}{\\sqrt{\\hat v_t} + \\epsilon}$$\n\nCompare how far each method gets "
+     "towards the minimum at $(1, 1)$ in the same number of steps.",
+     {"type": "surface3d", "caption": "The Rosenbrock valley: L = (1 − x)² + 5(y − x²)². The minimum is at (1, 1).",
+      "expr": "(1-x)^2 + 5*(y-x^2)^2", "xmin": -2, "xmax": 2, "ymin": -1, "ymax": 3, "start": [-1.5, 2.2],
+      "optimizers": ["sgd", "momentum", "rmsprop", "adam"], "lr": 0.02, "steps": 150}),
+]
+
+
+def _descent_lesson(db: DB, by_title: dict[str, str]) -> None:
+    """A saved book lesson with 3D surfaces (SPEC §33): "Gradient descent" in Understanding Deep Learning."""
+    cid = by_title["Gradient descent"]
+    style = db.one("SELECT style FROM renditions WHERE concept_id='c-vectors'")["style"]
+    pb_version = db.one("SELECT playbook_version FROM renditions WHERE concept_id='c-vectors'")["playbook_version"]
+    sections, ts = [], now()
+    for sid, heading, pages, said, _means, widget in DESCENT:
+        sections.append({"id": sid, "heading": heading, "purpose": heading, "angles": ["geometric"],
+                         "book": {"summary": said, "pages": pages}, "viz": viz.validate(widget)})
+    sections[0]["check"] = {"id": "q-s-valley", "prompt": "In a long narrow valley, why does plain gradient descent zigzag?",
+                            "options": ["The gradient points mostly across the valley, not along it", "The learning rate is too small",
+                                        "The loss has no minimum", "Momentum is switched on"], "answer": 0,
+                            "explanation": "Across the valley the loss is steep, so the gradient is large there and small along the valley."}
+    body = {"objective": "Explain how gradient descent and its variants walk down a loss surface.", "bloom": "understand",
+            "core": "Each step moves the parameters against the gradient; momentum and adaptive methods change the step.",
+            "formal": "$\\phi \\leftarrow \\phi - \\alpha \\nabla L(\\phi)$", "why": "The gradient is the direction of steepest increase.",
+            "angles": ["geometric"], "examples": [], "misconceptions": [], "sources": [], "sections": sections}
+    with db.tx():
+        db.conn.execute("INSERT INTO cards(concept_id, version, body, fact_check, checked_at) VALUES(?,?,?,?,?)",
+                        (cid, 1, dumps(body), "passed", ts[:10]))
+        for sid, _h, _p, _s, means, _w in DESCENT:
+            db.conn.execute("INSERT OR REPLACE INTO prose VALUES(?,?,?,?,?,?,?,?)", (cid, 1, sid, "geometric", style, means, "mock", ts))
+        db.conn.execute("INSERT OR REPLACE INTO renditions VALUES(?,?,?,?,?,?,0)",
+                        (cid, 1, pb_version, style, dumps({x[0]: "geometric" for x in DESCENT}), "{}"))
 
 
 # ---------------------------------------------------------------- idea states from evidence

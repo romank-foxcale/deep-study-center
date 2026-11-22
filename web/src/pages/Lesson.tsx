@@ -10,6 +10,7 @@ import LocalExercise from '../components/LocalExercise'
 import Viz from '../components/viz/Viz'
 import FeedbackDialog from '../components/FeedbackDialog'
 import LessonHistory from '../components/LessonHistory'
+import FormulaHover from '../components/FormulaHover'
 import SidePanel, { SourceCardView, type Tab } from '../components/SidePanel'
 import StateBadge, { MasteryBar } from '../components/StateBadge'
 import { refFromSelection } from '../components/selection'
@@ -170,7 +171,7 @@ export default function Lesson() {
           : <div className="crumbs"><Link to="/roadmap">{track?.title}</Link> › {module?.title}</div>}
         <header className="lesson-head">
           <h1>{concept.title}</h1>
-          <p className="lead">{concept.objective}</p>
+          <p className="lead"><Markdown inline>{concept.objective}</Markdown></p>
           <div className="row">
             <StateBadge state={concept.state} />
             <MasteryBar value={concept.mastery} />
@@ -210,6 +211,27 @@ export default function Lesson() {
         {loadError && <p className="error">{loadError}</p>}
         {!view && !loadError && <p className="muted">Opening…</p>}
 
+        {view?.formulaLesson && view.formulaLesson.forms.length > 0 && (
+          <div className="card formula-forms">
+            <div className="row row-between"><div className="eyebrow">Forms of this formula</div>
+              <span className="muted small">From <Link to={`/lesson/${view.formulaLesson.source.id}`}>{view.formulaLesson.source.title}</Link></span></div>
+            {view.formulaLesson.forms.map(f => {
+              const pref = view.formulaLesson!.preferred === f.key
+              return (
+                <div key={f.key} className={`formula-form${pref ? ' preferred' : ''}`}>
+                  <Markdown>{`$$${f.tex}$$`}</Markdown>
+                  <div className="row small">
+                    <span className="muted">in <Link to={`/lesson/${f.from.id}`}>{f.from.title}</Link></span>
+                    <span className="spacer" />
+                    {pref ? <span className="pill pill-ok small">your form</span>
+                      : <button className="btn btn-small" onClick={() => dispatch({ type: 'preferFormulaForm', formulaId: id, key: f.key })}
+                          title="The lesson is written again with this form as its main form">I prefer this form</button>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
         {view?.writing && (() => {
           const w = view.writing
           const done = sections.filter(x => x.body && !x.pending).length
@@ -396,6 +418,8 @@ export default function Lesson() {
             setFeedbackFor(null); setTab('feedback')
           }} />
       )}
+
+      {view && <FormulaHover root={article} notes={view.formulas ?? {}} pending={view.formulasPending} conceptId={id} />}
 
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
