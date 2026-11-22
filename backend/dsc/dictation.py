@@ -23,6 +23,11 @@ from typing import TYPE_CHECKING
 
 from .db import DB, workspace
 
+# The model download writes to the backend log: no progress bars and no warning about Windows symlinks there (the job
+# reports its own progress, and the cache works without symlinks). Set before huggingface_hub is first imported.
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+
 if TYPE_CHECKING:
     from .jobs import Jobs
 

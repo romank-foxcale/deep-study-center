@@ -639,6 +639,42 @@ def use_recommended_routes(db: DB, jobs: Jobs, a: dict) -> None:
         db.x("UPDATE routes SET provider=?, model=? WHERE role=?", (prov, model, role))
 
 
+def set_api_key(db: DB, jobs: Jobs, a: dict) -> None:
+    """Check the key with the Models API (no tokens used), then keep it in the OS keychain (SPEC §25)."""
+    from . import apikey
+    key = str(a.get("key") or "").strip()
+    try:
+        import anthropic
+        anthropic.Anthropic(api_key=key, timeout=20.0, max_retries=1).models.list(limit=1)
+    except anthropic.AuthenticationError as e:
+        raise ActionError("the API rejected this key") from e
+    except anthropic.APIConnectionError as e:
+        raise ActionError("cannot reach the Anthropic API to check the key; try again when you are online") from e
+    except anthropic.APIStatusError as e:
+        raise ActionError(f"the API could not check the key ({e.status_code})") from e
+    try:
+        apikey.set_key(key)
+    except ValueError as e:
+        raise ActionError(str(e)) from e
+    except Exception as e:  # noqa: BLE001 - no keychain on this system
+        raise ActionError(f"cannot store the key in the system keychain: {e}"[:300]) from e
+
+
+def clear_api_key(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import apikey
+    apikey.clear()
+
+
+def use_api_for_all(db: DB, jobs: Jobs, a: dict) -> None:
+    """Every job on the Claude API with the recommended model (a Codex job goes to Opus)."""
+    from . import apikey
+    from .providers import RECOMMENDED
+    if not apikey.get():
+        raise ActionError("add an Anthropic API key first")
+    for role, (prov, model, _why) in RECOMMENDED.items():
+        db.x("UPDATE routes SET provider='anthropic', model=? WHERE role=?", (model if prov == "claude" else "opus", role))
+
+
 def set_setting(db: DB, jobs: Jobs, a: dict) -> None:
     if a["key"] == "lessonWriting":  # "steps": planner, graphs and questions, text, review; "single": one call for the text
         if a["value"] not in ("steps", "single"):
@@ -792,6 +828,7 @@ ACTIONS = {
     "editGuidelines": edit_guidelines, "distillGuidelines": distill_guidelines, "refresh": refresh, "markStudied": mark_studied, "addNote": add_note, "deleteNote": delete_note,
     "chat": chat, "decideDiff": decide_diff, "researchModule": research_module, "createGoal": create_goal,
     "setGoal": set_goal, "correctEntry": correct_entry, "adjust": adjust, "route": route, "useRecommendedRoutes": use_recommended_routes,
+    "setApiKey": set_api_key, "clearApiKey": clear_api_key, "useApiForAll": use_api_for_all,
     "linkSource": link_source, "editSource": edit_source, "deleteSource": delete_source, "rereadSource": reread_source, "reset": reset,
     "restoreCut": restore_cut,
     "setDictation": set_dictation, "downloadDictationModel": download_dictation_model,

@@ -274,7 +274,10 @@ only, never its code or prompt text.
 
 ## C. Desktop app and open source (step 7)
 
-### C1. Package DSC as a desktop app
+### C1. ✅ DONE (2026-11-21, branch `claude/desktop-app`, SPEC §25): Package DSC as a desktop app
+Done with Tauri 2 + a PyInstaller backend folder + an NSIS per-user installer, and an Anthropic API-key provider with
+the key in the Windows Credential Manager. Left for later: bundle Pyodide for offline use, code signing, auto-update,
+macOS/Linux builds, a single-instance guard (two app windows would start two backends on one workspace).
 - **Why:** the user wants DSC to be a free, open-source desktop app that anyone can install.
 - **What:** one installer per OS that starts the backend and shows the UI in a native window.
 - **How:**
@@ -293,8 +296,8 @@ only, never its code or prompt text.
 ### C2. ✅ DONE (2026-11-22, branch `claude/probe-edge`, SPEC §27): Local dictation (Whisper)
 Done with faster-whisper (base model by default, small as an option), a one-time download in Settings → Dictation,
 and phrase-by-phrase recording in the page. Checked with a real model and a recorded test phrase, not yet with a real
-microphone (A2). Left for later: add faster-whisper, ctranslate2, onnxruntime and av to the desktop backend bundle
-(`desktop/backend/dsc-backend.spec`) once C1 (PR #21) is merged, and check the bundle size.
+microphone (A2). The desktop bundle includes it (installer 74 MiB instead of 19.7 MiB). Left for later: check the
+microphone prompt of WebView2 in the installed desktop app.
 - **Why:** the browser's speech API sends audio to Google, and desktop webviews may not support it.
 - **How:** a local Whisper model (for example faster-whisper `small`, or whisper.cpp) in the backend:
   `POST /api/transcribe` takes short audio chunks recorded with `MediaRecorder`; `useDictation` uses it when the

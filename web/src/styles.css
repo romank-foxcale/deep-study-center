@@ -633,6 +633,9 @@ pre.code-output.bad { color: #f48771; }
 .practice-thinking p { margin: 2px 0; white-space: pre-wrap; }
 .practice-hint { margin-top: 6px; }
 
+/* Anthropic API key (SPEC §25) */
+.api-key-input { flex: 1; min-width: 240px; max-width: 420px; font-family: var(--mono, monospace); }
+
 /* Settings → Dictation (SPEC §27) */
 .dictation-models { list-style: none; padding: 0; margin: 10px 0; display: flex; flex-direction: column; gap: 6px; }
 .dictation-models li { gap: 10px; flex-wrap: wrap; }

@@ -19,3 +19,8 @@ DeepStudy/
 Thumbs.db
 *.egg-info/
 .pytest_cache/
+
+# desktop app build output
+desktop/backend/build/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/

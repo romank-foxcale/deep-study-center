@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from . import dictation, engine, providers, runner
+from . import apikey, dictation, engine, providers, runner
 from .db import DB, loads, workspace
 
 
@@ -190,7 +190,7 @@ def snapshot(db: DB) -> dict:
     pb = playbook(db)
     from . import books, library, practice, session, sources
     from . import guidelines
-    base = {"playbook": pb, "guidelines": guidelines.current(db), "providers": providers.status(), "routes": routes(db), "jobs": jobs(db),
+    base = {"playbook": pb, "guidelines": guidelines.current(db), "providers": providers.status(), "apiKey": apikey.status(), "routes": routes(db), "jobs": jobs(db),
             "library": library.listing(db),
             "sources": sources.listing(db),
             "sessions": session.listing(db), "lastSession": db.meta("last_session"),

@@ -48,6 +48,9 @@ export type Action =
   | { type: 'sessionAssessNow'; sessionId: string }
   | { type: 'sessionRetry'; sessionId: string }
   | { type: 'deleteSession'; sessionId: string }
+  | { type: 'setApiKey'; key: string }
+  | { type: 'clearApiKey' }
+  | { type: 'useApiForAll' }
   | { type: 'setDictation'; mode?: 'browser' | 'local'; model?: string }
   | { type: 'downloadDictationModel'; model: string }
   | { type: 'removeDictationModel'; model: string }
