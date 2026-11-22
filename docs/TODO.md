@@ -344,6 +344,12 @@ links its own old ideas. Open: the UI design (with the user); a glossary appendi
 example softmax) as its own part; the "Study" order does not yet use the knowledge of earlier finished parts beyond
 the graph state; a mapped chapter cannot be re-mapped from the UI (internal option `only`).
 
+### D7. ✅ DONE (2026-11-22, branch `claude/ui-redesign`, SPEC §30): The redesign
+Five main entries (Today, Books, Learn, Practice, Map) with goals on hold in their own group, the dark star-chart theme
+by default (Light and System in Settings), a Today page, a book shelf, a new Book page, a reading layout for sessions,
+and the map opening on Territories. Checked on the mock workspace in dark, light and phone width. Open: polish of the
+older pages (Practice, Library, Me, Settings) in the new style; touch zoom on the map.
+
 ### D6. ✅ DONE (2026-11-22, branch `claude/book-study`, SPEC §29): Map views and a mock workspace
 Seven map views to choose from (Tree, Graph, Nebula, Skill wheel, Cells, Territories, Globe), saved per workspace, and
 `dsc mock` for checking the UI with full data. Open: the UI talk (which view is the default; mobile touch zoom).

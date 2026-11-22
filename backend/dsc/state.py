@@ -195,7 +195,7 @@ def snapshot(db: DB) -> dict:
             "sources": sources.listing(db),
             "sessions": session.listing(db), "lastSession": db.meta("last_session"),
             "dictation": dictation.status(db),
-            "studyBooks": bookstudy.listing(db), "lastBook": db.meta("last_book"), "mapView": db.meta("map_view") or "tree",
+            "studyBooks": bookstudy.listing(db), "lastBook": db.meta("last_book"), "mapView": db.meta("map_view") or "territory",
             "practices": practice.listing(db), "lastPractice": db.meta("last_practice"), "practiceDue": practice.due_count(db),
             "runner": runner_status(db),
             "backups": {"folder": str(workspace() / "backups"), "last": db.meta("last_backup"), "items": _backups()[:5]},

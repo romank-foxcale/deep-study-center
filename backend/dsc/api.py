@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from fastapi.responses import Response
 
-from . import actions, backup, bookstudy, dictation, graph, lesson, library, planner, practice, progress, providers, runner, session, sources, state, versions
+from . import actions, backup, bookstudy, dictation, today, graph, lesson, library, planner, practice, progress, providers, runner, session, sources, state, versions
 from .db import DB, workspace
 from .jobs import Jobs
 from .seed import ensure_routes, init_empty
@@ -34,6 +34,11 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
         if not v:
             raise HTTPException(404, "no such session")
         return v
+
+    @app.get("/api/today")
+    def get_today() -> dict:
+        """The Today page (SPEC §30): where to continue, what is due, this week."""
+        return today.view(db)
 
     @app.get("/api/book/{bid}")
     def get_book(bid: str) -> dict:

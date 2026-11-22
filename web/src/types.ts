@@ -165,8 +165,23 @@ export interface GraphView {
 
 /** Book study (SPEC §28). */
 export interface StudyBookSummary {
-  id: string; sourceId: string; title: string; status: 'mapping' | 'ready' | 'failed'
+  id: string; sourceId: string; title: string; author: string; status: 'mapping' | 'ready' | 'failed'
   chapters: number; chaptersDone: number; parts: number; partsDone: number; updatedAt: string
+  /** The book's ideas: how many, how many known (learned, strong or due) and how many strong. */
+  ideas: number; known: number; strong: number
+}
+/** The Today page (SPEC §30). */
+export interface TodayView {
+  continue: null | {
+    kind: 'session'; sessionId: string; title: string; status: string; next: string | null; nextStatement: string | null
+    done: number; total: number; book: SessionView['book']
+  } | {
+    kind: 'part'; bookId: string; bookTitle: string; partId: number; title: string; pages: [number, number]; summary: string
+    done: number; total: number
+  }
+  due: { count: number; items: { nodeId: string; title: string; state: string; reason: 'due' | 'new' }[] }
+  week: { learned: number; strong: number; answers: number; sessions: number }
+  recent: { id: string; title: string; status: string; updatedAt: string }[]
 }
 export interface BookIdea {
   id: string; title: string; statement: string; kind: string; pages: string; state: string; fromGraph: boolean; otherBooks: string[]

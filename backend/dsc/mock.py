@@ -122,7 +122,7 @@ def build(folder: Path) -> Path:
     titles = _books(db, rnd)
     _states(db, rnd, base, titles)
     _sessions(db, titles)
-    db.set_meta("map_view", "nebula")
+    db.set_meta("map_view", "territory")
     return folder / "study.db"
 
 
