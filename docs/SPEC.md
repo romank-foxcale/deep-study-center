@@ -974,3 +974,17 @@ Change log shows text changes only (not graph or question changes).
 - Readiness: each book lesson lists what it builds on that the learner does not hold yet (this book's earlier
   lessons and older ideas the map linked to it); "Next" is a lesson whose parts the learner holds (the one in
   progress first), so the book is read in an order that builds.
+
+## 38. The whole formula tree (2026-11-22)
+
+- A page "Formula tree" (`#/formulas`, linked from the Map page and from each formula lesson: "See the whole formula
+  tree") shows every formula lesson and every building block as one graph. Basics are at the bottom. An arrow goes
+  from a block to the formula built from it.
+- Nodes: a formula or notation lesson (square), a graph idea that is a block (it lists the block names it teaches
+  here), or a block with no lesson yet (the same name under two formulas is one node). A block named like a formula
+  lesson is that lesson. A block that is the formula itself is left out.
+- Colors: green = you hold it (or basic arithmetic), orange = learning, dashed blue = its lesson is being written,
+  dashed gray = new to you. A notation is never basic, also in rows saved before that rule.
+- Selecting a node shows its form, meaning, state, the lesson to open, what it is built from and what uses it, and
+  for a formula with blocks that have no lesson, "Learn them first". The rest of the tree dims, except the
+  selected node's whole subtree. API: `GET /api/formulas` (`formula_lessons.tree`).

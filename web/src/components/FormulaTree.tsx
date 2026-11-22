@@ -12,7 +12,8 @@ export default function FormulaTree({ id, info }: { id: string; info: NonNullabl
   const busy = jobActive(s, 'formula_lesson', { concept_id: id })
   return (
     <div className="formula-tree">
-      <div className="eyebrow">Built from</div>
+      <div className="row"><div className="eyebrow">Built from</div><span className="spacer" />
+        <Link className="link small" to={`/formulas?focus=${encodeURIComponent(id)}`}>See the whole formula tree</Link></div>
       {!info.blocksReady && <p className="muted small">{busy ? 'Finding the building blocks…' : 'The building blocks are found when the lesson is written.'}</p>}
       {info.blocksReady && info.blocks.length === 0 && <p className="muted small">Nothing below it: it is a basic block.</p>}
       <ul className="formula-blocks">

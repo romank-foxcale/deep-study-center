@@ -155,6 +155,11 @@ def decompose(jobs: Jobs, jid: int, fid: str) -> int:
     return len(out.get("blocks") or [])
 
 
+def _basic(b: dict) -> bool:
+    """Basic school arithmetic needs no lesson. A notation is never basic (rows from before this rule may say so)."""
+    return bool(b["basic"]) and b["kind"] != "notation"
+
+
 def blocks(db: DB, fid: str, st: dict | None = None) -> list[dict]:
     """The blocks of a formula with what the learner knows: known (a learned lesson or idea, or basic), new, or
     writing (its lesson is being written)."""
@@ -164,7 +169,7 @@ def blocks(db: DB, fid: str, st: dict | None = None) -> list[dict]:
     out = []
     for b in db.q("SELECT * FROM formula_blocks WHERE formula_id=? ORDER BY ord", (fid,)):
         state, link = "new", None
-        if b["basic"]:
+        if _basic(b):
             state = "known"
         elif b["ref"]:
             node = nodes.get(b["ref"], b["ref"])
@@ -173,7 +178,7 @@ def blocks(db: DB, fid: str, st: dict | None = None) -> list[dict]:
             lesson_id = b["ref"] if b["ref_kind"] == "lesson" else next((c for c, n in nodes.items() if n == b["ref"]), None)
             link = {"id": lesson_id, "title": titles.get(node, b["name"]), "kind": b["ref_kind"]}
         out.append({"id": b["id"], "name": b["name"], "kind": b["kind"], "tex": b["tex"], "meaning": b["meaning"],
-                    "basic": bool(b["basic"]), "state": state, "link": link})
+                    "basic": _basic(b), "state": state, "link": link})
     return out
 
 
@@ -181,7 +186,7 @@ def learn_first(db: DB, jobs: Jobs, fid: str) -> list[str]:
     """Make a short lesson for every new block of formula ``fid`` (placed right before it) and write them."""
     if not db.one("SELECT 1 FROM formula_lessons WHERE id=?", (fid,)):
         raise FormulaError("unknown formula lesson")
-    todo = [b for b in db.q("SELECT * FROM formula_blocks WHERE formula_id=? ORDER BY ord", (fid,)) if not b["ref"] and not b["basic"]]
+    todo = [b for b in db.q("SELECT * FROM formula_blocks WHERE formula_id=? ORDER BY ord", (fid,)) if not b["ref"] and not _basic(b)]
     if not todo:
         raise FormulaError("every building block already has a lesson or is known")
     made, ts = [], now()
@@ -214,6 +219,70 @@ def used_in(db: DB, fid: str) -> list[dict]:
             for r in db.q("SELECT DISTINCT concept_id FROM formula_forms WHERE formula_id=?", (fid,))
             if r["concept_id"] not in {x["id"] for x in out}]
     return [x for x in out if x["title"]]
+
+
+def _norm(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", name.lower()).strip()
+
+
+def tree(db: DB) -> dict:
+    """The whole formula tree (SPEC §38): every formula lesson and every building block, as one graph.
+
+    A node is a formula lesson, a graph idea that is a block, or a block with no lesson yet (``new``; the same name
+    under two formulas is one node). A link goes from a block to the formula built from it, so basics are at the bottom.
+    ``state``: known (learned, or basic), learning, writing (its lesson is being written), new."""
+    st = graph.states(db)
+    nodes_of = graph.node_of(db)
+    lesson_of = {}  # graph node id -> one lesson id (to open an idea)
+    for c, n in nodes_of.items():
+        lesson_of.setdefault(n, c)
+    titles = {r["id"]: r["title"] for r in db.q("SELECT id, title FROM nodes")}
+    concept_titles = {r["id"]: r["title"] for r in db.q("SELECT id, title FROM concepts")}
+    busy = {loads(j["input"]).get("concept_id") for j in db.q(
+        "SELECT input FROM jobs WHERE kind='formula_lesson' AND status IN ('queued','running')")}
+
+    def state_of(node_id: str | None) -> str:
+        s = st.get(node_id) if node_id else None
+        if not s:
+            return "new"
+        return "known" if s.state in KNOWN else "learning" if s.state in ("learning",) else "new"
+
+    out: dict[str, dict] = {}
+    for f in db.q("SELECT * FROM formula_lessons ORDER BY created_at, rowid"):
+        main = _main_form(db, dict(f))
+        state = state_of(nodes_of.get(f["id"]))
+        if f["id"] in busy and state != "known":
+            state = "writing"
+        out[f["id"]] = {"id": f["id"], "name": f["name"], "kind": f["kind"] or "formula", "tex": main["tex"] if main["key"] else "",
+                        "meaning": f["meaning"] or "", "state": state, "lesson": f["id"], "basic": False,
+                        "formula": True, "blocksReady": bool(f["blocks_at"]),
+                        "source": {"id": f["source_concept"], "title": concept_titles.get(f["source_concept"], "")}, "covers": []}
+    by_name = {_norm(n["name"]): i for i, n in out.items()}  # a block named like a formula lesson is that lesson
+    links: set[tuple[str, str]] = set()
+    for b in db.q("SELECT * FROM formula_blocks ORDER BY formula_id, ord"):
+        if b["formula_id"] not in out or _norm(b["name"]) == _norm(out[b["formula_id"]]["name"]):
+            continue  # a block that is the formula itself (the model can list it) is not a block
+        if b["ref_kind"] == "lesson" and b["ref"] in out:
+            nid = b["ref"]
+        elif not b["ref"] and _norm(b["name"]) in by_name:
+            nid = by_name[_norm(b["name"])]
+        elif b["ref_kind"] == "idea" and b["ref"]:
+            nid = f"idea:{b['ref']}"
+            if nid not in out:
+                out[nid] = {"id": nid, "name": titles.get(b["ref"], b["name"]), "kind": "idea", "tex": b["tex"],
+                            "meaning": b["meaning"], "state": state_of(b["ref"]), "lesson": lesson_of.get(b["ref"]),
+                            "basic": False, "formula": False, "blocksReady": True, "source": None, "covers": []}
+            if b["name"] not in out[nid]["covers"] and _norm(b["name"]) != _norm(out[nid]["name"]):
+                out[nid]["covers"].append(b["name"])
+        else:
+            nid = f"block:{_norm(b['name'])}"
+            if nid not in out:
+                out[nid] = {"id": nid, "name": b["name"], "kind": b["kind"], "tex": b["tex"], "meaning": b["meaning"],
+                            "state": "known" if _basic(b) else "new", "lesson": None, "basic": _basic(b),
+                            "formula": False, "blocksReady": True, "source": None, "covers": []}
+        if nid != b["formula_id"]:
+            links.add((nid, b["formula_id"]))
+    return {"nodes": list(out.values()), "links": [{"src": s, "dst": d} for s, d in sorted(links)]}
 
 
 def _main_form(db: DB, f: dict) -> dict:

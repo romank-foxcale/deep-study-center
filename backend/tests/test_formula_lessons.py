@@ -180,3 +180,23 @@ def test_a_formula_is_built_from_blocks_and_missing_blocks_are_learned_first(fx)
     assert lesson.view(db, block["id"])["formulaLesson"]["usedIn"][0]["id"] == fid
     with pytest.raises(actions.ActionError):
         actions.dispatch(db, jobs, {"type": "learnBlocksFirst", "formulaId": fid})
+
+
+def test_the_whole_formula_tree_has_every_formula_and_block(fx):
+    from dsc import formula_lessons
+    db, jobs, runner = fx
+    actions.dispatch(db, jobs, {"type": "makeFormulaLesson", "conceptId": CID, "key": formulas.key(FORM_A)})
+    fid = db.one("SELECT id FROM formula_lessons")["id"]
+    t = formula_lessons.tree(db)
+    by = {n["name"]: n for n in t["nodes"]}
+    assert by[db.one("SELECT name FROM formula_lessons")["name"]]["formula"]
+    assert by["Multiplying numbers"]["basic"] and by["Multiplying numbers"]["state"] == "known"
+    assert by["Scaling a vector"]["lesson"] is None and by["Scaling a vector"]["state"] == "new"
+    idea = next(n for n in t["nodes"] if n["id"] == "idea:c-vectors")
+    assert idea["lesson"] and {"src": "idea:c-vectors", "dst": fid} in t["links"]
+    assert all(link["dst"] == fid for link in t["links"]) and len(t["links"]) == len(t["nodes"]) - 1
+    actions.dispatch(db, jobs, {"type": "learnBlocksFirst", "formulaId": fid})
+    t = formula_lessons.tree(db)
+    block = db.one("SELECT id FROM formula_lessons WHERE name='Scaling a vector'")["id"]
+    assert {"src": block, "dst": fid} in t["links"]  # the block's own lesson is now the node under the formula
+    assert not any(n["id"].startswith("block:") and n["name"] == "Scaling a vector" for n in t["nodes"])

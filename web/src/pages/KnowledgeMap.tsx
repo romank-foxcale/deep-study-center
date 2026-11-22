@@ -145,6 +145,7 @@ export default function KnowledgeMap() {
     <div className="km">
       <div className="km-bar">
         <h1 className="km-title">Knowledge map</h1>
+        <Link className="link small" to="/formulas" title="Every formula lesson and the blocks it is built from">Formula tree</Link>
         <select className="input input-small" value={focus} onChange={e => { setFocus(e.target.value); setSelected(null) }} aria-label="Show">
           <option value="all">Everything ({nodes.length} ideas)</option>
           {g.goals.length > 0 && <optgroup label="Goals">{g.goals.map(x => <option key={x.id} value={`goal:${x.id}`}>{x.title}</option>)}</optgroup>}

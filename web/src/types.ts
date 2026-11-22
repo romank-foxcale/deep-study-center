@@ -625,3 +625,16 @@ export interface State {
   ankiExport: string | null
   bookCuts: BookCut[]
 }
+
+/** The whole formula tree (SPEC §38). A link goes from a block to the formula built from it. */
+export interface FormulaTreeNode {
+  id: string; name: string; kind: 'formula' | 'notation' | 'idea'; tex: string; meaning: string
+  state: 'known' | 'learning' | 'writing' | 'new'
+  /** The lesson to open (a formula lesson or the idea's lesson); null for a block with no lesson yet. */
+  lesson: string | null
+  basic: boolean; formula: boolean; blocksReady: boolean
+  source: { id: string; title: string } | null
+  /** Other block names that this idea teaches here. */
+  covers: string[]
+}
+export interface FormulaTreeView { nodes: FormulaTreeNode[]; links: { src: string; dst: string }[] }

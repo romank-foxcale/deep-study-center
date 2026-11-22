@@ -362,7 +362,7 @@ Your preferred formula form goes to every lesson writer. Formula lessons are bui
 (notations, simpler formulas, ideas; "Learn these first" makes the missing blocks), with a new structure (read it
 aloud, every symbol, build it up, tiny numbers, sense checks, then where it is used). Book lessons are shared blocks
 across books ("this book's version" on request), and "Next" picks a lesson whose parts you hold.
-Open: a whole-tree view of all formulas (today each formula lesson shows one level down and up).
+Then (branch `claude/formula-map`, SPEC §38): the whole formula tree on one page (`#/formulas`).
 
 ### D10. ✅ DONE (2026-11-22, branch `claude/formulas-3d`, SPEC §33): Formula hover notes and 3D surfaces
 Hovering a formula shows its name, meaning, symbols and where you met it (checked on a copy with the real lesson "Loss
