@@ -369,7 +369,7 @@ descent lesson: the formula lesson was written with its widget, and the other fo
 After a lesson check with thinking, the tutor marks the parts of the thinking as right or wrong with a reason, names
 the wrong assumption, follows it until it breaks, and derives how it really works; saved per answer, with a history on
 the Me page. Lessons and the tutor write in 80 % STE (a setting). Checked on the learner's real dictated answer (on a
-copy of the workspace). Open: the same reading for study-session answers and for explain-back grading. Also on this branch: a progress banner while a
+copy of the workspace). The same reading for study-session answers and explain-backs: done 2026-11-22 (branch `claude/reasoning-everywhere`, SPEC §35). Also on this branch: a progress banner while a
 lesson is written, and multi-line display formulas no longer turn red.
 
 ### D8. ✅ DONE (2026-11-22, branch `claude/page-polish`, SPEC §31): Book lessons

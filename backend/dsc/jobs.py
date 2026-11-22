@@ -446,9 +446,12 @@ def run_fact_check(jobs: Jobs, jid: int, d: dict) -> dict:
 
 # ---------------------------------------------------------------- explain-back grading
 
-GRADE_SCHEMA = {"type": "object", "required": ["score", "feedback", "missing", "followup"], "properties": {
+GRADE_SCHEMA = {"type": "object", "required": ["score", "feedback", "missing", "followup", "parts", "assumption", "follow", "truth",
+                                               "takeaway"], "properties": {
     "score": {"enum": [0, 0.5, 1]}, "feedback": {"type": "string"},
-    "missing": {"type": "array", "items": {"type": "string"}}, "followup": {"type": "string"}}}
+    "missing": {"type": "array", "items": {"type": "string"}}, "followup": {"type": "string"},
+    "parts": reasoning.SCHEMA["properties"]["parts"], "assumption": {"type": "string"},
+    "follow": {"type": "array", "items": {"type": "string"}}, "truth": {"type": "string"}, "takeaway": {"type": "string"}}}
 
 
 def run_grade(jobs: Jobs, jid: int, d: dict) -> dict:
@@ -468,8 +471,11 @@ def run_grade(jobs: Jobs, jid: int, d: dict) -> dict:
         schema=GRADE_SCHEMA, model="sonnet", timeout=240,
         images=(drawing,) if drawing and drawing.exists() else ()))
     score = float(out["score"])
-    db.x("UPDATE gradings SET status='graded', score=?, feedback=?, missing=?, followup=? WHERE id=?",
-         (score, out["feedback"], dumps(out.get("missing", [])), out.get("followup") or "", g["id"]))
+    review = reasoning.clean(out, g["answer"])  # the parts of the answer marked, the assumption, where it breaks (SPEC §35)
+    keep = {k: review[k] for k in ("parts", "assumption", "follow", "truth", "takeaway")}
+    db.x("UPDATE gradings SET status='graded', score=?, feedback=?, missing=?, followup=?, review=? WHERE id=?",
+         (score, out["feedback"], dumps(out.get("missing", [])), out.get("followup") or "",
+          dumps(keep) if keep["parts"] or keep["assumption"] or keep["truth"] else None, g["id"]))
     if progress.record_evidence(db, g["concept_id"], g["item_id"], score, angle=d.get("angle")):
         progress.on_finished(db, jobs, g["concept_id"])
     return {"score": score}

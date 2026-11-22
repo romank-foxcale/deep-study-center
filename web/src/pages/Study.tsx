@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { getSession, useStore } from '../store'
 import Markdown from '../components/Markdown'
 import ThinkingInput, { DictationArea, NO_REASONING, ReasoningShown, type Reasoning } from '../components/ThinkingInput'
+import ReasoningReview from '../components/ReasoningReview'
 import { SourceStatus } from '../components/Sources'
 import type { SessionIdea, SessionItem, SessionQuestion, SessionView } from '../types'
 
@@ -356,7 +357,9 @@ function QuestionCard({ q, label, onAnswer, allowDunno }: {
         <div className={`check-result ${q.correct ? 'ok' : 'bad'}`}>
           <strong>{q.correct ? 'Right.' : q.choice === null ? 'You did not know.' : 'Not quite.'}</strong>{' '}
           {q.explanation && <Markdown inline>{q.explanation}</Markdown>}
-          <ReasoningShown thinking={q.thinking} confidence={q.confidence} />
+          {q.review && q.thinking
+            ? <ReasoningReview review={q.review} thinking={q.thinking} confidence={q.confidence} />
+            : <ReasoningShown thinking={q.thinking} confidence={q.confidence} />}
         </div>
       )}
     </div>

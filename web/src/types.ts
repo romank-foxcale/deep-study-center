@@ -133,6 +133,8 @@ export interface Grading {
   followup: string | null
   /** The drawing board image sent with the answer (file name under /api/drawing/). */
   drawing?: string | null
+  /** The grader's reading of the answer: parts marked, the assumption, where it breaks (SPEC §35). */
+  review?: ReasoningReview | null
 }
 
 export interface PracticeChunk { text: string; ts: string; askedHint: boolean; verdict?: string; feedback?: string; hint?: string }
@@ -234,6 +236,8 @@ export interface SessionQuestion {
   id: number; idea: string; phase: 'probe' | 'predict' | 'check'; round: number; prompt: string; options: string[]
   answered: boolean; choice?: number | null; correct?: boolean; answer?: number; explanation?: string
   thinking?: string; confidence?: number | null
+  /** The tutor's reading of your thinking on this answer (SPEC §35). */
+  review?: ReasoningReview | null
 }
 export interface SessionExplain { id: number; idea: string; phase: 'explain'; body: string; repair: boolean }
 export type SessionItem = SessionQuestion | SessionExplain
@@ -527,6 +531,8 @@ export interface ReasoningReview {
   assumption: string; follow: string[]; truth: string; takeaway: string
 }
 export interface ReasoningEntry extends ReasoningReview {
+  /** check: a lesson check; session: a study-session answer; explain: an explain-back. */
+  kind: 'check' | 'session' | 'explain'; link: string
   conceptId: string; title: string; itemId: string; at: string; correct: boolean; confidence: number | null; thinking: string
 }
 

@@ -200,7 +200,8 @@ function ReasoningHistory() {
           const [cls, label] = VERDICT_PILL[x.verdict] ?? ['pill', x.status]
           return (
             <li key={x.id}>
-              <span className="row small"><Link to={`/lesson/${x.conceptId}`}>{x.title}</Link>
+              <span className="row small"><Link to={x.link}>{x.title}</Link>
+                <span className="muted">{x.kind === 'explain' ? 'explain-back' : x.kind === 'session' ? 'study session' : 'check'}</span>
                 {x.status === 'done' ? <span className={`${cls} small`}>{label}</span> : <span className="pill small">{x.status}</span>}
                 <span className="muted">{new Date(x.at).toLocaleDateString()}</span></span>
               {x.status === 'done' && (x.assumption || x.takeaway) && <span className="small muted"><Markdown inline>{x.assumption || x.takeaway}</Markdown></span>}
