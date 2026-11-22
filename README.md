@@ -48,8 +48,9 @@ your browser. Start with your own goal or explore the demo.
 
 ### Desktop app (Windows)
 
-A [Tauri](https://tauri.app) window around the same app; it needs no Python, Node or terminal. There is no published
-installer yet, so build it yourself (needs Rust, Node 20+ and the backend environment with the dev extras):
+A [Tauri](https://tauri.app) window around the same app; it needs no Python, Node or terminal. Download the installer
+from the [Releases](https://github.com/romank-foxcale/deep-study-center/releases) page, or build it yourself (needs
+Rust, Node 20+ and the backend environment with the dev extras):
 
 ```bash
 cd desktop
