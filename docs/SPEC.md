@@ -690,3 +690,77 @@ Change log shows text changes only (not graph or question changes).
 - Not yet: a test with a real microphone (TODO A2), and a check that WebView2 in the desktop app allows the
   microphone (it asks the learner once).
 - Model downloads write no progress bars or Windows symlink warnings to the backend log.
+
+## 28. Book study: "teach me this book" (2026-11-22)
+- Purpose: the main flow from now on. The learner picks one PDF and says "teach me this book"; DSC maps the book into
+  its own idea graph, joined to what the learner already knows, and teaches it one part at a time with the book's own
+  pages, then makes them practise it. Big goals and the Ohtani table stay, as an extra capability on hold (TODO D).
+- Parts (`bookstudy.parts_from_outline`): the chapter level is the shallowest outline level with at least 3 entries; a
+  chapter's sections (next level) are its parts, and pages before the first section go to the first one. A chapter
+  without sections is one part. Front matter (contents, index, acknowledgements, …) is left out. A PDF without an
+  outline is cut into parts of 12 pages. Example: "Inference Engineering" (259 pages) gives 11 chapters and 45 parts.
+- Map (action `studyBook` → job `book_map`, route "Book map", Claude Opus, prompt `book_map.md`): one call per chapter,
+  with the chapter's parts and page ranges, the chapter's page text (at most 3,000 characters a page and 80,000 a
+  chapter), the ideas of earlier chapters (their keys), and up to 40 graph ideas that may be the same. Per part: a
+  summary and its ideas (key, title, statement, kind: concept / formula / method / fact / term, pages, prerequisite
+  keys, `same_as`). A `same_as` idea reuses the graph node (its title stays); other ideas become nodes with origin
+  "book". Prerequisites become links (origin "book"), also to earlier chapters (`c<N>-<key>`) and to older graph ideas.
+  `books.chapters_done` counts finished chapters: a failed map stops with status "failed", and "Continue mapping"
+  (`bookRetry`) starts at the next chapter. A retried chapter replaces its own earlier result.
+- Tables: `books(id, source_id, title, status, chapters_done, chapters, …)`, `book_parts(id, book_id, ord, chapter,
+  chapter_title, title, page_from, page_to, summary, session_id, practice_id, status)`, `book_nodes(book_id, node_id,
+  part_id, key, pages, created, ord)`; `sessions.book_part`.
+- Study a part (`bookStudyPart` → `session.start_from_ideas`): a study session (§22) with the part's ideas and, before
+  them, the ideas from outside the part that they build on (another part, another book, a goal). No sketch step; ideas
+  the graph holds as learned are known, the rest go through the probe (§26), the plan, predict → explain → check, and
+  the extract step. The teaching turns get only the part's pages (`sources.excerpts(..., pages=(from, to))`; when no
+  page matches the words, the range's first pages). When the session is done, the part is done (`on_session_done`).
+  Opening a part again opens its session.
+- Homework (`bookHomework`): a recall practice (§24) over the part's ideas; it reopens while it is active. Each idea
+  then has its own review schedule, so later "practise what is due" includes it.
+- Idea links (D4): every teaching turn gets up to 40 graph ideas it may link (the session's ideas, their neighbours,
+  and ideas whose words match the current idea). The tutor links the first mention as `[words](#idea/<id>)`;
+  `session.idea_links` turns a link to any other id into plain text. The page (`Markdown` → `IdeaLink`) shows such a
+  link with a dotted underline; hover or click opens a card from `GET /api/graph/node/{id}`: the statement, the state,
+  the books with part and pages, the sessions and goal lessons where it appears, what it builds on and leads to, and
+  "Show on the map".
+- Map view (D5): `graph.view` has `books` and each node's `books`; the knowledge map can show one book ("This book on
+  the map" on the book page), and a node's panel lists its books.
+- Pages (minimal; the UI will be redesigned with the user): Study → "Study a book" (pick a ready PDF → "Teach me this
+  book"), and `/book/:id`: progress while mapping, the next part, chapters with their parts (pages, number of ideas,
+  status, "Study" / "Open", "Homework"), and each part's ideas with their state, "in your graph", "also in other books".
+  A study session of a book part shows the book and pages above its title, and "Homework" and "Back to the book" when
+  it is done.
+- Removing a book study (`deleteBook`) keeps ideas that have evidence or that another book, session or goal uses.
+
+## 29. Map views and the mock workspace (2026-11-22)
+- Purpose: the learner chooses how to see the knowledge map; and the UI can be checked with full data (every state,
+  several books, sessions, lessons with formulas and graphs) without studying first.
+- Views (Knowledge map → "View", saved in `meta.map_view` by `setMapView`, in the snapshot as `mapView`):
+  - Tree: the layered skill tree (§23), basics at the bottom.
+  - Graph: an Obsidian-style force graph; every idea colored by its state, size by its number of links; names appear
+    when zoomed in, or for the idea in focus and its neighbours.
+  - Nebula: a force layout pulled into one soft cloud per book or goal (its cluster color); shared ideas sit between
+    their clouds.
+  - Skill wheel: the goal's basics in the core; each book a sector sized by its ideas; each chapter a spoke from its
+    basics (inside) to its most advanced ideas (rim); links across sectors only show for the idea in focus.
+  - Cells: circle packing, book > chapter > idea; arcs for links across books.
+  - Territories: a hex map; every idea a hex, every book a country with the goal in the middle; basics at a country's
+    heart; learned hexes light up, gold for "know strongly"; shared ideas on the borders.
+  - Globe: ideas on a sphere you turn by dragging; each book a region; the far side fades.
+  All views share the page's focus filter, search (Enter selects and centers), the side panel, hover tooltips and a
+  highlight of the idea in focus with its neighbours. The canvas views (`components/MapCanvas.tsx`, d3-force and
+  d3-hierarchy) pan by dragging and zoom with the wheel or the +/− buttons.
+- States and colors (theme tokens `--st-*`, light and dark): know strongly (mastered, gold with a glow), learned,
+  learning (a pie of its mastery), due for review (rusty), ready to learn, needs others first (locked). An idea in a
+  second book has a second ring in that book's cluster color.
+- Clusters (`graph._clusters`, in `graph.view`): each idea's `cluster` is the book that made it (else its first book,
+  goal or session, else "loose"); `also` lists the other books and goals; `chapter`, `chapterTitle` and `order`
+  (0..1, the reading order inside the cluster) place it. `clusters` lists them, largest first.
+- Mock workspace (`dsc mock [folder]`, default `~/DeepStudy-mock`, module `mock.py`): the demo goal (the "Vectors"
+  lesson), plus a full "Dot product & similarity" lesson with two formula widgets and a check; four mapped books with
+  sample chapters and ideas (no PDF files), shared ideas and links across books and to the goal; every idea state made
+  from real evidence rows (and review schedules); three book-part study sessions (done with formulas and idea links,
+  teaching, probing). It refuses a folder that holds anything but an earlier mock (file `MOCK`), so it never touches
+  a real workspace. Run it with `DSC_WORKSPACE=<folder> dsc serve --port 8001`.
+- The five concepts were first shown as a separate page (`docs/mockups/graph-concepts.html`).

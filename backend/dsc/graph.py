@@ -207,13 +207,99 @@ def view(db: DB) -> dict:
     sessions_of: dict[str, list[str]] = {}
     for r in db.q("SELECT session_id, node_id FROM session_nodes"):
         sessions_of.setdefault(r["node_id"], []).append(r["session_id"])
+    books_of: dict[str, list[str]] = {}
+    for r in db.q("SELECT book_id, node_id FROM book_nodes"):
+        books_of.setdefault(r["node_id"], []).append(r["book_id"])
     out = []
     for n in db.q("SELECT * FROM nodes ORDER BY created_at, id"):
         s = st.get(n["id"])
         out.append({"id": n["id"], "title": n["title"], "statement": n["statement"], "kind": n["kind"],
                     "state": s.state if s else "pending", "mastery": s.mastery if s else 0.0,
                     "goals": sorted(goals_of.get(n["id"], ())), "concepts": sorted(concepts_of.get(n["id"], [])),
-                    "sessions": sorted(sessions_of.get(n["id"], [])), "lessons": lessons_of.get(n["id"], [])})
+                    "sessions": sorted(sessions_of.get(n["id"], [])), "lessons": lessons_of.get(n["id"], []),
+                    "books": sorted(books_of.get(n["id"], []))})
     goals = [{"id": g["id"], "title": g["title"]} for g in db.q("SELECT id, title FROM goals ORDER BY created_at")]
     sessions = [{"id": r["id"], "title": r["title"]} for r in db.q("SELECT id, title FROM sessions ORDER BY created_at")]
-    return {"nodes": out, "links": links(db), "goals": goals, "sessions": sessions}
+    books = [{"id": r["id"], "title": r["title"]} for r in db.q("SELECT id, title FROM books ORDER BY created_at")]
+    clusters, place = _clusters(db, out)
+    for n in out:
+        n.update(place.get(n["id"], {"cluster": "loose", "also": [], "chapter": 0, "chapterTitle": "", "order": 0.0}))
+    return {"nodes": out, "links": links(db), "goals": goals, "sessions": sessions, "books": books, "clusters": clusters}
+
+
+def _clusters(db: DB, nodes: list[dict]) -> tuple[list[dict], dict[str, dict]]:
+    """Group the map into clusters for the map views (SPEC §29): each idea belongs to one cluster (the book that made
+    it, else its first book, else its first goal, else its first study session, else "loose") and lists the other
+    books and goals it also appears in. ``chapter`` and ``order`` (0..1) give its place inside the cluster."""
+    place: dict[str, dict] = {}
+    seq: dict[str, list[tuple]] = {}
+    book_rows = db.q("""SELECT bn.node_id, bn.book_id, bn.created, bn.ord, p.ord AS pord, p.chapter, p.chapter_title
+                        FROM book_nodes bn JOIN book_parts p ON p.id = bn.part_id ORDER BY bn.created DESC""")
+    in_books: dict[str, list[dict]] = {}
+    for r in book_rows:
+        in_books.setdefault(r["node_id"], []).append(r)
+    goal_rows = db.q("""SELECT cn.node_id, t.goal_id, t.ord AS tord, t.title AS ttitle, m.seq, m.ord AS mord, c.ord AS cord
+                        FROM concept_nodes cn JOIN concepts c ON c.id = cn.concept_id JOIN modules m ON m.id = c.module_id
+                        JOIN tracks t ON t.id = m.track_id""")
+    in_goals: dict[str, list[dict]] = {}
+    for r in goal_rows:
+        in_goals.setdefault(r["node_id"], []).append(r)
+    for n in nodes:
+        nid = n["id"]
+        bs, gs = in_books.get(nid, []), in_goals.get(nid, [])
+        if bs:
+            b = bs[0]
+            key, chapter, title, rank = f"book:{b['book_id']}", b["chapter"], b["chapter_title"], (b["pord"], b["ord"])
+        elif gs:
+            g = gs[0]
+            key, chapter, title, rank = f"goal:{g['goal_id']}", g["tord"] + 1, g["ttitle"], (g["seq"], g["mord"], g["cord"])
+        elif n["sessions"]:
+            key, chapter, title, rank = f"session:{n['sessions'][0]}", 1, "", (0,)
+        else:
+            key, chapter, title, rank = "loose", 1, "", (0,)
+        also = sorted(({f"book:{x['book_id']}" for x in bs} | {f"goal:{x['goal_id']}" for x in gs}) - {key})
+        place[nid] = {"cluster": key, "also": also, "chapter": chapter, "chapterTitle": title}
+        seq.setdefault(key, []).append((chapter, rank, n["created"] if "created" in n else "", nid))
+    for key, items in seq.items():
+        items.sort(key=lambda t: (t[0], t[1], t[3]))
+        for i, t in enumerate(items):
+            place[t[3]]["order"] = round(i / max(1, len(items) - 1), 4)
+    titles = {f"book:{r['id']}": ("book", r["title"]) for r in db.q("SELECT id, title FROM books")}
+    titles.update({f"goal:{r['id']}": ("goal", r["title"]) for r in db.q("SELECT id, title FROM goals")})
+    titles.update({f"session:{r['id']}": ("session", r["title"]) for r in db.q("SELECT id, title FROM sessions")})
+    titles["loose"] = ("loose", "Other ideas")
+    clusters = [{"id": k, "kind": titles.get(k, ("loose", k))[0], "title": titles.get(k, ("loose", k))[1], "size": len(v)}
+                for k, v in sorted(seq.items(), key=lambda kv: -len(kv[1]))]
+    return clusters, place
+
+
+def node_detail(db: DB, nid: str) -> dict | None:
+    """One idea for a hover card (SPEC §28): its state, where the learner met it (books with pages, sessions, goal
+    lessons), and the ideas it builds on and leads to."""
+    n = db.one("SELECT * FROM nodes WHERE id=?", (nid,))
+    if not n:
+        return None
+    st = states(db)
+    titles = {r["id"]: r["title"] for r in db.q("SELECT id, title FROM nodes")}
+
+    def brief(i: str) -> dict:
+        s = st.get(i)
+        return {"id": i, "title": titles.get(i, i), "state": s.state if s else "pending"}
+    ls = links(db)
+    s = st.get(nid)
+    books = [{"id": r["book_id"], "title": r["title"], "part": r["part"], "pages": r["pages"]}
+             for r in db.q("""SELECT bn.book_id, b.title, p.title AS part, bn.pages FROM book_nodes bn
+                              JOIN books b ON b.id = bn.book_id JOIN book_parts p ON p.id = bn.part_id
+                              WHERE bn.node_id=?""", (nid,))]
+    sessions = [{"id": r["id"], "title": r["title"], "status": r["status"]}
+                for r in db.q("""SELECT s.id, s.title, s.status FROM session_nodes sn JOIN sessions s ON s.id = sn.session_id
+                                 WHERE sn.node_id=? ORDER BY s.created_at""", (nid,))]
+    lessons = [{"id": r["id"], "title": r["title"], "goalId": r["goal_id"]}
+               for r in db.q("""SELECT c.id, c.title, t.goal_id FROM concept_nodes cn JOIN concepts c ON c.id = cn.concept_id
+                                JOIN modules m ON m.id = c.module_id JOIN tracks t ON t.id = m.track_id
+                                WHERE cn.node_id=?""", (nid,))]
+    return {"id": nid, "title": n["title"], "statement": n["statement"], "kind": n["kind"],
+            "state": s.state if s else "pending", "mastery": s.mastery if s else 0.0,
+            "buildsOn": [brief(lk["src"]) for lk in ls if lk["dst"] == nid],
+            "leadsTo": [brief(lk["dst"]) for lk in ls if lk["src"] == nid],
+            "books": books, "sessions": sessions, "lessons": lessons}

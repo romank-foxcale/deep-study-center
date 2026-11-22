@@ -188,13 +188,14 @@ def probe_view(db: DB, gid: str) -> dict:
 def snapshot(db: DB) -> dict:
     gid = active_goal(db)
     pb = playbook(db)
-    from . import books, library, practice, session, sources
+    from . import books, bookstudy, library, practice, session, sources
     from . import guidelines
     base = {"playbook": pb, "guidelines": guidelines.current(db), "providers": providers.status(), "apiKey": apikey.status(), "routes": routes(db), "jobs": jobs(db),
             "library": library.listing(db),
             "sources": sources.listing(db),
             "sessions": session.listing(db), "lastSession": db.meta("last_session"),
             "dictation": dictation.status(db),
+            "studyBooks": bookstudy.listing(db), "lastBook": db.meta("last_book"), "mapView": db.meta("map_view") or "tree",
             "practices": practice.listing(db), "lastPractice": db.meta("last_practice"), "practiceDue": practice.due_count(db),
             "runner": runner_status(db),
             "backups": {"folder": str(workspace() / "backups"), "last": db.meta("last_backup"), "items": _backups()[:5]},

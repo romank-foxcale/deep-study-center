@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import books, dictation, engine, graph, guidelines, library, mcq, ohtani, practice, probe, progress, providers, runner, session, sources, state, versions, viz, writer
+from . import books, bookstudy, dictation, engine, graph, guidelines, library, mcq, ohtani, practice, probe, progress, providers, runner, session, sources, state, versions, viz, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
@@ -812,6 +812,7 @@ def _prewrite_next(jobs: Jobs, jid: int, d: dict) -> None:
 
 HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "dictation_model": (dictation.run_download, None),
+    "book_map": (bookstudy.run_map, None),
     "render": (run_render, None),
     "tutor": (run_tutor, fallback_tutor),
     "roadmap_review": (run_roadmap_review, fallback_roadmap_review),

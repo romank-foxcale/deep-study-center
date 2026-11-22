@@ -149,11 +149,42 @@ export interface PracticeDue {
 export interface GraphNode {
   id: string; title: string; statement: string; kind: string; state: string; mastery: number
   goals: string[]; concepts: string[]; sessions: string[]; lessons: { id: string; title: string; goalId: string }[]
+  books: string[]
+  /** Map views (SPEC §29): the idea's cluster ("book:<id>", "goal:<id>", "session:<id>" or "loose"), the other books and
+   *  goals it is in, its chapter there and its reading order (0..1). */
+  cluster: string; also: string[]; chapter: number; chapterTitle: string; order: number
 }
+export type MapViewId = 'tree' | 'graph' | 'nebula' | 'wheel' | 'cells' | 'territory' | 'globe'
+export interface MapCluster { id: string; kind: 'book' | 'goal' | 'session' | 'loose'; title: string; size: number }
 /** The knowledge graph (SPEC §21, §23). */
 export interface GraphView {
   nodes: GraphNode[]; links: { src: string; dst: string; origin: string }[]
-  goals: { id: string; title: string }[]; sessions: { id: string; title: string }[]
+  goals: { id: string; title: string }[]; sessions: { id: string; title: string }[]; books: { id: string; title: string }[]
+  clusters: MapCluster[]
+}
+
+/** Book study (SPEC §28). */
+export interface StudyBookSummary {
+  id: string; sourceId: string; title: string; status: 'mapping' | 'ready' | 'failed'
+  chapters: number; chaptersDone: number; parts: number; partsDone: number; updatedAt: string
+}
+export interface BookIdea {
+  id: string; title: string; statement: string; kind: string; pages: string; state: string; fromGraph: boolean; otherBooks: string[]
+}
+export interface BookPart {
+  id: number; ord: number; chapter: number; chapterTitle: string; title: string; pages: [number, number]; summary: string
+  status: 'todo' | 'studying' | 'done'; sessionId: string | null; practiceId: string | null; ideas: BookIdea[]
+}
+export interface BookView {
+  id: string; sourceId: string; title: string; status: 'mapping' | 'ready' | 'failed'; chapters: number; chaptersDone: number
+  parts: BookPart[]; next: number | null; error: string | null; progress: string; busy: boolean
+}
+/** One idea for a hover card (SPEC §28). */
+export interface IdeaDetail {
+  id: string; title: string; statement: string; kind: string; state: string; mastery: number
+  buildsOn: { id: string; title: string; state: string }[]; leadsTo: { id: string; title: string; state: string }[]
+  books: { id: string; title: string; part: string; pages: string }[]
+  sessions: { id: string; title: string; status: string }[]; lessons: { id: string; title: string; goalId: string }[]
 }
 
 export interface SessionQuestion {
@@ -179,6 +210,8 @@ export interface SessionView {
   summary: string; sources: string[]; createdAt: string
   /** The probe's advice where teaching starts, and its question limit. */
   probeStart: string; probeMax: number
+  /** The book part this session studies (SPEC §28). */
+  book: { id: string; title: string; partId: number; part: string; pages: [number, number]; practiceId: string | null } | null
 }
 
 export interface ProbeAnswered {
@@ -485,6 +518,10 @@ export interface State {
   lastSession: string | null
   /** Local dictation with Whisper (SPEC §27). */
   dictation: DictationStatus
+  /** Book study (SPEC §28). */
+  studyBooks: StudyBookSummary[]; lastBook: string | null
+  /** The knowledge-map view the learner chose (SPEC §29). */
+  mapView: MapViewId
   practices: { id: string; title: string; status: string; createdAt: string }[]
   lastPractice: string | null
   practiceDue: number

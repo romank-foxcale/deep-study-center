@@ -9,9 +9,14 @@ with your subscription, or an Anthropic API key. There is no account, no server 
 
 ## What it does
 
+- **"Teach me this book."** Pick one of your PDFs. Agents read it chapter by chapter and map its ideas into your
+  knowledge graph, joined to what you already know. Then you study it one section at a time, with the book's own pages,
+  and practise each section as homework. When a lesson uses an idea you met before, hover it to see where you learned
+  it and what it connects to.
 - **"Teach me X" study sessions.** A short probe asks one question at a time to find the edge of what you know. Then
   each idea is taught as predict → explain → check, fitted to your answers and to the thinking you type or dictate.
-- **Knowledge map.** Everything you learn becomes a node in one skill tree, with the reasoning links between ideas.
+- **Knowledge map.** Everything you learn becomes a node in one graph, with the reasoning links between ideas. Choose
+  how to see it: a tree, an Obsidian-style graph, clouds per book, a skill wheel, nested cells, a hex map or a globe.
 - **Recall practice.** Problems that need the right idea without naming it. Hints, never answers. Each idea gets its
   own review schedule (FSRS).
 - **Goals and roadmaps.** A big goal becomes a roadmap (an Ohtani 9x9 table or classic tracks) of researched,
@@ -126,6 +131,14 @@ Checks (CI runs the same on every pull request):
 ```bash
 cd backend && .venv/Scripts/python -m pytest -q
 cd web && npx tsc -b && npm run lint && npx vite build
+```
+
+To look at every screen with full data (books, all idea states, sessions, lessons with formulas and graphs)
+without studying first, make a mock workspace. It never touches your real one:
+
+```bash
+dsc mock                                               # writes ~/DeepStudy-mock
+DSC_WORKSPACE=~/DeepStudy-mock dsc serve --port 8001   # then open http://localhost:8001
 ```
 
 The tests use a fake provider, so they need no model and no network. See [CONTRIBUTING.md](CONTRIBUTING.md) before

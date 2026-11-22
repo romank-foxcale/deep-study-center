@@ -168,8 +168,10 @@ def contents_text(db: DB, goal_id: str | None = None, ids: list[str] | None = No
     return "\n".join(blocks)
 
 
-def excerpts(db: DB, goal_id: str | None, topic: str, k: int = 8, ids: list[str] | None = None) -> list[dict]:
-    """The pages of the goal's sources (or of the given source ids) that match a topic best (full-text search)."""
+def excerpts(db: DB, goal_id: str | None, topic: str, k: int = 8, ids: list[str] | None = None,
+             pages: tuple[int, int] | None = None) -> list[dict]:
+    """The pages of the goal's sources (or of the given source ids) that match a topic best (full-text search).
+    ``pages`` limits the search to a page range (a book part); with no match there, the range's first pages."""
     pool = [x for x in db.q("SELECT * FROM sources") if x["id"] in ids] if ids is not None else for_goal(db, goal_id)
     srcs = {x["id"]: x for x in pool if x["status"] == "ready"}
     terms = [t for t in dict.fromkeys(_WORD.findall(topic.lower())) if len(t) > 2 and t not in _STOP][:12]
@@ -177,10 +179,17 @@ def excerpts(db: DB, goal_id: str | None, topic: str, k: int = 8, ids: list[str]
         return []
     marks = ",".join("?" * len(srcs))
     match = " OR ".join(f'"{t}"*' for t in terms)
+    span, span_args = "", ()
+    if pages:
+        span, span_args = " AND CAST(page AS INTEGER) BETWEEN ? AND ?", (pages[0], pages[1])
     with db.lock:
         rows = db.conn.execute(f"""SELECT source_id, page, text FROM source_fts WHERE source_fts MATCH ?
-                                   AND source_id IN ({marks}) ORDER BY bm25(source_fts) LIMIT ?""",
-                               (match, *srcs, k)).fetchall()
+                                   AND source_id IN ({marks}){span} ORDER BY bm25(source_fts) LIMIT ?""",
+                               (match, *srcs, *span_args, k)).fetchall()
+        if pages and not rows:
+            rows = db.conn.execute(f"""SELECT source_id, page, text FROM source_pages WHERE source_id IN ({marks})
+                                       AND page BETWEEN ? AND ? ORDER BY page LIMIT ?""",
+                                   (*srcs, pages[0], pages[1], k)).fetchall()
     return [{"sourceId": r[0], "title": srcs[r[0]]["title"], "page": int(r[1]), "text": r[2][:EXCERPT_CHARS]} for r in rows]
 
 

@@ -61,6 +61,8 @@ def main() -> None:
     sub.add_parser("seed", help="reset the workspace database to the demo roadmap (erases everything)")
     sub.add_parser("backup", help="write a backup of the workspace database now")
     sub.add_parser("where", help="print the workspace folder")
+    m = sub.add_parser("mock", help="make a mock workspace with books, sessions and lessons in every state (for checking the UI)")
+    m.add_argument("folder", nargs="?", default=str(Path.home() / "DeepStudy-mock"))
     sub.add_parser("roadmap", help="daily study roadmap: plan and progress (`dsc roadmap --help`)")
     if len(sys.argv) > 1 and sys.argv[1] == "roadmap":
         from .roadmap.cli import main as roadmap_main
@@ -74,6 +76,11 @@ def main() -> None:
         from .seed import seed_demo
         seed_demo(DB(workspace() / "study.db"))
         print(f"Seeded demo data in {workspace() / 'study.db'}")
+    elif args.cmd == "mock":
+        from .mock import build
+        path = build(Path(args.folder))
+        print(f"Mock workspace: {path.parent}")
+        print(f"Run it with:  DSC_WORKSPACE={path.parent} dsc serve --port 8001")
     elif args.cmd == "backup":
         from .backup import backup_now
         print(f"Backup written: {backup_now(DB(workspace() / 'study.db'))}")

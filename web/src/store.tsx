@@ -2,7 +2,7 @@
 // /api/action and return the next snapshot. While agent jobs run, the snapshot is polled.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Angle, FeedbackKind, FeedbackRef, GraphView, LessonDiff, LessonView, Plan, PracticeDue, PracticeView, RunResult, SearchHit, SessionView, SourceDoc, State, Verdict } from './types'
+import type { Angle, BookView, FeedbackKind, IdeaDetail, FeedbackRef, GraphView, LessonDiff, LessonView, Plan, PracticeDue, PracticeView, RunResult, SearchHit, SessionView, SourceDoc, State, Verdict } from './types'
 
 export type Action =
   | { type: 'answer'; conceptId: string; checkId: string; angle?: Angle; choice?: number; correct?: boolean; thinking?: string; confidence?: number | null }
@@ -51,6 +51,12 @@ export type Action =
   | { type: 'setApiKey'; key: string }
   | { type: 'clearApiKey' }
   | { type: 'useApiForAll' }
+  | { type: 'studyBook'; sourceId: string }
+  | { type: 'bookRetry'; bookId: string }
+  | { type: 'bookStudyPart'; partId: number }
+  | { type: 'bookHomework'; partId: number }
+  | { type: 'deleteBook'; bookId: string }
+  | { type: 'setMapView'; view: import('./types').MapViewId }
   | { type: 'setDictation'; mode?: 'browser' | 'local'; model?: string }
   | { type: 'downloadDictationModel'; model: string }
   | { type: 'removeDictationModel'; model: string }
@@ -123,6 +129,8 @@ export const getPractice = (id: string) => api<PracticeView>(`/api/practice/${en
 export const getPracticeDue = () => api<PracticeDue>('/api/practice-due')
 export const getGraph = () => api<GraphView>('/api/graph')
 export const getSession = (id: string) => api<SessionView>(`/api/session/${encodeURIComponent(id)}`)
+export const getBook = (id: string) => api<BookView>(`/api/book/${encodeURIComponent(id)}`)
+export const getIdea = (id: string) => api<IdeaDetail>(`/api/graph/node/${encodeURIComponent(id)}`)
 export const getPlan = () => api<Plan>('/api/plan')
 export const searchAll = (q: string) => api<SearchHit[]>(`/api/search?q=${encodeURIComponent(q)}`)
 export const runLocal = (body: { conceptId: string; itemId: string; code: string; angle?: Angle; approve?: boolean }) =>

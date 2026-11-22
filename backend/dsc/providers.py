@@ -427,6 +427,7 @@ RECOMMENDED: dict[str, tuple[str, str, str]] = {
     "Lesson planner": ("claude", "opus", "The plan decides every section of the lesson; its answer is short, so Opus costs little."),
     "Lesson assets": ("claude", "sonnet", "Small graphs and questions from the card."),
     "Lesson review": ("claude", "sonnet", "Checks every lesson; Opus finds more problems but costs more for each lesson."),
+    "Book map": ("claude", "opus", "The map decides what every session of the book teaches; done once per book."),
 }
 
 
