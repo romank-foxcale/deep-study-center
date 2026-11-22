@@ -1019,3 +1019,31 @@ a.shelf-card:hover { text-decoration: none; border-color: var(--border-2); }
 .book-lesson-needs { margin-top: 3px; color: color-mix(in srgb, #e0a63a 80%, var(--muted)); }
 .block-versions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 8px; }
 .book-lesson-ideas .md-inline { display: inline; }
+
+/* ---------- The whole formula tree (SPEC §38) ---------- */
+.ft-layout { display: flex; gap: 14px; align-items: flex-start; }
+.ft-canvas { flex: 1; min-width: 0; max-width: 100%; overflow: auto; max-height: calc(100vh - 190px); padding: 8px; }
+.ft-canvas svg { display: block; margin: 0 auto; }
+.ft-node { cursor: pointer; }
+.ft-node:focus { outline: none; }
+.ft-node:focus-visible .ft-shape, .ft-node.selected .ft-shape { stroke: var(--text); stroke-width: 3.5; }
+.ft-node.dim { opacity: 0.3; }
+.ft-shape { stroke-width: 2; fill: var(--surface); stroke: var(--border); }
+.ft-known .ft-shape { fill: var(--ok); stroke: var(--ok); }
+.ft-learning .ft-shape { fill: var(--warn-soft); stroke: var(--warn); }
+.ft-writing .ft-shape { stroke: var(--accent); stroke-dasharray: 4 3; }
+.ft-new .ft-shape { stroke-dasharray: 3 3; }
+.ft-glyph { font-size: 13px; font-weight: 700; fill: var(--text); pointer-events: none; }
+.ft-known .ft-glyph { fill: var(--bg); }
+.ft-new .km-label { fill: var(--muted); }
+.ft-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px;
+  border: 2px solid var(--border); }
+.ft-swatch.ft-known { background: var(--ok); border-color: var(--ok); }
+.ft-swatch.ft-learning { background: var(--warn-soft); border-color: var(--warn); }
+.ft-swatch.ft-writing { border-color: var(--accent); border-style: dashed; }
+.ft-swatch.ft-new { border-style: dashed; }
+.ft-panel { width: 320px; flex: none; position: sticky; top: 12px; max-height: calc(100vh - 190px); overflow: auto; }
+.ft-panel h2 { margin: 2px 0 6px; font-size: 1.1rem; }
+.ft-list { list-style: none; padding: 0; margin: 4px 0 10px; display: grid; gap: 4px; }
+.ft-list .link { text-align: left; }
+@media (max-width: 760px) { .ft-layout { flex-direction: column; align-items: stretch; } .ft-panel { width: 100%; position: static; } }

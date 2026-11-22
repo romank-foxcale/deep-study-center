@@ -55,6 +55,12 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
         from . import reasoning
         return reasoning.history(db, concept)
 
+    @app.get("/api/formulas")
+    def get_formulas() -> dict:
+        """The whole formula tree: every formula lesson and its building blocks (SPEC §38)."""
+        from . import formula_lessons
+        return formula_lessons.tree(db)
+
     @app.get("/api/drawing/{name}")
     def get_drawing(name: str):
         """A drawing the learner made on the drawing board (SPEC §31)."""

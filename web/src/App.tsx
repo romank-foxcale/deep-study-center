@@ -17,6 +17,7 @@ import Study from './pages/Study'
 import Book from './pages/Book'
 import Chapter from './pages/Chapter'
 import KnowledgeMap from './pages/KnowledgeMap'
+import Formulas from './pages/Formulas'
 import Practice from './pages/Practice'
 import Search from './pages/Search'
 import Week from './pages/Week'
@@ -117,6 +118,7 @@ export default function App() {
           <Route path="/probe" element={<Probe />} />
           <Route path="/study" element={<Study />} />
           <Route path="/map" element={<KnowledgeMap />} />
+          <Route path="/formulas" element={<Formulas />} />
           <Route path="/practice" element={<Practice />} />
           <Route path="/practice/:id" element={<Practice />} />
           <Route path="/study/:id" element={<Study />} />
