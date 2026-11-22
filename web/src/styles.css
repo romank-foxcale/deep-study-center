@@ -902,3 +902,6 @@ a.shelf-card:hover { text-decoration: none; border-color: var(--border-2); }
 .md-details { margin: 8px 0; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .md-details summary { cursor: pointer; color: var(--muted); }
 .md-details summary .md-inline { display: inline; }
+
+.book-ch-ref .book-ch-title { color: var(--muted); font-weight: 500; }
+.remap-ask { flex-wrap: wrap; gap: 8px; }

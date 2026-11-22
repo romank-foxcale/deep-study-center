@@ -196,6 +196,8 @@ export interface BookLesson {
 }
 export interface BookChapter {
   chapter: number; title: string; summary: string; pages: [number, number]; moduleId: string; mapped: boolean
+  /** reference: a glossary, reading list, …: looked up, not cut into lessons. */
+  kind: 'chapter' | 'reference'
   writing: boolean; lessons: BookLesson[]
 }
 export interface BookView {

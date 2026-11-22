@@ -839,5 +839,13 @@ Change log shows text changes only (not graph or question changes).
 - Homework is per chapter (`bookHomework {bookId, chapter}`).
 - The mock workspace has the four books as chapters of lessons and one saved lesson ("Scaled dot-product attention")
   with book chunks, idea links, checks and a worked explain-back; auto-research and auto-refresh are off there.
+- Reference chapters (2026-11-22): a chapter whose title (without its number) is a glossary, a reading list, a
+  bibliography, references, an index, notes or answers is `book_chapters.kind = 'reference'`: it keeps its pages and
+  gets no lessons and no model call. The map prompt also returns no lessons for reference material; a chapter mapped with no lessons becomes a reference chapter. Chapter ends use
+  every outline entry, also the left-out ones (index, acknowledgements), so a chapter never runs into back matter.
+- Map one chapter again (`bookRemapChapter {bookId, chapter, asLessons?}`, `bookstudy.remap_chapter`): the chapter's
+  lessons, cards and saved text go, and the map job maps only that chapter. Answers, notes, feedback and gradings stay
+  by lesson id; a new lesson with the same key gets the same id and so its history back. `asLessons` cuts a
+  reference chapter into lessons after all. The Book and Chapter pages offer it, with a confirm step.
 - Markdown: a writer's `<details><summary>…</summary>…</details>` is drawn as a collapsible block (raw HTML stays off).
 - The clickable mockup is `docs/mockups/book-lessons.html`.

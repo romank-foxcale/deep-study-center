@@ -358,8 +358,8 @@ Checked with tests, on the mock workspace, and with a real run on a copy of the 
 Engineering" mapped into 11 chapters and 130 lessons in 7 minutes; the first open of "Attention and the KV cache"
 wrote all 16 lesson plans of its chapter in one call and the lesson in about 10 minutes, with book summaries per
 section and links to ideas from other goals; the grader read a drawing board and graded it. Fixed then: a writer's
-`<details>` block now renders as a collapsible block. Open: the appendices (glossary, reading list) become lessons
-with wide page ranges; skip them or make them one reference lesson. Re-map one chapter from the UI.
+`<details>` block now renders as a collapsible block. Then (branch `claude/book-chapters`): reference chapters (glossary, reading list)
+get no lessons, and one chapter can be mapped again from the Book and Chapter pages.
 
 ### D6. ✅ DONE (2026-11-22, branch `claude/book-study`, SPEC §29): Map views and a mock workspace
 Seven map views to choose from (Tree, Graph, Nebula, Skill wheel, Cells, Territories, Globe), saved per workspace, and

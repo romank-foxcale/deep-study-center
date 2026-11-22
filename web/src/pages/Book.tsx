@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getBook, getGraph, useStore } from '../store'
 import Markdown from '../components/Markdown'
 import MapCanvas from '../components/MapCanvas'
+import RemapChapter from '../components/RemapChapter'
 import type { BookChapter, BookLesson, BookView, GraphView } from '../types'
 
 export const STATE_LABEL: Record<string, string> = {
@@ -124,23 +125,27 @@ export default function Book() {
             const k = ch.lessons.filter(x => KNOWN.has(x.state)).length
             const isOpen = !!open[ch.chapter]
             return (
-              <section key={ch.chapter} className={`book-ch${isOpen ? ' book-ch-open' : ''}`}>
+              <section key={ch.chapter} className={`book-ch${isOpen ? ' book-ch-open' : ''}${ch.kind === 'reference' ? ' book-ch-ref' : ''}`}>
                 <button className="book-ch-head" onClick={() => setOpen(o => ({ ...o, [ch.chapter]: !o[ch.chapter] }))} aria-expanded={isOpen}>
                   <span className="book-ch-num">{String(ch.chapter).padStart(2, '0')}</span>
                   <span className="book-ch-title">{ch.title}</span>
                   <span className="book-dots">{ch.lessons.map(x => <i key={x.id} className={`state-dot state-${x.state}`} title={`${x.title} · ${STATE_LABEL[x.state] ?? x.state}`} />)}</span>
-                  <span className="muted small book-ch-count">{ch.mapped ? `${k}/${ch.lessons.length}` : 'mapping…'}</span>
+                  <span className="muted small book-ch-count">{!ch.mapped ? 'mapping…' : ch.kind === 'reference' ? 'reference' : `${k}/${ch.lessons.length}`}</span>
                   <span className="book-ch-caret" aria-hidden>{isOpen ? '▾' : '▸'}</span>
                 </button>
                 {isOpen && (
                   <div className="book-ch-body">
                     {ch.summary && <div className="book-ch-summary"><Markdown>{ch.summary}</Markdown></div>}
+                    {ch.kind === 'reference' && <p className="small muted">Reference material (pp. {pageRange(ch.pages)}): looked up, not studied,
+                      so it has no lessons. Lessons link the terms you meet elsewhere.</p>}
                     <LessonList lessons={ch.lessons} next={v.next} />
                     <div className="row small">
                       <Link className="btn btn-small" to={`/book/${v.id}/chapter/${ch.chapter}`}>Open the chapter</Link>
                       {k > 0 && <button className="btn btn-small" onClick={() => homework(ch)} title="Recall practice on this chapter's lessons">Homework</button>}
                       {ch.writing && <span className="muted">Writing this chapter's lessons from the book…</span>}
                       <span className="muted">pp. {pageRange(ch.pages)}</span>
+                      <span className="spacer" />
+                      <RemapChapter bookId={v.id} ch={ch} busy={v.busy || ch.writing} />
                     </div>
                   </div>
                 )}

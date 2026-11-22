@@ -39,6 +39,9 @@ GRAPH_LIST_MAX = 400      # up to this many older graph ideas, the mapper sees a
 KNOWN = ("learned", "mastered", "rusty")
 _SKIP = re.compile(r"^(table of )?contents$|^index$|^acknowledg|^copyright|^about the author|^also by|^dedication"
                    r"|^title page$|^cover$|^bibliography$|^references$", re.I)
+# Back matter that is looked up, not studied: kept as a chapter (its pages count) but not cut into lessons.
+_REFERENCE = re.compile(r"glossary|recommended reading|further reading|reading list|bibliography|^references$|^index$"
+                        r"|^notes$|^endnotes$|^answers to|^solutions to|^list of (figures|tables)", re.I)
 _PAGES = re.compile(r"(\d+)\s*(?:[-–]\s*(\d+))?")
 
 MAP_SCHEMA = {"type": "object", "required": ["summary", "lessons"], "properties": {
@@ -95,11 +98,11 @@ def parts_from_outline(outline: list[dict], n_pages: int) -> list[dict]:
                 for n, a in enumerate(range(1, n_pages + 1, CHUNK_PAGES))]
     top = [o for o in items if o["level"] <= chapter_level]
     top.sort(key=lambda o: o["page"])
+    bounds = sorted(o["page"] for o in outline if o.get("page") and o["level"] <= chapter_level)
     chapters = [o for o in top if o["level"] == chapter_level]
     out: list[dict] = []
     for ci, ch in enumerate(chapters):
-        at = next(i for i, o in enumerate(top) if o is ch)
-        nxt = next((o["page"] for o in top[at + 1:] if o["page"] > ch["page"]), n_pages + 1)
+        nxt = next((p for p in bounds if p > ch["page"]), n_pages + 1)
         end = max(ch["page"], nxt - 1)
         secs = sorted([o for o in items if o["level"] == chapter_level + 1 and ch["page"] <= o["page"] <= end],
                       key=lambda o: o["page"])
@@ -116,17 +119,24 @@ def parts_from_outline(outline: list[dict], n_pages: int) -> list[dict]:
 
 
 def chapters_from_outline(outline: list[dict], n_pages: int) -> list[dict]:
-    """[{chapter, title, page_from, page_to, sections: [{title, page_from, page_to}]}]."""
+    """[{chapter, title, page_from, page_to, kind, sections: [{title, page_from, page_to}]}]. kind: chapter | reference
+    (a glossary, a reading list, …: looked up, not cut into lessons)."""
     out: list[dict] = []
     for p in parts_from_outline(outline, n_pages):
         if not out or out[-1]["chapter"] != p["chapter"]:
             out.append({"chapter": p["chapter"], "title": p["chapter_title"], "page_from": p["page_from"],
-                        "page_to": p["page_to"], "sections": []})
+                        "page_to": p["page_to"], "sections": [],
+                        "kind": "reference" if _REFERENCE.search(_bare(p["chapter_title"])) else "chapter"})
         ch = out[-1]
         ch["page_to"] = max(ch["page_to"], p["page_to"])
         if p["title"] != p["chapter_title"]:
             ch["sections"].append({"title": p["title"], "page_from": p["page_from"], "page_to": p["page_to"]})
     return out
+
+
+def _bare(title: str) -> str:
+    """A chapter title without its number: "Appendix A: Inference Glossary" -> "Inference Glossary"."""
+    return re.sub(r"^\s*(appendix|chapter|part)?\s*[\w.]{0,4}\s*[:.\-–]\s*", "", title.strip(), flags=re.I)
 
 
 def _pages(text: str, lo: int, hi: int) -> tuple[int, int]:
@@ -194,7 +204,7 @@ def _chapter_rows(db: DB, bid: str, st: dict | None = None) -> list[dict]:
                             "written": cid in rendered, "carded": cid in written, "started": cid in started,
                             "alsoIn": [{"id": o, "title": titles.get(o, o)} for o in others.get(nid, [])]})
         out.append({"chapter": ch["chapter"], "title": ch["title"], "summary": ch["summary"], "pages": [ch["page_from"], ch["page_to"]],
-                    "moduleId": ch["module_id"], "mapped": bool(ch["mapped"]), "lessons": lessons})
+                    "moduleId": ch["module_id"], "mapped": bool(ch["mapped"]), "kind": ch["kind"], "lessons": lessons})
     return out
 
 
@@ -267,9 +277,10 @@ def start(db: DB, jobs: Jobs, source_id: str) -> str:
             mid = f"{gid}-c{ch['chapter']}"
             db.conn.execute("""INSERT INTO modules(id, track_id, ord, title, research, planned, summary, seq)
                                VALUES(?,?,?,?,?,?,?,?)""", (mid, f"{gid}-t", ch["chapter"], ch["title"][:200], "outline", 0, "", ch["chapter"]))
-            db.conn.execute("""INSERT INTO book_chapters(book_id, chapter, title, page_from, page_to, sections, module_id)
-                               VALUES(?,?,?,?,?,?,?)""",
-                            (bid, ch["chapter"], ch["title"][:200], ch["page_from"], ch["page_to"], dumps(ch["sections"]), mid))
+            db.conn.execute("""INSERT INTO book_chapters(book_id, chapter, title, page_from, page_to, sections, module_id, kind)
+                               VALUES(?,?,?,?,?,?,?,?)""",
+                            (bid, ch["chapter"], ch["title"][:200], ch["page_from"], ch["page_to"], dumps(ch["sections"]), mid,
+                             ch["kind"]))
         db.conn.execute("""INSERT INTO books(id, source_id, title, status, chapters_done, chapters, created_at, updated_at, goal_id, version)
                            VALUES(?,?,?,?,?,?,?,?,?,2)""", (bid, source_id, src["title"], "mapping", 0, len(chapters), ts, ts, gid))
     jobs.enqueue("book_map", f"Map the book: {src['title'][:60]}", {"book_id": bid})
@@ -281,6 +292,38 @@ def retry(db: DB, jobs: Jobs, bid: str) -> None:
     if b and b["status"] != "ready" and not jobs.active("book_map", book_id=bid):
         db.x("UPDATE books SET status='mapping', updated_at=? WHERE id=?", (now(), bid))
         jobs.enqueue("book_map", f"Map the book: {b['title'][:60]}", {"book_id": bid})
+
+
+def remap_chapter(db: DB, jobs: Jobs, bid: str, chapter: int, as_lessons: bool = False) -> None:
+    """Cut one chapter into lessons again: its lessons and their written text go, the map job maps it anew. What the
+    learner did stays: answers, notes and feedback are kept by lesson id, and a new lesson with the same key gets them
+    back. ``as_lessons``: a reference chapter (glossary, reading list) is cut into lessons after all."""
+    b = get(db, bid)
+    ch = db.one("SELECT * FROM book_chapters WHERE book_id=? AND chapter=?", (bid, chapter))
+    if not b or not ch:
+        raise BookError("unknown chapter")
+    if jobs.active("book_map", book_id=bid) or jobs.active("research_module", module_id=ch["module_id"]):
+        raise BookError("this book is being mapped or written right now; try again when it is done")
+    cids = [r["concept_id"] for r in db.q("SELECT concept_id FROM book_parts WHERE book_id=? AND chapter=? AND concept_id IS NOT NULL",
+                                          (bid, chapter))]
+    made = [r["node_id"] for r in db.q("""SELECT bn.node_id FROM book_nodes bn JOIN book_parts p ON p.id = bn.part_id
+                                         WHERE bn.book_id=? AND p.chapter=? AND bn.created=1""", (bid, chapter))]
+    with db.tx():
+        for cid in cids:
+            for t in ("cards", "prose", "renditions", "lesson_versions", "lesson_heads", "lesson_plans", "card_proposals",
+                      "concept_nodes"):
+                db.conn.execute(f"DELETE FROM {t} WHERE concept_id=?", (cid,))
+            db.conn.execute("DELETE FROM concepts WHERE id=?", (cid,))
+        db.conn.execute("""DELETE FROM book_nodes WHERE book_id=? AND part_id IN
+                           (SELECT id FROM book_parts WHERE book_id=? AND chapter=?)""", (bid, bid, chapter))
+        db.conn.execute("DELETE FROM book_parts WHERE book_id=? AND chapter=?", (bid, chapter))
+        db.conn.execute("UPDATE book_chapters SET mapped=0, summary='', kind=? WHERE book_id=? AND chapter=?",
+                        ("chapter" if as_lessons else ch["kind"], bid, chapter))
+        db.conn.execute("UPDATE modules SET research='outline', planned=0, summary='' WHERE id=?", (ch["module_id"],))
+        db.conn.execute("UPDATE books SET status='mapping', updated_at=? WHERE id=?", (now(), bid))
+        _drop_unused(db, made)
+    graph.prune(db)
+    jobs.enqueue("book_map", f"Map again: {ch['title'][:60]}", {"book_id": bid})
 
 
 def homework(db: DB, jobs: Jobs, bid: str, chapter: int) -> str:
@@ -363,8 +406,11 @@ def run_map(jobs: Jobs, jid: int, d: dict) -> dict:
         for ch in chapters:
             if ch["mapped"]:
                 continue
-            jobs.progress(jid, f"chapter {ch['chapter']} of {len(chapters)}: {ch['title'][:80]}")
-            _map_chapter(db, jobs, jid, b, ch, prompt, Call)
+            if ch["kind"] == "reference":  # looked up, not studied: no lessons, no model call
+                db.x("UPDATE book_chapters SET mapped=1 WHERE book_id=? AND chapter=?", (b["id"], ch["chapter"]))
+            else:
+                jobs.progress(jid, f"chapter {ch['chapter']} of {len(chapters)}: {ch['title'][:80]}")
+                _map_chapter(db, jobs, jid, b, ch, prompt, Call)
             done = db.one("SELECT COUNT(*) AS n FROM book_chapters WHERE book_id=? AND mapped=1", (b["id"],))["n"]
             db.x("UPDATE books SET chapters_done=?, updated_at=? WHERE id=?", (done, now(), b["id"]))
     except Exception:
@@ -432,8 +478,8 @@ def _map_chapter(db: DB, jobs: Jobs, jid: int, b: dict, ch: dict, prompt, Call) 
             for pk in les.get("prereq_keys") or []:  # an older graph idea it builds on: a link between nodes
                 if pk in existing and pk not in mine and pk not in key_cid and pk not in in_book:
                     db.conn.execute("INSERT OR IGNORE INTO links(src, dst, why, origin) VALUES(?,?,?,?)", (pk, node, "", "book"))
-        db.conn.execute("UPDATE book_chapters SET summary=?, mapped=1 WHERE book_id=? AND chapter=?",
-                        ((out.get("summary") or "")[:1200], b["id"], ch["chapter"]))
+        db.conn.execute("UPDATE book_chapters SET summary=?, mapped=1, kind=? WHERE book_id=? AND chapter=?",
+                        ((out.get("summary") or "")[:1200], "chapter" if rows else "reference", b["id"], ch["chapter"]))
         db.conn.execute("UPDATE modules SET summary=?, planned=? WHERE id=?", ((out.get("summary") or "")[:600], len(rows), ch["module_id"]))
     graph.sync(db)
 
