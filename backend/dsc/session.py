@@ -128,6 +128,9 @@ def answer(db: DB, jobs: Jobs, sid: str, item_id: int, choice: int | None, think
     correct = choice is not None and choice == item["answer"]
     db.x("UPDATE session_items SET choice=?, answered=1, correct=?, thinking=?, confidence=?, answered_at=? WHERE id=?",
          (choice, int(correct), thinking, confidence, now(), item_id))
+    if row["phase"] in ("predict", "check"):  # the tutor reads how you thought (SPEC §35); the probe stays quick
+        from . import reasoning
+        reasoning.queue_session(db, jobs, sid, item_id, row["idea_key"], thinking)
     if row["phase"] in ("probe", "check"):  # evidence on the idea's node; a prediction is not evidence
         idea = _idea(s, row["idea_key"])
         if idea and idea.get("node"):
@@ -585,6 +588,8 @@ def view(db: DB, sid: str) -> dict | None:
                    (f'%"{sid}"%',))
         failed = j["error"] if j and j["status"] == "failed" else None
     items = _items(db, sid)
+    from . import reasoning
+    reviews = reasoning.by_session_items(db, [r["id"] for r in items if r["answered"]])
     pub = []
     for r in items:
         it = dict(r["item"])
@@ -595,7 +600,7 @@ def view(db: DB, sid: str) -> dict | None:
              "options": it["options"], "answered": bool(r["answered"])}
         if r["answered"]:
             q.update(choice=r["choice"], correct=bool(r["correct"]), answer=it["answer"], explanation=it["explanation"],
-                     thinking=r["thinking"], confidence=r["confidence"])
+                     thinking=r["thinking"], confidence=r["confidence"], review=reviews.get(r["id"]))
         pub.append(q)
     st = graph.states(db)
     ideas = [{**{k: i.get(k) for k in ("key", "title", "statement", "node", "prereqs", "target", "level", "skip", "fromGraph",

@@ -3,6 +3,7 @@ import type { ExplainItem, Grading } from '../types'
 import Markdown from './Markdown'
 import { ConfidenceSlider, DictationArea } from './ThinkingInput'
 import DrawingBoard from './DrawingBoard'
+import ReasoningReview from './ReasoningReview'
 
 interface Props {
   item: ExplainItem
@@ -30,7 +31,7 @@ export default function ExplainBack({ item, grading, inProgress, onSubmit, onUnd
     <div className="check explain">
       <div className="check-label">{item.work ? 'Work it out' : 'Explain it back'}</div>
       <Markdown>{item.prompt}</Markdown>
-      {grading && !retry && grading.status !== 'voided' && (
+      {grading && !retry && grading.status !== 'voided' && !grading.review && (
         <div className="explain-answer">
           <div className="muted small">Your answer</div>
           <p>{grading.answer}</p>
@@ -45,6 +46,10 @@ export default function ExplainBack({ item, grading, inProgress, onSubmit, onUnd
           {grading.followup && <div className="small"><em>Think about:</em> {grading.followup}</div>}
         </div>
       )}
+      {grading?.status === 'graded' && !retry && grading.review && <>
+        <ReasoningReview review={grading.review} thinking={grading.answer} />
+        {grading.drawing && <img className="drawing-sent" src={`/api/drawing/${grading.drawing}`} alt="Your drawing board" />}
+      </>}
       {grading?.status === 'ungraded' && <p className="muted small">{grading.feedback}</p>}
       {grading?.status === 'graded' && !retry && (
         <div className="row">

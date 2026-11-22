@@ -261,6 +261,8 @@ MIGRATIONS = [
     ("book_parts", "concept_id", "TEXT"),                  # v2: the lesson (concept) this part is
     ("book_parts", "ideas", "TEXT NOT NULL DEFAULT '[]'"), # v2: the lesson's key ideas
     ("book_chapters", "kind", "TEXT NOT NULL DEFAULT 'chapter'"),
+    ("reasoning_reviews", "session_item_id", "INTEGER"),   # a study-session answer (then concept_id is the session id)
+    ("gradings", "review", "TEXT"),                         # the grader's reading of the explain-back (parts, assumption, …)
     ("formula_notes", "kind", "TEXT NOT NULL DEFAULT 'idea'"),  # idea | step (a step of a derivation: neutral frame)
     ("formula_notes", "formula_id", "TEXT"),               # the formula lesson this formula is (any form)
     ("formula_notes", "matched_at", "TEXT"),               # last match against the formula lessons  # chapter | reference (glossary, reading list: no lessons)

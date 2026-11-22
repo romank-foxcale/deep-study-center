@@ -167,6 +167,7 @@ def reasoning_log(db: DB, concept_id: str | None = None, limit: int = 10) -> str
 
 
 def gradings(db: DB, concept_ids: list[str]) -> dict:
+    from . import reasoning
     """Latest explain-back attempt per (concept, item): pending, graded or ungraded."""
     out: dict[str, dict] = {}
     if not concept_ids:
@@ -175,7 +176,7 @@ def gradings(db: DB, concept_ids: list[str]) -> dict:
         out[f'{g["concept_id"]}:{g["item_id"]}'] = {
             "id": g["id"], "status": g["status"], "answer": g["answer"], "score": g["score"],
             "feedback": g["feedback"], "missing": loads(g["missing"], []), "followup": g["followup"],
-            "drawing": g.get("drawing")}
+            "drawing": g.get("drawing"), "review": reasoning.grading_review(g)}
     return out
 
 

@@ -924,3 +924,15 @@ Change log shows text changes only (not graph or question changes).
   page shows "Forms of this formula" with "I prefer this form".
 - Normal lessons use at most one formula widget, for their central formula (`_widgets.md`); formula lessons use it
   fully. Widget captions and lesson objectives now render math.
+
+## 35. The tutor reads your reasoning everywhere (2026-11-22)
+- Explain-backs: the grader (`grade.md`, `GRADE_SCHEMA`) also returns the reading of the answer: parts quoted from it
+  and marked right, partly or wrong with a reason, the wrong assumption, steps that follow it until it breaks, how it
+  really works, and a takeaway. It is saved in `gradings.review` (quotes not in the answer are dropped) and shown under
+  the score in place of the plain answer ("Where your reasoning went off"), with the drawing board image.
+- Study sessions: a prediction or a check answered with thinking (20+ characters) gets a `reasoning_review` row
+  (`session_item_id`; `concept_id` is then the session id) and the same review job; the prompt says whether it was a
+  prediction before the explanation or a check after it, and includes what the tutor explained. The probe stays quick
+  (no review). The session's explain and repair turns now also name the wrong idea and follow it until it breaks.
+- History (`reasoning.history`, Me → "Your reasoning"): lesson checks, study-session answers and explain-backs, newest
+  first, each with a link to where it was answered.
