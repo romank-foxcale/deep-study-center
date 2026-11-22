@@ -1,0 +1,39 @@
+name: Bug report
+description: Something does not work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open …\n2. Click …\n3. See …"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: "for example 0.3.0, or the commit hash"
+  - type: dropdown
+    id: how
+    attributes:
+      label: How you run it
+      options: [From source (start script), Desktop app, Development (dsc serve + npm run dev)]
+  - type: input
+    id: provider
+    attributes:
+      label: Model provider
+      placeholder: "Claude Code CLI, Codex CLI, Cursor CLI or Claude API"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or errors
+      description: The failed job's error in Settings → Recent jobs, or the backend log. Remove personal content first.
+      render: text

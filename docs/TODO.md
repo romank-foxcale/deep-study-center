@@ -304,7 +304,18 @@ microphone prompt of WebView2 in the installed desktop app.
   setting "Local dictation" is on or when the browser API is missing. One-time model download with a progress bar.
 - **How to check:** dictate with the network off; text appears within about 2 s per phrase.
 
-### C3. Open-source release
+### C3. Open-source release (files done 2026-11-22, branch `claude/open-source`; repository steps open)
+Done: MIT license (`LICENSE`, and the license fields in `pyproject.toml`, `package.json` and `Cargo.toml`); a README
+for new users (what it is, install, providers, privacy); `CONTRIBUTING.md`, `SECURITY.md`, issue and pull-request
+templates; the milestone history moved to `docs/CHANGELOG.md`. CI (pytest, tsc, eslint, build) already ran on every
+pull request. Scan of files and history: no keys, tokens, file paths or e-mail addresses in any file; the roadmap data
+named the author's study niches and region, now generic. The repository was already public before this step.
+Open, for the user to decide or do:
+- History: decided 2026-11-22 to keep it as it is (every commit carries the author's name and work e-mail, already
+  public; a rewrite would change every hash and break old pull-request links). Future commits can use the GitHub
+  no-reply e-mail.
+- Repository settings: turn on private vulnerability reporting (SECURITY.md points to it), add a description and topics.
+- First release: build the installer and attach it to a GitHub release (unsigned; code signing is a later step).
 - **Why:** the user wants to publish DSC as open source.
 - **What:**
   1. Choose a license with the user (MIT or Apache-2.0 are common).

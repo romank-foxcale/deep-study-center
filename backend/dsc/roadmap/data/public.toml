@@ -21,7 +21,7 @@ minutes = 45
 requires = ["pub-blog"]
 goal = "Make a visitor understand in 30 seconds what you do and where to look."
 resources = ["profile-readme"]
-exercise = "Write a profile README: one line on your focus (ML for Earth and climate, LLM agent collaboration), links to the blog, and pin the repos you will build in this roadmap."
+exercise = "Write a profile README: one line on your focus (for example the one or two niches you chose), links to the blog, and pin the repos you will build in this roadmap."
 done_when = "The profile README is live and links to your blog."
 
 [[unit]]
