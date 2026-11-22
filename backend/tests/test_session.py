@@ -191,3 +191,49 @@ def test_one_question_at_a_time_and_assess_now_writes_the_result(env):
     v = view(db)
     assert v["status"] == "planning" and "Must you end now? yes" in calls[-1] and v["probeStart"]
     assert len([i for i in v["items"] if i["phase"] == "probe"]) == 3  # the open question was dropped
+
+
+def test_known_ideas_can_be_learned_again(env):
+    """A part (or topic) whose ideas you all know has an empty plan; you can put one or all of them back (SPEC §30)."""
+    db, jobs, runner = env
+
+    class NoJobs:
+        def enqueue(self, *a, **k):
+            return 0
+
+    ideas = [{"key": f"i{n}", "title": f"Idea {n}", "statement": "s", "node": nid, "prereqs": [], "fromGraph": True}
+             for n, nid in enumerate(["c-vectors", "c-dot"])]
+    sid = session.start_from_ideas(db, NoJobs(), "Review", "Review", ideas, [])
+    s = session.get(db, sid)
+    for i in s["ideas"]:
+        i["level"] = "known"
+    session._save(db, sid, ideas=s["ideas"], plan=session._plan(s["ideas"]), status="planning")
+    assert session.view(db, sid)["plan"] == []
+    act(db, jobs, type="sessionKnown", sessionId=sid, ideaKey="i1", known=False)  # tick one known idea
+    v = session.view(db, sid)
+    assert v["plan"] == ["i1"] and next(i for i in v["ideas"] if i["key"] == "i1")["again"]
+    act(db, jobs, type="sessionKnown", sessionId=sid, ideaKey="i1", known=True)   # and untick it again
+    assert session.view(db, sid)["plan"] == []
+    act(db, jobs, type="sessionLearnAgain", sessionId=sid)
+    assert session.view(db, sid)["plan"] == ["i0", "i1"]
+
+
+def test_an_empty_finished_session_opens_again(env):
+    """Before the fix, "Start learning (0 steps)" finished a session in which nothing was taught; it can be reopened."""
+    db, jobs, runner = env
+
+    class NoJobs:
+        def enqueue(self, *a, **k):
+            return 0
+
+    ideas = [{"key": "i0", "title": "Idea", "statement": "s", "node": "c-vectors", "prereqs": [], "fromGraph": True}]
+    sid = session.start_from_ideas(db, NoJobs(), "Review", "Review", ideas, [])
+    s = session.get(db, sid)
+    s["ideas"][0]["level"] = "known"
+    session._save(db, sid, ideas=s["ideas"], plan=[], status="planning")
+    with pytest.raises(actions.ActionError):
+        actions.dispatch(db, jobs, {"type": "sessionTeach", "sessionId": sid})  # nothing to learn: refused
+    session._save(db, sid, status="done", summary="You already knew it.")
+    act(db, jobs, type="sessionLearnAgain", sessionId=sid)
+    v = session.view(db, sid)
+    assert v["status"] == "planning" and v["plan"] == ["i0"] and not v["summary"]

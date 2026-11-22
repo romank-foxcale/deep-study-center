@@ -67,12 +67,24 @@ def test_today_shows_where_to_continue_what_is_due_and_the_books(mocked):
     from dsc import bookstudy, today
     _, db = mocked
     t = today.view(db)
-    c = t["continue"]
-    assert c["kind"] == "session" and c["status"] in ("teaching", "probing") and c["book"]["title"] == "Inference Engineering"
+    assert t["continue"]["kind"] in ("session", "lesson")
     assert t["due"]["count"] > 0 and t["due"]["items"] and {"learned", "strong", "answers", "sessions"} <= set(t["week"])
     assert t["recent"] and len(t["recent"]) <= 4
     shelf = {b["title"]: b for b in bookstudy.listing(db)}
     ie = shelf["Inference Engineering"]
     assert ie["author"] == "Philip Kiely" and 0 < ie["strong"] <= ie["known"] <= ie["ideas"]
+    assert ie["goalId"] not in {g["id"] for g in state.snapshot(db)["goals"]}
     v = bookstudy.view(db, ie["id"])
-    assert next(p for p in v["parts"] if p["id"] == v["next"])["status"] == "studying"  # the part in progress comes first
+    assert len(v["chapters"]) == 8 and all(c["summary"] and c["lessons"] for c in v["chapters"])
+    nxt = next(x for c in v["chapters"] for x in c["lessons"] if x["conceptId"] == v["next"])
+    assert nxt["started"] and nxt["state"] not in ("learned", "mastered")  # the lesson in progress comes first
+
+
+def test_the_mock_has_a_saved_book_lesson(mocked):
+    from dsc import bookstudy
+    _, db = mocked
+    les = next(x for c in bookstudy.view(db, "b-mock0")["chapters"] for x in c["lessons"] if x["title"] == "Scaled dot-product attention")
+    assert les["written"] and les["carded"]
+    v = lesson.view(db, les["conceptId"])
+    assert v["book"]["bookTitle"] == "Inference Engineering" and all(sec["book"]["summary"] for sec in v["sections"])
+    assert any("#idea/" in sec["body"] for sec in v["sections"]) and any((sec["explain"] or {}).get("work") for sec in v["sections"])

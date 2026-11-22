@@ -1,17 +1,22 @@
-"""Book study: "teach me this book" (SPEC §28, TODO D1-D3). The main flow from 2026-11-22.
+"""Book study: "teach me this book" (SPEC §28, §31). Version 2: a book is chapters, a chapter is lessons.
 
-1. **Map** (job ``book_map``): the book's outline gives chapters and sections with pages. A section (or a chapter
-   without sections) is a **part**, the size of one study session. An agent reads one chapter at a time (its pages'
-   text) and writes the ideas of each part: title, statement, pages, kind, prerequisites, and ``same_as`` when the idea
-   is already a node in the learner's graph. New ideas become nodes (origin "book"); prerequisites become links, also
-   to earlier chapters and to older nodes. So every book has its own graph, joined to the rest where ideas are shared.
-   The job keeps ``chapters_done``: after a failure, a retry continues with the next chapter.
-2. **Study** a part: a study session (SPEC §22) that starts with the part's ideas (no sketch step), plus the ideas from
-   outside the part that they build on (the probe checks those; one the learner lacks is taught first). The teaching
-   turns get the part's own pages. When the session is done, so is the part.
-3. **Homework**: a recall practice (SPEC §24) over the part's ideas; each idea then has its own review schedule.
+A book you read can be read again: every lesson stays open, whatever you already know.
 
-Big goals (Ohtani table, ``books.py`` book goals) are on hold beside this, not removed.
+1. **Start**: the book gets a hidden goal (``goals.kind = 'bookstudy'``) so the lesson machinery works unchanged: one
+   track for the book, one module per chapter (``book_chapters.module_id``), one concept per lesson.
+2. **Map** (job ``book_map``, one call per chapter, from the chapter's page text): a short chapter summary and the
+   chapter's lessons, cut **by topic** (one book section can become several lessons, small ones can join). A lesson has
+   a title, what it covers, its pages, its key ideas, the lessons it builds on (also in earlier chapters) and
+   ``same_as`` when it is an idea already in the graph (another book, a goal). A lesson is one concept and one node of
+   the knowledge map; prerequisites become concept prerequisites or links.
+3. **Write** a lesson on first open (``research_module`` for a book goal runs ``write_cards``): the cards of the
+   chapter's lessons are written from the chapter's pages only (no web), one section per stretch of the book, each with
+   a close summary of what the book says (``section.book``) and its pages, plus checks, an explain-back and graphs. The
+   normal lesson writer then writes "what it means" for this learner (playbook, guidelines, feedback), and the lesson
+   is saved (prose cache and lesson versions). Research-ahead writes the next chapter in the background.
+4. **Homework**: recall practice over a chapter's lessons.
+
+Version 1 (parts taught as study sessions) is kept for books mapped before (``books.version = 1``).
 """
 
 from __future__ import annotations
@@ -20,47 +25,66 @@ import re
 import secrets
 from typing import TYPE_CHECKING
 
-from . import graph, practice, session
+from . import graph, mcq, practice, viz
 from .db import DB, dumps, loads, now
 
 if TYPE_CHECKING:
     from .jobs import Jobs
 
-CHUNK_PAGES = 12          # a book without an outline is cut into parts of this many pages
+CHUNK_PAGES = 12          # a book without an outline is cut into chapters of this many pages
 CHAPTER_CHARS = 80_000    # page text sent per chapter, at most
 PAGE_CHARS = 3_000        # one page's text, at most
-KINDS = ("concept", "formula", "method", "fact", "term")
-PART_MAX = 10             # a part with more ideas is split into sessions of at most PART_SPLIT ideas
-PART_SPLIT = 8
+LESSON_MINUTES = 15
 GRAPH_LIST_MAX = 400      # up to this many older graph ideas, the mapper sees all their titles; above, a word search
-_SPLIT = re.compile(r" \((\d+)/(\d+)\)$")
+KNOWN = ("learned", "mastered", "rusty")
 _SKIP = re.compile(r"^(table of )?contents$|^index$|^acknowledg|^copyright|^about the author|^also by|^dedication"
                    r"|^title page$|^cover$|^bibliography$|^references$", re.I)
+_PAGES = re.compile(r"(\d+)\s*(?:[-–]\s*(\d+))?")
 
-MAP_SCHEMA = {"type": "object", "required": ["parts"], "properties": {
-    "parts": {"type": "array", "items": {"type": "object", "required": ["part", "summary", "ideas"], "properties": {
-        "part": {"type": "integer"},
-        "summary": {"type": "string"},
-        "ideas": {"type": "array", "items": {"type": "object",
-            "required": ["key", "title", "statement", "kind", "pages", "prereq_keys"], "properties": {
-                "key": {"type": "string"}, "title": {"type": "string"}, "statement": {"type": "string"},
-                "kind": {"enum": list(KINDS)}, "pages": {"type": "string"},
-                "prereq_keys": {"type": "array", "items": {"type": "string"}},
-                "same_as": {"type": "string"}}}}}}}}}
+MAP_SCHEMA = {"type": "object", "required": ["summary", "lessons"], "properties": {
+    "summary": {"type": "string"},
+    "lessons": {"type": "array", "items": {"type": "object",
+        "required": ["key", "title", "covers", "pages", "ideas", "prereq_keys"], "properties": {
+            "key": {"type": "string"}, "title": {"type": "string"}, "covers": {"type": "string"}, "pages": {"type": "string"},
+            "ideas": {"type": "array", "items": {"type": "string"}},
+            "prereq_keys": {"type": "array", "items": {"type": "string"}},
+            "same_as": {"type": "string"}}}}}}
+
+_ANGLES = {"enum": ["geometric", "algebraic", "computational"]}
+CARDS_SCHEMA = {"type": "object", "required": ["cards"], "properties": {"cards": {"type": "array", "items": {
+    "type": "object", "required": ["id", "card"], "properties": {
+        "id": {"type": "string"},
+        "card": {"type": "object", "required": ["bloom", "core", "formal", "why", "examples", "misconceptions", "sections"],
+                 "properties": {
+                     "bloom": {"type": "string"}, "core": {"type": "string"}, "formal": {"type": "string"}, "why": {"type": "string"},
+                     "examples": {"type": "array", "items": {"type": "object", "required": ["label", "domain"], "properties": {
+                         "label": {"type": "string"}, "domain": {"type": "string"}}}},
+                     "misconceptions": {"type": "array", "items": {"type": "string"}},
+                     "sections": {"type": "array", "minItems": 1, "items": {"type": "object",
+                         "required": ["id", "heading", "purpose", "angles", "book"], "properties": {
+                             "id": {"type": "string"}, "heading": {"type": "string"}, "purpose": {"type": "string"},
+                             "angles": {"type": "array", "minItems": 1, "items": _ANGLES},
+                             "book": {"type": "object", "required": ["summary", "pages"], "properties": {
+                                 "summary": {"type": "string"}, "pages": {"type": "string"}}},
+                             "check": mcq.SCHEMA,
+                             "explain": {"type": "object", "required": ["prompt", "rubric"], "properties": {
+                                 "prompt": {"type": "string"}, "work": {"type": "boolean"},
+                                 "rubric": {"type": "array", "minItems": 1, "items": {"type": "string"}}}},
+                             "viz": viz.SCHEMA}}}}}}}}}}
 
 
 class BookError(Exception):
     pass
 
 
-# ---------------------------------------------------------------- parts from the outline
+# ---------------------------------------------------------------- chapters from the outline
 
 def parts_from_outline(outline: list[dict], n_pages: int) -> list[dict]:
-    """The study parts of a book: [{chapter, chapter_title, title, page_from, page_to}] in reading order.
+    """The book's sections: [{chapter, chapter_title, title, page_from, page_to}] in reading order.
 
     The chapter level is the shallowest outline level with at least 3 entries (some PDFs put one root entry above the
-    chapters). A chapter's sections (the next level) are its parts; pages before the first section go to the first
-    one. Front matter (contents, index, …) is left out. Without a usable outline, the book is cut into fixed chunks."""
+    chapters). A chapter's sections (the next level) follow; pages before the first section go to the first one. Front
+    matter (contents, index, …) is left out. Without a usable outline, the book is cut into fixed chunks."""
     items = [o for o in outline if o.get("page") and not _SKIP.search(o["title"].strip())]
     levels = sorted({o["level"] for o in items})
     chapter_level = next((lv for lv in levels if sum(1 for o in items if o["level"] == lv) >= 3), None)
@@ -91,40 +115,86 @@ def parts_from_outline(outline: list[dict], n_pages: int) -> list[dict]:
     return out
 
 
+def chapters_from_outline(outline: list[dict], n_pages: int) -> list[dict]:
+    """[{chapter, title, page_from, page_to, sections: [{title, page_from, page_to}]}]."""
+    out: list[dict] = []
+    for p in parts_from_outline(outline, n_pages):
+        if not out or out[-1]["chapter"] != p["chapter"]:
+            out.append({"chapter": p["chapter"], "title": p["chapter_title"], "page_from": p["page_from"],
+                        "page_to": p["page_to"], "sections": []})
+        ch = out[-1]
+        ch["page_to"] = max(ch["page_to"], p["page_to"])
+        if p["title"] != p["chapter_title"]:
+            ch["sections"].append({"title": p["title"], "page_from": p["page_from"], "page_to": p["page_to"]})
+    return out
+
+
+def _pages(text: str, lo: int, hi: int) -> tuple[int, int]:
+    m = _PAGES.search(text or "")
+    if not m:
+        return lo, hi
+    a = int(m.group(1))
+    b = int(m.group(2)) if m.group(2) else a
+    a, b = max(lo, min(a, hi)), max(lo, min(max(a, b), hi))
+    return a, b
+
+
 # ---------------------------------------------------------------- reading
 
 def get(db: DB, bid: str) -> dict | None:
     return db.one("SELECT * FROM books WHERE id=?", (bid,))
 
 
-def parts(db: DB, bid: str) -> list[dict]:
-    return db.q("SELECT * FROM book_parts WHERE book_id=? ORDER BY ord", (bid,))
-
-
-def _chapters(db: DB, bid: str) -> list[list[dict]]:
-    by: dict[int, list[dict]] = {}
-    for p in parts(db, bid):
-        by.setdefault(p["chapter"], []).append(p)
-    return [by[k] for k in sorted(by)]
+def _book_of_goal(db: DB, gid: str) -> dict | None:
+    return db.one("SELECT * FROM books WHERE goal_id=?", (gid,))
 
 
 def listing(db: DB) -> list[dict]:
-    """Book studies, newest first, with their ideas: how many, how many known and how many strong (the shelf's rings)."""
+    """Book studies, newest first, with their lessons: how many, how many known and how many strong (the shelf's rings)."""
     st = graph.states(db)
     counts: dict[str, dict] = {}
     for r in db.q("SELECT book_id, node_id FROM book_nodes"):
         c = counts.setdefault(r["book_id"], {"ideas": 0, "known": 0, "strong": 0})
         s = st.get(r["node_id"])
         c["ideas"] += 1
-        c["known"] += int(bool(s) and s.state in ("learned", "mastered", "rusty"))
+        c["known"] += int(bool(s) and s.state in KNOWN)
         c["strong"] += int(bool(s) and s.state == "mastered")
     out = []
     for b in db.q("SELECT b.*, s.author FROM books b LEFT JOIN sources s ON s.id = b.source_id ORDER BY b.updated_at DESC"):
-        ps = parts(db, b["id"])
+        n = db.one("SELECT COUNT(*) AS n FROM book_chapters WHERE book_id=?", (b["id"],))["n"] or b["chapters"]
+        done = sum(1 for ch in _chapter_rows(db, b["id"]) if ch["lessons"] and all(x["state"] in KNOWN for x in ch["lessons"]))
         out.append({"id": b["id"], "sourceId": b["source_id"], "title": b["title"], "author": b["author"] or "",
                     "status": b["status"], "chapters": b["chapters"], "chaptersDone": b["chapters_done"],
-                    "parts": len(ps), "partsDone": sum(1 for p in ps if p["status"] == "done"),
+                    "parts": n, "partsDone": done, "goalId": b["goal_id"],
                     **counts.get(b["id"], {"ideas": 0, "known": 0, "strong": 0}), "updatedAt": b["updated_at"]})
+    return out
+
+
+def _chapter_rows(db: DB, bid: str, st: dict | None = None) -> list[dict]:
+    st = st if st is not None else graph.states(db)
+    nodes = graph.node_of(db)
+    others: dict[str, list[str]] = {}
+    for r in db.q("SELECT node_id, book_id FROM book_nodes WHERE book_id != ?", (bid,)):
+        others.setdefault(r["node_id"], []).append(r["book_id"])
+    titles = {r["id"]: r["title"] for r in db.q("SELECT id, title FROM books")}
+    written = {r["concept_id"] for r in db.q("SELECT DISTINCT concept_id FROM cards")}
+    rendered = {r["concept_id"] for r in db.q("SELECT DISTINCT concept_id FROM prose")}
+    started = {r["id"] for r in db.q("SELECT id FROM concepts WHERE started=1")}
+    out = []
+    for ch in db.q("SELECT * FROM book_chapters WHERE book_id=? ORDER BY chapter", (bid,)):
+        lessons = []
+        for p in db.q("SELECT * FROM book_parts WHERE book_id=? AND chapter=? AND concept_id IS NOT NULL ORDER BY ord",
+                      (bid, ch["chapter"])):
+            cid = p["concept_id"]
+            nid = nodes.get(cid, cid)
+            s = st.get(nid) or st.get(cid)
+            lessons.append({"id": p["id"], "conceptId": cid, "nodeId": nid, "title": p["title"], "covers": p["summary"],
+                            "pages": [p["page_from"], p["page_to"]], "ideas": loads(p["ideas"], []),
+                            "state": s.state if s else "pending", "mastery": s.mastery if s else 0.0,
+                            "written": cid in rendered, "carded": cid in written, "started": cid in started,
+                            "alsoIn": [{"id": o, "title": titles.get(o, o)} for o in others.get(nid, [])]})
+        out.append({"chapter": ch["chapter"], "title": ch["title"], "summary": ch["summary"], "pages": [ch["page_from"], ch["page_to"]],
+                    "moduleId": ch["module_id"], "mapped": bool(ch["mapped"]), "lessons": lessons})
     return out
 
 
@@ -132,61 +202,76 @@ def view(db: DB, bid: str) -> dict | None:
     b = get(db, bid)
     if not b:
         return None
-    st = graph.states(db)
-    nodes_by_part: dict[int, list[dict]] = {}
-    for r in db.q("""SELECT bn.*, n.title, n.statement, n.kind FROM book_nodes bn JOIN nodes n ON n.id = bn.node_id
-                     WHERE bn.book_id=? ORDER BY bn.part_id, bn.ord""", (bid,)):
-        s = st.get(r["node_id"])
-        others = [x["book_id"] for x in db.q("SELECT book_id FROM book_nodes WHERE node_id=? AND book_id!=?", (r["node_id"], bid))]
-        nodes_by_part.setdefault(r["part_id"], []).append(
-            {"id": r["node_id"], "title": r["title"], "statement": r["statement"], "kind": r["kind"], "pages": r["pages"],
-             "state": s.state if s else "pending", "fromGraph": not r["created"], "otherBooks": others})
+    chapters = _chapter_rows(db, bid)
     running = db.one("SELECT status, error, progress FROM jobs WHERE kind='book_map' AND input LIKE ? ORDER BY id DESC LIMIT 1",
                      (f'%"{bid}"%',))
-    ps = []
-    for p in parts(db, bid):
-        ps.append({"id": p["id"], "ord": p["ord"], "chapter": p["chapter"], "chapterTitle": p["chapter_title"],
-                   "title": p["title"], "pages": [p["page_from"], p["page_to"]], "summary": p["summary"],
-                   "status": p["status"], "sessionId": p["session_id"], "practiceId": p["practice_id"],
-                   "ideas": nodes_by_part.get(p["id"], [])})
-    # the part you are in the middle of comes first, else the first part not done
-    nxt = (next((p["id"] for p in ps if p["status"] == "studying" and p["ideas"]), None)
-           or next((p["id"] for p in ps if p["status"] != "done" and p["ideas"]), None))
-    return {"id": b["id"], "sourceId": b["source_id"], "title": b["title"], "status": b["status"],
-            "chapters": b["chapters"], "chaptersDone": b["chapters_done"], "parts": ps, "next": nxt,
+    research = {r["id"]: r["research"] for r in db.q("SELECT id, research FROM modules")}
+    for ch in chapters:
+        ch["writing"] = research.get(ch["moduleId"]) == "researching"
+    order = [x for ch in chapters for x in ch["lessons"]]
+    nxt = (next((x for x in order if x["started"] and x["state"] not in KNOWN), None)
+           or next((x for x in order if x["state"] not in KNOWN), None))
+    return {"id": b["id"], "sourceId": b["source_id"], "title": b["title"], "status": b["status"], "goalId": b["goal_id"],
+            "version": b["version"], "chapters": chapters, "chapterCount": b["chapters"], "chaptersDone": b["chapters_done"],
+            "next": nxt["conceptId"] if nxt else None,
             "error": running["error"] if running and running["status"] == "failed" else None,
             "progress": (loads(running["progress"], []) or [""])[-1] if running and running["status"] in ("queued", "running") else "",
             "busy": bool(running and running["status"] in ("queued", "running"))}
 
 
+def lesson_book(db: DB, cid: str) -> dict | None:
+    """For a lesson page: the book, chapter and pages of a book lesson, and its neighbours in reading order."""
+    p = db.one("SELECT * FROM book_parts WHERE concept_id=?", (cid,))
+    if not p:
+        return None
+    b = get(db, p["book_id"])
+    order = [r["concept_id"] for r in db.q("SELECT concept_id FROM book_parts WHERE book_id=? AND concept_id IS NOT NULL ORDER BY ord",
+                                            (p["book_id"],))]
+    i = order.index(cid)
+    title = {r["id"]: r["title"] for r in db.q("SELECT id, title FROM concepts WHERE id IN (%s)" % ",".join("?" * len(order)), order)}
+    near = lambda j: {"id": order[j], "title": title.get(order[j], "")} if 0 <= j < len(order) else None  # noqa: E731
+    return {"bookId": b["id"], "bookTitle": b["title"], "sourceId": b["source_id"], "chapter": p["chapter"],
+            "chapterTitle": p["chapter_title"], "pages": [p["page_from"], p["page_to"]], "covers": p["summary"],
+            "prev": near(i - 1), "next": near(i + 1), "index": i + 1, "count": len(order)}
+
+
 # ---------------------------------------------------------------- learner actions
 
 def start(db: DB, jobs: Jobs, source_id: str) -> str:
-    """Make the book's parts and map it. Starting a book that exists opens it (and retries a failed map)."""
+    """Make the book's hidden goal and chapters, then map it. Starting a book that exists opens it (and retries a failed map)."""
     src = db.one("SELECT * FROM sources WHERE id=?", (source_id,))
     if not src:
         raise BookError("unknown source")
     if src["status"] != "ready":
         raise BookError("this PDF has no readable text yet")
     old = db.one("SELECT * FROM books WHERE source_id=?", (source_id,))
+    if old and old["version"] == 1:  # a book mapped as parts: map it again as chapters of lessons (sessions and ideas stay)
+        delete(db, old["id"])
+        old = None
     if old:
-        if old["status"] in ("failed", "mapping") and not jobs.active("book_map", book_id=old["id"]):
-            db.x("UPDATE books SET status='mapping', updated_at=? WHERE id=?", (now(), old["id"]))
-            jobs.enqueue("book_map", f"Map the book: {old['title'][:60]}", {"book_id": old["id"]})
+        retry(db, jobs, old["id"])
         return old["id"]
-    ps = parts_from_outline(loads(src["outline"], []), src["pages"])
-    if not ps:
+    chapters = chapters_from_outline(loads(src["outline"], []), src["pages"])
+    if not chapters:
         raise BookError("the book has no pages to study")
-    bid = f"b-{secrets.token_hex(4)}"
+    tag = secrets.token_hex(4)
+    bid, gid = f"b-{tag}", f"g-book-{tag}"
     ts = now()
     with db.tx():
-        db.conn.execute("""INSERT INTO books(id, source_id, title, status, chapters_done, chapters, created_at, updated_at)
+        db.conn.execute("""INSERT INTO goals(id, title, why, done, hours, profile, created_at, kind)
                            VALUES(?,?,?,?,?,?,?,?)""",
-                        (bid, source_id, src["title"], "mapping", 0, len({p["chapter"] for p in ps}), ts, ts))
-        for n, p in enumerate(ps):
-            db.conn.execute("""INSERT INTO book_parts(book_id, ord, chapter, chapter_title, title, page_from, page_to)
+                        (gid, src["title"], f"Study the book {src['title']}", "", 5, "", ts, "bookstudy"))
+        db.conn.execute("INSERT INTO tracks(id, goal_id, ord, title, summary) VALUES(?,?,?,?,?)",
+                        (f"{gid}-t", gid, 0, src["title"], src["author"] or ""))
+        for ch in chapters:
+            mid = f"{gid}-c{ch['chapter']}"
+            db.conn.execute("""INSERT INTO modules(id, track_id, ord, title, research, planned, summary, seq)
+                               VALUES(?,?,?,?,?,?,?,?)""", (mid, f"{gid}-t", ch["chapter"], ch["title"][:200], "outline", 0, "", ch["chapter"]))
+            db.conn.execute("""INSERT INTO book_chapters(book_id, chapter, title, page_from, page_to, sections, module_id)
                                VALUES(?,?,?,?,?,?,?)""",
-                            (bid, n, p["chapter"], p["chapter_title"][:200], p["title"][:200], p["page_from"], p["page_to"]))
+                            (bid, ch["chapter"], ch["title"][:200], ch["page_from"], ch["page_to"], dumps(ch["sections"]), mid))
+        db.conn.execute("""INSERT INTO books(id, source_id, title, status, chapters_done, chapters, created_at, updated_at, goal_id, version)
+                           VALUES(?,?,?,?,?,?,?,?,?,2)""", (bid, source_id, src["title"], "mapping", 0, len(chapters), ts, ts, gid))
     jobs.enqueue("book_map", f"Map the book: {src['title'][:60]}", {"book_id": bid})
     return bid
 
@@ -198,76 +283,35 @@ def retry(db: DB, jobs: Jobs, bid: str) -> None:
         jobs.enqueue("book_map", f"Map the book: {b['title'][:60]}", {"book_id": bid})
 
 
-def _part(db: DB, part_id: int) -> dict:
-    p = db.one("SELECT * FROM book_parts WHERE id=?", (part_id,))
-    if not p:
-        raise BookError("unknown part")
-    return p
-
-
-def study(db: DB, jobs: Jobs, part_id: int) -> str:
-    """Start (or reopen) the study session of one part."""
-    p = _part(db, part_id)
-    if p["session_id"] and session.get(db, p["session_id"]):
-        return p["session_id"]
-    b = get(db, p["book_id"])
-    own = db.q("""SELECT bn.node_id, bn.key, bn.pages, n.title, n.statement FROM book_nodes bn JOIN nodes n ON n.id = bn.node_id
-                  WHERE bn.part_id=? ORDER BY bn.ord""", (part_id,))
-    if not own:
-        raise BookError("this part has no ideas to study")
-    own_ids = {r["node_id"] for r in own}
-    into: dict[str, set[str]] = {}
-    for lk in graph.links(db):
-        if lk["dst"] in own_ids:
-            into.setdefault(lk["dst"], set()).add(lk["src"])
-    outside = sorted({s for srcs in into.values() for s in srcs} - own_ids)
-    titles = {r["id"]: r for r in db.q(f"SELECT id, title, statement FROM nodes WHERE id IN ({','.join('?' * len(outside))})",
-                                       outside)} if outside else {}
-    key_of = {r["node_id"]: f"i{n + 1}" for n, r in enumerate(own)}
-    key_of.update({nid: f"p{n + 1}" for n, nid in enumerate(n for n in outside if n in titles)})
-    ideas = [{"key": key_of[nid], "title": titles[nid]["title"], "statement": titles[nid]["statement"], "node": nid,
-              "prereqs": [], "fromGraph": True, "outside": True} for nid in outside if nid in titles]
-    for r in own:
-        ideas.append({"key": key_of[r["node_id"]], "title": r["title"], "statement": r["statement"], "node": r["node_id"],
-                      "prereqs": sorted(key_of[s] for s in into.get(r["node_id"], ()) if s in key_of and s != r["node_id"]),
-                      "pages": r["pages"], "fromGraph": False})
-    topic = f'{p["title"]} ({b["title"]}, pp. {p["page_from"]}-{p["page_to"]})'
-    sid = session.start_from_ideas(db, jobs, topic, p["title"], ideas, [b["source_id"]], book_part=part_id)
-    db.x("UPDATE book_parts SET session_id=?, status='studying' WHERE id=?", (sid, part_id))
-    db.x("UPDATE books SET updated_at=? WHERE id=?", (now(), b["id"]))
-    return sid
+def homework(db: DB, jobs: Jobs, bid: str, chapter: int) -> str:
+    """Recall practice over a chapter's lessons."""
+    ids = [r["node_id"] for r in db.q("""SELECT bn.node_id FROM book_nodes bn JOIN book_parts p ON p.id = bn.part_id
+                                         WHERE bn.book_id=? AND p.chapter=? ORDER BY p.ord""", (bid, chapter))]
+    if not ids:
+        raise BookError("this chapter has no lessons to practise yet")
+    return practice.start(db, jobs, ids)
 
 
 def on_session_done(db: DB, sid: str) -> None:
+    """Version 1 books: a part's study session is done."""
     db.x("UPDATE book_parts SET status='done' WHERE session_id=?", (sid,))
 
 
-def homework(db: DB, jobs: Jobs, part_id: int) -> str:
-    """Recall practice over the part's ideas (and reopen it when it already exists and is not finished)."""
-    p = _part(db, part_id)
-    if p["practice_id"]:
-        row = db.one("SELECT status FROM practices WHERE id=?", (p["practice_id"],))
-        if row and row["status"] == "active":
-            return p["practice_id"]
-    ids = [r["node_id"] for r in db.q("SELECT node_id FROM book_nodes WHERE part_id=? ORDER BY ord", (part_id,))]
-    if not ids:
-        raise BookError("this part has no ideas to practise")
-    pid = practice.start(db, jobs, ids)
-    db.x("UPDATE book_parts SET practice_id=? WHERE id=?", (pid, part_id))
-    return pid
-
-
 def delete(db: DB, bid: str) -> None:
-    """Remove the book study. Ideas it made stay when the learner has evidence on them or another session or book uses
-    them; the others go."""
-    if not get(db, bid):
+    """Remove the book study and its hidden goal (lessons, cards, notes). Graph ideas other goals or books use stay."""
+    b = get(db, bid)
+    if not b:
         return
+    from .seed import delete_goal
+    if b["goal_id"]:
+        delete_goal(db, b["goal_id"])
     made = [r["node_id"] for r in db.q("SELECT node_id FROM book_nodes WHERE book_id=? AND created=1", (bid,))]
     with db.tx():
-        db.conn.execute("DELETE FROM book_nodes WHERE book_id=?", (bid,))
-        db.conn.execute("DELETE FROM book_parts WHERE book_id=?", (bid,))
+        for t in ("book_nodes", "book_parts", "book_chapters"):
+            db.conn.execute(f"DELETE FROM {t} WHERE book_id=?", (bid,))
         db.conn.execute("DELETE FROM books WHERE id=?", (bid,))
         _drop_unused(db, made)
+    graph.prune(db)
 
 
 def _drop_unused(db: DB, nids: list[str]) -> None:
@@ -293,6 +337,20 @@ def _chapter_text(db: DB, source_id: str, page_from: int, page_to: int) -> str:
     return "\n\n".join(f"[p. {r['page']}]\n{r['text'][:per]}" for r in rows if r["text"].strip())
 
 
+def _graph_context(db: DB, title: str, text: str, mine: set[str]) -> str:
+    """Older graph ideas the mapper may reuse (same_as) or build on: all their titles while the graph is small (a word
+    search misses synonyms such as "matmul" and "matrix multiplication"), else the best word-search matches."""
+    others = [r for r in db.q("SELECT id, title, statement FROM nodes ORDER BY title") if r["id"] not in mine]
+    if len(others) <= GRAPH_LIST_MAX:
+        return "\n".join(f'- {r["id"]}: {r["title"]}' for r in others) or "(the graph is empty)"
+    found: dict[str, dict] = {}
+    for q in (title, f"{title} {text[:3000]}"):
+        for c in graph.candidates(db, q, k=30):
+            if c["id"] not in mine:
+                found.setdefault(c["id"], c)
+    return graph.candidates_text(list(found.values())[:60])
+
+
 def run_map(jobs: Jobs, jid: int, d: dict) -> dict:
     from .jobs import prompt
     from .providers import Call
@@ -300,163 +358,188 @@ def run_map(jobs: Jobs, jid: int, d: dict) -> dict:
     b = get(db, d["book_id"])
     if not b:
         return {"skipped": True}
-    chapters = _chapters(db, b["id"])
-    todo = d.get("only") or range(b["chapters_done"], len(chapters))  # "only": re-map chosen chapters (by index)
+    chapters = db.q("SELECT * FROM book_chapters WHERE book_id=? ORDER BY chapter", (b["id"],))
     try:
-        for ci in todo:
-            ch = chapters[ci]
-            jobs.progress(jid, f"chapter {ci + 1} of {len(chapters)}: {ch[0]['chapter_title'][:80]}")
-            _map_chapter(db, jobs, jid, b, ci, ch, prompt, Call)
-            if not d.get("only"):
-                db.x("UPDATE books SET chapters_done=?, updated_at=? WHERE id=?", (ci + 1, now(), b["id"]))
+        for ch in chapters:
+            if ch["mapped"]:
+                continue
+            jobs.progress(jid, f"chapter {ch['chapter']} of {len(chapters)}: {ch['title'][:80]}")
+            _map_chapter(db, jobs, jid, b, ch, prompt, Call)
+            done = db.one("SELECT COUNT(*) AS n FROM book_chapters WHERE book_id=? AND mapped=1", (b["id"],))["n"]
+            db.x("UPDATE books SET chapters_done=?, updated_at=? WHERE id=?", (done, now(), b["id"]))
     except Exception:
         db.x("UPDATE books SET status='failed', updated_at=? WHERE id=?", (now(), b["id"]))
         raise
     db.x("UPDATE books SET status='ready', updated_at=? WHERE id=?", (now(), b["id"]))
-    n = db.one("SELECT COUNT(*) AS n FROM book_nodes WHERE book_id=?", (b["id"],))["n"]
-    jobs.progress(jid, f"mapped {len(chapters)} chapter(s), {n} ideas")
-    return {"chapters": len(chapters), "ideas": n}
+    n = db.one("SELECT COUNT(*) AS n FROM book_parts WHERE book_id=? AND concept_id IS NOT NULL", (b["id"],))["n"]
+    jobs.progress(jid, f"mapped {len(chapters)} chapter(s), {n} lessons")
+    return {"chapters": len(chapters), "lessons": n}
 
 
-def _unsplit(db: DB, ch: list[dict]) -> list[dict]:
-    """Before a chapter is mapped again: join the parts an earlier map split (no session yet) back into one."""
-    keep = []
-    first: dict[str, int] = {}
-    for p in ch:
-        m = _SPLIT.search(p["title"])
-        base = _SPLIT.sub("", p["title"])
-        if m and m.group(1) == "1":
-            first[base] = p["id"]
-        if m and m.group(1) != "1" and not p["session_id"] and base in first:
-            db.x("UPDATE book_nodes SET part_id=? WHERE part_id=?", (first[base], p["id"]))  # cleaned up with the chapter
-            db.x("DELETE FROM book_parts WHERE id=?", (p["id"],))
-            continue
-        if m:
-            db.x("UPDATE book_parts SET title=? WHERE id=?", (_SPLIT.sub("", p["title"]), p["id"]))
-            p = {**p, "title": _SPLIT.sub("", p["title"])}
-        keep.append(p)
-    return keep
-
-
-def _subsections(db: DB, b: dict, p: dict) -> list[str]:
-    """The outline titles one level below a part, to help the mapper place ideas."""
-    src = db.one("SELECT outline FROM sources WHERE id=?", (b["source_id"],))
-    items = [o for o in loads(src["outline"] if src else "[]", []) if o.get("page")]
-    mine = next((o for o in items if o["title"] == p["title"]), None)
-    if not mine:
-        return []
-    return [o["title"] for o in items
-            if o["level"] == mine["level"] + 1 and p["page_from"] <= o["page"] <= p["page_to"]][:12]
-
-
-def _graph_context(db: DB, ch: list[dict], text: str, mine: set[str]) -> str:
-    """Older graph ideas the mapper may reuse (same_as) or build on: all their titles while the graph is small (a word
-    search misses synonyms such as "matmul" and "matrix multiplication"), else the best word-search matches."""
-    others = [r for r in db.q("SELECT id, title, statement FROM nodes ORDER BY title") if r["id"] not in mine]
-    if len(others) <= GRAPH_LIST_MAX:
-        return "\n".join(f'- {r["id"]}: {r["title"]}' for r in others) or "(the graph is empty)"
-    found: dict[str, dict] = {}
-    for q in [p["title"] for p in ch] + [f'{ch[0]["chapter_title"]} {text[:3000]}']:
-        for c in graph.candidates(db, q, k=12):
-            if c["id"] not in mine:
-                found.setdefault(c["id"], c)
-    return graph.candidates_text(list(found.values())[:60])
-
-
-def _split_big_parts(db: DB, b: dict, ch: list[dict]) -> None:
-    """A part with more than PART_MAX ideas becomes several parts of at most PART_SPLIT ideas, in the book's order
-    (each one study session), with the same pages. Then the book's parts are numbered again."""
-    for p in ch:
-        rows = db.q("SELECT node_id FROM book_nodes WHERE part_id=? ORDER BY ord", (p["id"],))
-        if len(rows) <= PART_MAX or p["session_id"]:
-            continue
-        groups = [rows[i:i + PART_SPLIT] for i in range(0, len(rows), PART_SPLIT)]
-        if len(groups) > 1 and len(groups[-1]) < 3:  # no tiny last session
-            groups[-2] += groups.pop()
-        n = len(groups)
-        summary = (db.one("SELECT summary FROM book_parts WHERE id=?", (p["id"],)) or {}).get("summary", "")
-        db.x("UPDATE book_parts SET title=? WHERE id=?", (f'{p["title"]} (1/{n})', p["id"]))
-        for gi, g in enumerate(groups[1:], start=2):
-            new = db.x("""INSERT INTO book_parts(book_id, ord, chapter, chapter_title, title, page_from, page_to, summary)
-                          VALUES(?,?,?,?,?,?,?,?)""",
-                       (b["id"], p["ord"], p["chapter"], p["chapter_title"], f'{p["title"]} ({gi}/{n})',
-                        p["page_from"], p["page_to"], summary))
-            for r in g:
-                db.x("UPDATE book_nodes SET part_id=? WHERE part_id=? AND node_id=?", (new, p["id"], r["node_id"]))
-    for n, r in enumerate(db.q("SELECT id FROM book_parts WHERE book_id=? ORDER BY ord, id", (b["id"],))):
-        db.x("UPDATE book_parts SET ord=? WHERE id=?", (n, r["id"]))
-
-
-def _map_chapter(db: DB, jobs: Jobs, jid: int, b: dict, ci: int, ch: list[dict], prompt, Call) -> None:
-    graph.sync(db)  # every goal concept has its node before the mapper sees the graph
-    ch = _unsplit(db, ch)
-    lines = []
-    for n, p in enumerate(ch):
-        subs = _subsections(db, b, p)
-        lines.append(f'{n}. {p["title"]} (pp. {p["page_from"]}-{p["page_to"]})' + (f' [{"; ".join(subs)}]' if subs else ""))
-    sections = "\n".join(lines)
-    text = _chapter_text(db, b["source_id"], ch[0]["page_from"], ch[-1]["page_to"])
-    # The chapter's own earlier result (a re-map) does not count: it is replaced below.
-    here = [p["id"] for p in ch]
-    not_here = f"AND bn.part_id NOT IN ({','.join('?' * len(here))})"
-    earlier = db.q(f"""SELECT bn.key, bn.node_id, n.title FROM book_nodes bn JOIN nodes n ON n.id = bn.node_id
-                       WHERE bn.book_id=? {not_here} ORDER BY bn.part_id, bn.ord""", (b["id"], *here))
-    earlier_text = "\n".join(f'- {r["key"]}: {r["title"]}' for r in earlier) or "(none: this is the first chapter)"
-    mine = {r["node_id"] for r in earlier}
-    # Every idea of this book (also this chapter's own earlier result) is never "older": earlier chapters are linked
-    # by key, and this chapter's old result is replaced.
-    book_all = {r["node_id"] for r in db.q("SELECT node_id FROM book_nodes WHERE book_id=?", (b["id"],))}
-    older = _graph_context(db, ch, text, book_all)
+def _map_chapter(db: DB, jobs: Jobs, jid: int, b: dict, ch: dict, prompt, Call) -> None:
+    from .jobs import slug
+    graph.sync(db)
+    secs = loads(ch["sections"], [])
+    sections = "\n".join(f'- {s["title"]} (pp. {s["page_from"]}-{s["page_to"]})' for s in secs) or "(no sections in the outline)"
+    text = _chapter_text(db, b["source_id"], ch["page_from"], ch["page_to"])
+    earlier = db.q("""SELECT p.concept_id, p.title FROM book_parts p WHERE p.book_id=? AND p.chapter < ? AND p.concept_id IS NOT NULL
+                      ORDER BY p.ord""", (b["id"], ch["chapter"]))
+    earlier_text = "\n".join(f'- {r["concept_id"]}: {r["title"]}' for r in earlier) or "(none: this is the first chapter)"
+    mine = {r["node_id"] for r in db.q("SELECT node_id FROM book_nodes WHERE book_id=?", (b["id"],))} \
+        | {r["concept_id"] for r in db.q("SELECT concept_id FROM book_parts WHERE book_id=? AND concept_id IS NOT NULL", (b["id"],))}
+    older = _graph_context(db, ch["title"], text, mine)
     out = jobs.call(jid, "Book map", Call(
-        prompt=prompt("book_map", book=b["title"], chapter=ch[0]["chapter_title"], sections=sections,
-                      earlier=earlier_text, graph=older, text=text or "(no text on these pages)"),
+        prompt=prompt("book_map", book=b["title"], chapter=ch["title"], pages=f'{ch["page_from"]}-{ch["page_to"]}',
+                      sections=sections, earlier=earlier_text, graph=older, text=text or "(no text on these pages)"),
         schema=MAP_SCHEMA, model="opus", timeout=900))
-    key_node = {r["key"]: r["node_id"] for r in earlier}
     existing = {r["id"] for r in db.q("SELECT id FROM nodes")}
-    prefix = f"c{ci + 1}-"
+    in_book = {r["concept_id"] for r in earlier}
+    base = db.one("SELECT COALESCE(MAX(ord), -1) AS o FROM book_parts WHERE book_id=?", (b["id"],))["o"] + 1
     ts = now()
-    pending_links: list[tuple[str, list[str]]] = []
+    key_cid: dict[str, str] = {}
+    rows = []
+    for n, les in enumerate(out.get("lessons") or []):
+        title = " ".join((les.get("title") or "").split())[:200]
+        if not title:
+            continue
+        cid = f'{ch["module_id"]}-{slug(les.get("key") or title, 30)}'
+        while cid in key_cid.values():
+            cid += "-2"
+        key_cid[les.get("key") or title] = cid
+        rows.append((n, les, title, cid))
     with db.tx():
-        old = [r[0] for r in db.conn.execute(
-            "SELECT node_id FROM book_nodes WHERE book_id=? AND created=1 AND part_id IN (%s)" % ",".join("?" * len(ch)),
-            (b["id"], *here)).fetchall()]
-        db.conn.execute("DELETE FROM book_nodes WHERE book_id=? AND part_id IN (%s)" % ",".join("?" * len(ch)),
-                        (b["id"], *here))  # a retried chapter starts clean
-        _drop_unused(db, old)
-        for entry in out.get("parts") or []:
-            if not isinstance(entry.get("part"), int) or not 0 <= entry["part"] < len(ch):
-                continue
-            part = ch[entry["part"]]
-            db.conn.execute("UPDATE book_parts SET summary=? WHERE id=?", ((entry.get("summary") or "")[:600], part["id"]))
-            for n, idea in enumerate(entry.get("ideas") or []):
-                title = " ".join((idea.get("title") or "").split())[:200]
-                if not title:
-                    continue
-                key = idea["key"] if idea["key"].startswith(prefix) else prefix + idea["key"]
-                if key in key_node:
-                    continue  # a duplicate key: the first one wins
-                same = idea.get("same_as")
-                if same in existing and same not in book_all and same not in mine:
-                    node, created = same, 0
-                    if db.conn.execute("SELECT 1 FROM book_nodes WHERE book_id=? AND node_id=?", (b["id"], node)).fetchone():
-                        key_node[key] = node  # this book already uses it in an earlier part
-                        continue
+        for n, les, title, cid in rows:
+            prereqs = []
+            for pk in les.get("prereq_keys") or []:
+                if pk in key_cid and key_cid[pk] != cid:
+                    prereqs.append(key_cid[pk])
+                elif pk in in_book:
+                    prereqs.append(pk)
+            a, z = _pages(les.get("pages") or "", ch["page_from"], ch["page_to"])
+            db.conn.execute("INSERT OR REPLACE INTO concepts VALUES(?,?,?,?,?,?,?,?,0)",
+                            (cid, ch["module_id"], n, title, (les.get("covers") or "")[:400], LESSON_MINUTES, dumps(prereqs), 0.1))
+            same = les.get("same_as")
+            node, created = cid, 1
+            if same in existing and same not in mine:
+                db.conn.execute("INSERT OR REPLACE INTO concept_nodes(concept_id, node_id) VALUES(?,?)", (cid, same))
+                node, created = same, 0
+            cur = db.conn.execute("""INSERT INTO book_parts(book_id, ord, chapter, chapter_title, title, page_from, page_to, summary,
+                                     concept_id, ideas) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                                  (b["id"], base + n, ch["chapter"], ch["title"], title, a, z, (les.get("covers") or "")[:400], cid,
+                                   dumps([" ".join(i.split())[:160] for i in (les.get("ideas") or [])][:8])))
+            db.conn.execute("""INSERT OR IGNORE INTO book_nodes(book_id, node_id, part_id, key, pages, created, ord)
+                               VALUES(?,?,?,?,?,?,?)""", (b["id"], node, cur.lastrowid, cid, f"{a}-{z}" if z != a else str(a), created, n))
+            for pk in les.get("prereq_keys") or []:  # an older graph idea it builds on: a link between nodes
+                if pk in existing and pk not in mine and pk not in key_cid and pk not in in_book:
+                    db.conn.execute("INSERT OR IGNORE INTO links(src, dst, why, origin) VALUES(?,?,?,?)", (pk, node, "", "book"))
+        db.conn.execute("UPDATE book_chapters SET summary=?, mapped=1 WHERE book_id=? AND chapter=?",
+                        ((out.get("summary") or "")[:1200], b["id"], ch["chapter"]))
+        db.conn.execute("UPDATE modules SET summary=?, planned=? WHERE id=?", ((out.get("summary") or "")[:600], len(rows), ch["module_id"]))
+    graph.sync(db)
+
+
+# ---------------------------------------------------------------- writing the lessons of a chapter (research for a book goal)
+
+def is_book_goal(db: DB, gid: str) -> bool:
+    g = db.one("SELECT kind FROM goals WHERE id=?", (gid,))
+    return bool(g and g["kind"] == "bookstudy")
+
+
+def write_cards(jobs: Jobs, jid: int, d: dict) -> dict:
+    """The cards of one chapter's lessons, from the chapter's pages only (no web). Called by ``research_module`` for a
+    book goal. Each section follows a stretch of the book and carries a close summary of what the book says there."""
+    from . import lesson, writer
+    from .jobs import prompt
+    from .providers import Call
+    db = jobs.db
+    ch = db.one("SELECT * FROM book_chapters WHERE module_id=?", (d["module_id"],))
+    b = get(db, ch["book_id"]) if ch else None
+    if not ch or not b:
+        raise BookError("this chapter belongs to no book")
+    db.x("UPDATE modules SET research='researching' WHERE id=?", (ch["module_id"],))
+    lessons = db.q("""SELECT p.*, c.objective FROM book_parts p JOIN concepts c ON c.id = p.concept_id
+                      WHERE p.book_id=? AND p.chapter=? ORDER BY p.ord""", (b["id"], ch["chapter"]))
+    have = {r["concept_id"] for r in db.q("SELECT DISTINCT concept_id FROM cards")}
+    todo = [x for x in lessons if x["concept_id"] not in have]
+    if not todo:
+        db.x("UPDATE modules SET research='ready' WHERE id=?", (ch["module_id"],))
+        return {"cards": 0}
+    jobs.progress(jid, f"writing {len(todo)} lesson(s) of “{ch['title'][:60]}” from pp. {ch['page_from']}-{ch['page_to']}")
+    listing_text = "\n".join(
+        f'- id {x["concept_id"]}: {x["title"]} (pp. {x["page_from"]}-{x["page_to"]}). Covers: {x["summary"]}. '
+        f'Key ideas: {"; ".join(loads(x["ideas"], [])) or "-"}' for x in todo)
+    others = "\n".join(f'- {x["title"]}' for x in lessons if x["concept_id"] not in {t["concept_id"] for t in todo}) or "(none)"
+    out = jobs.call(jid, "Research", Call(
+        prompt=prompt("book_cards", book=b["title"], chapter=ch["title"], summary=ch["summary"] or "(none)",
+                      lessons=listing_text, others=others, source=b["source_id"],
+                      text=_chapter_text(db, b["source_id"], ch["page_from"], ch["page_to"]) or "(no text)"),
+        schema=CARDS_SCHEMA, model="opus", timeout=1800))
+    by_id = {x["concept_id"]: x for x in todo}
+    written = []
+    ts = now()
+    for c in out.get("cards") or []:
+        x = by_id.get(c.get("id"))
+        if not x or not c.get("card", {}).get("sections"):
+            continue
+        card = c["card"]
+        for s in card["sections"]:
+            if s.get("viz"):
+                spec, notes = writer.check_viz(jobs, jid, {**card, "objective": x["objective"]}, s, s["viz"])
+                if spec:
+                    s["viz"] = spec
                 else:
-                    node, created = f"n-{secrets.token_hex(5)}", 1
-                    kind = idea.get("kind") if idea.get("kind") in KINDS else "concept"
-                    db.conn.execute("INSERT INTO nodes(id, title, statement, kind, created_at, origin) VALUES(?,?,?,?,?,?)",
-                                    (node, title, (idea.get("statement") or "")[:600], kind, ts, "book"))
-                    db.conn.execute("INSERT INTO node_fts(node_id, text) VALUES(?,?)",
-                                    (node, f'{title} {idea.get("statement") or ""}'))
-                    mine.add(node)
-                db.conn.execute("""INSERT OR IGNORE INTO book_nodes(book_id, node_id, part_id, key, pages, created, ord)
-                                   VALUES(?,?,?,?,?,?,?)""",
-                                (b["id"], node, part["id"], key, (idea.get("pages") or "")[:40], created, n))
-                key_node[key] = node
-                pending_links.append((node, idea.get("prereq_keys") or []))
-        for node, prereqs in pending_links:
-            for pk in prereqs:
-                src = key_node.get(pk) or key_node.get(prefix + pk) or (pk if pk in existing and pk not in book_all else None)
-                if src and src != node:
-                    db.conn.execute("INSERT OR IGNORE INTO links(src, dst, why, origin) VALUES(?,?,?,?)", (src, node, "", "book"))
-    _split_big_parts(db, b, ch)
+                    s.pop("viz", None)
+                if notes:
+                    s["vizNotes"] = notes
+        written.append((x, card))
+    with db.tx():
+        for x, card in written:
+            for s in card["sections"]:
+                if "viz" in s:
+                    s["viz"] = viz.validate(s["viz"])
+                    if not s["viz"]:
+                        del s["viz"]
+                if s.get("check"):
+                    s["check"] = {**mcq.shuffle(s["check"]), "id": f'q-{s["id"]}'}
+                if s.get("explain"):
+                    s["explain"]["id"] = f'e-{s["id"]}'
+            pages = {p for s in card["sections"] for p in [s.get("book", {}).get("pages", "")] if p}
+            body = {**card, "objective": x["objective"], "angles": card.get("angles") or [],
+                    "sources": [{"title": f'{b["title"]}, pp. {x["page_from"]}-{x["page_to"]}',
+                                 "url": f'source:{b["source_id"]}#page={x["page_from"]}', "kind": "book",
+                                 "why": "The book this lesson follows" + (f' (pages {", ".join(sorted(pages))})' if pages else "")}]}
+            db.conn.execute("INSERT INTO cards(concept_id, version, body, fact_check, checked_at) VALUES(?,?,?,?,?)",
+                            (x["concept_id"], 1, dumps(body), "pending", ts))
+        db.conn.execute("UPDATE modules SET research='ready' WHERE id=?", (ch["module_id"],))
+    jobs.progress(jid, f"wrote {len(written)} lesson card(s) from the book")
+    if written:
+        jobs.enqueue("fact_check", f"Fact-check {ch['title'][:60]}", {"concept_ids": [x["concept_id"] for x, _ in written]})
+    if d.get("open"):  # the lesson the learner opened: write its text now
+        lesson.ensure_rendition(db, d["open"])
+        lesson.ensure_prose(db, jobs, d["open"])
+    return {"cards": len(written)}
+
+
+def ensure_written(db: DB, jobs: Jobs, cid: str) -> bool:
+    """On first open of a book lesson without a card: write the chapter's cards (then the lesson). True when queued.
+    Any open of a book lesson marks its book as used now (Today continues the newest book)."""
+    db.x("UPDATE books SET updated_at=? WHERE id=(SELECT book_id FROM book_parts WHERE concept_id=?)", (now(), cid))
+    row = db.one("""SELECT m.id, m.research, t.goal_id FROM concepts c JOIN modules m ON m.id = c.module_id
+                    JOIN tracks t ON t.id = m.track_id WHERE c.id=?""", (cid,))
+    if not row or not is_book_goal(db, row["goal_id"]) or db.one("SELECT 1 FROM cards WHERE concept_id=?", (cid,)):
+        return False
+    if not jobs.active("research_module", module_id=row["id"]):
+        db.x("UPDATE modules SET research='researching' WHERE id=?", (row["id"],))
+        jobs.enqueue("research_module", "Write the lessons of this chapter", {"module_id": row["id"], "open": cid})
+    return True
+
+
+def open_lesson(db: DB, jobs: Jobs, cid: str) -> None:
+    """Make the lesson's book goal the active goal (the lesson page reads the active goal) and mark the book as used now."""
+    p = db.one("SELECT book_id FROM book_parts WHERE concept_id=?", (cid,))
+    b = get(db, p["book_id"]) if p else None
+    if not b or not b["goal_id"]:
+        raise BookError("this lesson belongs to no book")
+    db.set_meta("active_goal", b["goal_id"])
+    db.set_meta("last_book", b["id"])
+    db.x("UPDATE books SET updated_at=? WHERE id=?", (now(), b["id"]))

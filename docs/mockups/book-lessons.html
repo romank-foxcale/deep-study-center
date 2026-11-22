@@ -1,0 +1,395 @@
+<meta charset="utf-8">
+<title>Book Lessons</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: the app shell (slim sidebar), one screen at a time: Book -> Chapter -> Lesson (with its quiz). Dark star chart first. */
+:root {
+  color-scheme: dark;
+  --bg: #0b0f17; --panel: #121826; --panel-2: #182033; --line: #232c3f; --line-2: #2f3a52;
+  --fg: #e6eaf2; --muted: #8b95aa; --faint: #5f6a80; --accent: #8fb3ff; --accent-ink: #0b0f17;
+  --st-mastered: #f5c451; --st-learned: #8fdcaa; --st-learning: #67b7ff; --st-rusty: #ff8a65; --st-ready: #8a93a6; --st-locked: #343b4b;
+  --c-ie: #22c08a; --c-udl: #9b7bff; --ink: #e6eaf2; --paper: #0f1522;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-read: "Source Serif 4", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  color-scheme: light; --bg: #f5f3ee; --panel: #fff; --panel-2: #f0ede6; --line: #e2ded4; --line-2: #d3cec2; --fg: #1d1f24; --muted: #646a76;
+  --faint: #9aa0aa; --accent: #3b5bdb; --accent-ink: #fff; --st-mastered: #c99a12; --st-learned: #2f9e6a; --st-learning: #2f7fd8;
+  --st-rusty: #e06c3c; --st-ready: #7b8494; --st-locked: #d6d2c8; --ink: #1d1f24; --paper: #fbfaf7; } }
+:root[data-theme="light"] {
+  color-scheme: light; --bg: #f5f3ee; --panel: #fff; --panel-2: #f0ede6; --line: #e2ded4; --line-2: #d3cec2; --fg: #1d1f24; --muted: #646a76;
+  --faint: #9aa0aa; --accent: #3b5bdb; --accent-ink: #fff; --st-mastered: #c99a12; --st-learned: #2f9e6a; --st-learning: #2f7fd8;
+  --st-rusty: #e06c3c; --st-ready: #7b8494; --st-locked: #d6d2c8; --ink: #1d1f24; --paper: #fbfaf7; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 var(--font-body); }
+button, input, textarea { font: inherit; color: inherit; }
+a { color: var(--accent); }
+.bar-note { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: space-between; padding-block: 8px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  border-bottom: 1px solid var(--line); background: var(--panel); font-size: 12px; color: var(--muted); }
+.bar-note b { color: var(--fg); }
+.app { display: grid; grid-template-columns: 200px minmax(0, 1fr); }
+.side { border-right: 1px solid var(--line); padding: 18px 12px; display: flex; flex-direction: column; gap: 2px; min-height: calc(100vh - 37px); }
+.brand { font: 600 15px var(--font-display); padding: 0 8px 14px; display: flex; gap: 8px; align-items: center; }
+.brand i { width: 10px; height: 10px; transform: rotate(45deg); background: var(--accent); border-radius: 2px; }
+.side a { padding: 8px 10px; border-radius: 8px; color: var(--muted); text-decoration: none; font-weight: 500; }
+.side a.on { background: var(--panel-2); color: var(--fg); }
+main { padding-block: 24px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); min-width: 0; }
+.screen { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.screen[hidden] { display: none; }
+.eyebrow { font: 400 11px var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 600 clamp(24px, 3vw, 32px)/1.15 var(--font-display); margin: 0; text-wrap: balance; }
+h2 { font: 600 19px var(--font-display); margin: 0; }
+h3 { font: 600 15.5px var(--font-display); margin: 0; }
+p { margin: 0; }
+.muted { color: var(--muted); } .small { font-size: 12.5px; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .between { justify-content: space-between; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.btn { border: 1px solid var(--line-2); background: var(--panel-2); border-radius: 9px; padding: 7px 14px; cursor: pointer; font-weight: 500; text-decoration: none; color: var(--fg); display: inline-flex; gap: 6px; align-items: center; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.small { padding: 4px 10px; font-size: 12.5px; }
+.btn:focus-visible, .opt:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--muted); white-space: nowrap; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.mastered { background: var(--st-mastered); box-shadow: 0 0 8px var(--st-mastered); } .learned { background: var(--st-learned); }
+.learning { background: conic-gradient(var(--st-learning) 0 60%, transparent 60%); box-shadow: inset 0 0 0 1.5px var(--st-learning); }
+.ready { box-shadow: inset 0 0 0 1.5px var(--st-ready); } .locked { background: var(--st-locked); } .rusty { background: var(--st-rusty); }
+.grid-lesson { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 22px; align-items: start; }
+@media (max-width: 960px) { .grid-lesson { grid-template-columns: minmax(0, 1fr); } .aside { position: static !important; } }
+.aside { position: sticky; top: 16px; }
+/* book */
+.chapter { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); overflow: hidden; }
+.chapter > summary { list-style: none; cursor: pointer; padding: 14px 16px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.chapter > summary::-webkit-details-marker { display: none; }
+.chapter > summary .num { font: 400 12px var(--font-mono); color: var(--faint); }
+.chapter .inner { padding: 0 16px 14px 16px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.dots { display: flex; gap: 3px; flex-wrap: wrap; } .dots i { width: 8px; height: 8px; border-radius: 50%; }
+/* lesson list */
+.lesson-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--panel); text-decoration: none; color: inherit; }
+.lesson-row:hover { border-color: var(--line-2); }
+.lesson-row.now { border-color: var(--c-ie); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c-ie) 45%, transparent); }
+.lesson-row .what { color: var(--muted); font-size: 13px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+/* lesson */
+.reader { font: 17px/1.72 var(--font-read); }
+.chunk { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.chunk > summary { list-style: none; cursor: pointer; padding: 14px 16px; display: flex; gap: 10px; align-items: baseline; }
+.chunk > summary::-webkit-details-marker { display: none; }
+.chunk > summary::before { content: "\25B8"; color: var(--faint); font-size: 12px; }
+.chunk[open] > summary::before { content: "\25BE"; }
+.chunk > summary h3 { flex: 1; }
+.chunk .body { padding: 0 18px 16px; display: flex; flex-direction: column; gap: 14px; }
+.book-says { border-left: 3px solid var(--line-2); padding: 8px 14px; background: var(--paper); border-radius: 0 10px 10px 0; }
+.book-says .eyebrow { margin-bottom: 4px; }
+.book-says .reader { font-size: 15.5px; color: var(--muted); }
+.book-says q { font-style: italic; color: var(--fg); }
+.means .reader p + p { margin-top: 0.7em; }
+.tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.idea { color: var(--accent); text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; position: relative; }
+.idea .hc { display: none; position: absolute; z-index: 10; top: calc(100% + 6px); left: 0; width: 300px; font: 13px/1.5 var(--font-body); color: var(--fg); background: var(--panel);
+  border: 1px solid var(--line-2); border-radius: 10px; padding: 10px 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); flex-direction: column; gap: 5px; cursor: auto; }
+.idea:hover .hc, .idea:focus .hc { display: flex; }
+.hc .k { font: 400 10.5px var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+math[display="block"] { display: block; margin: 0.6em 0; font-size: 1.15em; }
+.viz { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--paper); display: flex; flex-direction: column; gap: 10px; }
+.bars { display: grid; grid-template-columns: 80px minmax(0, 1fr) 52px; gap: 6px 10px; align-items: center; font: 12.5px var(--font-mono); }
+.bars .b { height: 14px; border-radius: 4px; background: var(--accent); }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.selbar { position: absolute; z-index: 20; display: none; gap: 4px; background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
+.selbar.on { display: flex; }
+.dialog { position: fixed; inset: 0; background: rgba(4,6,10,0.6); display: grid; place-items: center; z-index: 30; padding: 16px; }
+.dialog[hidden] { display: none; }
+.dialog .card { width: min(520px, 100%); }
+.tag { border: 1px solid var(--line-2); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; background: transparent; cursor: pointer; color: var(--muted); }
+.tag[aria-pressed="true"] { border-color: var(--accent); color: var(--fg); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+textarea { width: 100%; min-height: 70px; resize: vertical; border-radius: 10px; border: 1px solid var(--line-2); background: var(--bg); padding: 10px; }
+/* quiz */
+.q { border-left: 3px solid var(--accent); }
+.opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 560px) { .opts { grid-template-columns: minmax(0, 1fr); } }
+.opt { text-align: left; border: 1px solid var(--line-2); background: var(--panel-2); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+.opt[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.conf { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.conf button { font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line-2); background: transparent; cursor: pointer; color: var(--muted); }
+.conf button[aria-pressed="true"] { background: var(--st-mastered); color: #1b1505; border-color: var(--st-mastered); }
+.mic { display: inline-flex; gap: 8px; align-items: center; }
+.mic i { width: 9px; height: 9px; border-radius: 50%; background: var(--st-rusty); }
+.mic.on i { animation: pulse 1s infinite; } @keyframes pulse { 50% { opacity: 0.25; } }
+.board { position: relative; border: 1px solid var(--line-2); border-radius: 12px; background:
+  repeating-linear-gradient(0deg, transparent 0 27px, color-mix(in srgb, var(--line) 70%, transparent) 27px 28px), var(--paper); overflow: hidden; }
+.board canvas { display: block; width: 100%; height: 260px; touch-action: none; cursor: crosshair; }
+.board .tb { position: absolute; right: 8px; top: 8px; display: flex; gap: 4px; }
+.verdict { border-radius: 10px; padding: 10px 12px; background: color-mix(in srgb, var(--st-learned) 12%, var(--panel)); border: 1px solid color-mix(in srgb, var(--st-learned) 40%, var(--line)); }
+.verdict[hidden] { display: none; }
+.outline { display: flex; flex-direction: column; gap: 2px; }
+.outline a { color: var(--muted); text-decoration: none; padding: 5px 8px; border-radius: 8px; font-size: 13.5px; display: flex; gap: 8px; align-items: center; }
+.outline a:hover { background: var(--panel-2); color: var(--fg); }
+@media (max-width: 760px) { .app { grid-template-columns: minmax(0, 1fr); } .side { display: none; } }
+@media (prefers-reduced-motion: reduce) { .mic.on i { animation: none; } }
+</style>
+
+<div class="bar-note"><span><b>Mockup</b> · book study as saved lessons. Click through; select text in a lesson to give feedback; draw on the board.</span>
+  <span>Book → Chapter → Lesson → Quiz</span></div>
+
+<div class="app">
+  <nav class="side" aria-label="Main">
+    <div class="brand"><i></i>Deep Study Center</div>
+    <a href="#book">Today</a><a href="#book" class="on">Books</a><a href="#book">Learn</a><a href="#book">Practice</a><a href="#book">Map</a>
+  </nav>
+  <main>
+    <!-- BOOK -->
+    <section class="screen" id="s-book">
+      <div class="row between"><div><div class="eyebrow">Books · Philip Kiely · 259 pages</div><h1>Inference Engineering</h1></div>
+        <span class="pill"><i class="dot mastered"></i> 12 strong · 23 of 62 lessons learned</span></div>
+      <p class="muted" style="max-width:72ch">Every chapter has a short summary and its lessons. A lesson is one building block, written from the
+        book's pages the first time you open it and then kept. Open any lesson again at any time.</p>
+      <div id="chapters" style="display:flex;flex-direction:column;gap:10px"></div>
+    </section>
+
+    <!-- CHAPTER -->
+    <section class="screen" id="s-chapter" hidden>
+      <div><div class="eyebrow"><a href="#book">Inference Engineering</a> · Chapter 2 · pp. 41–72</div><h1>Models</h1></div>
+      <div class="card">
+        <div class="eyebrow">What this chapter is about</div>
+        <p class="reader" style="font-size:16px">How a model turns your prompt into tokens, one token at a time. The chapter walks from a single linear
+          layer to the full transformer, then shows where inference spends its time: <b>prefill</b> is limited by compute, <b>decode</b> by memory
+          bandwidth. Everything later in the book (batching, caching, quantization) attacks one of these two limits.</p>
+        <div class="row small muted"><span>9 lessons</span><span>·</span><span>about 2 hours</span><span>·</span><span>builds on: matrix multiplication, dot product (both strong)</span></div>
+      </div>
+      <h2>Lessons</h2>
+      <div id="lessons" style="display:flex;flex-direction:column;gap:8px"></div>
+    </section>
+
+    <!-- LESSON -->
+    <section class="screen" id="s-lesson" hidden>
+      <div class="row between"><div><div class="eyebrow"><a href="#book">Inference Engineering</a> · <a href="#chapter">Models</a> · lesson 5 of 9 · pp. 49–51</div>
+        <h1>Logits, softmax and sampling</h1></div>
+        <div class="row"><span class="pill"><i class="dot learning"></i> learning</span><button class="btn small" data-fb="the whole lesson">Feedback on the lesson</button></div></div>
+      <div class="grid-lesson">
+        <div style="display:flex;flex-direction:column;gap:12px;position:relative" id="lesson-body">
+          <p class="muted small">Written for you on 22 Nov from pp. 49–51, following your guidelines: <i>“numbers before formulas”, “show the code
+            when it helps”</i>. Saved; opening it again does not rewrite it.</p>
+
+          <details class="chunk" open id="c1"><summary><h3>From the last hidden state to logits</h3><span class="pill">p. 49</span></summary>
+            <div class="body">
+              <div class="book-says"><div class="eyebrow">What the book says</div>
+                <p class="reader">The final layer multiplies the last hidden state by the unembedding matrix, which gives one number per token in the
+                  vocabulary: the <q>logits</q>. A 128k-token vocabulary means 128k logits for every generated token.</p></div>
+              <div class="means"><div class="eyebrow">What it means</div>
+                <div class="reader"><p>Think of the logits as raw scores, one per possible next token. They are not probabilities yet: they can be
+                  negative, and they do not add up to anything in particular. For the prompt <i>“The cat sat on the”</i>, “mat” might get 7.1,
+                  “floor” 5.3 and “banana” −2.0.</p>
+                  <p>This step is a <span class="idea" tabindex="0">matrix multiplication<span class="hc"><b>Matrix multiplication and the shape rule</b>
+                    <span><i class="dot mastered"></i> know strongly</span><span class="k">Learned in</span><span>Goal: AI researcher · Linear algebra</span>
+                    <span class="k">Leads to</span><span>Linear layer as matmul · Logits</span></span></span> of shape
+                    <span class="tex">(1 \times d)\cdot(d \times V)</span>, which is why a huge vocabulary costs time on every token.</p></div></div>
+              <div class="tools"><button class="btn small" data-fb="From the last hidden state to logits">Feedback on this part</button><button class="btn small">Explain differently</button><button class="btn small">Ask the tutor</button></div>
+            </div></details>
+
+          <details class="chunk" open id="c2"><summary><h3>Softmax turns logits into probabilities</h3><span class="pill">p. 50</span></summary>
+            <div class="body">
+              <div class="book-says"><div class="eyebrow">What the book says</div>
+                <p class="reader">Softmax exponentiates each logit and divides by the sum, so the outputs are positive and add up to one. The book's
+                  example uses three logits and shows the top token taking most of the probability mass.</p></div>
+              <div class="means"><div class="eyebrow">What it means</div>
+                <div class="reader"><p><span class="idea" tabindex="0">Softmax<span class="hc"><b>Softmax</b><span><i class="dot learning"></i> learning · 60%</span>
+                  <span>Turns a vector of scores into probabilities that sum to 1.</span><span class="k">Also in</span><span>Understanding Deep Learning, p. 72 (lesson “Loss functions · Softmax”)</span>
+                  <span class="k">Leads to</span><span>Scaled dot-product attention · Cross-entropy</span><a class="small" href="#book">Open that lesson</a></span></span>
+                  does two things at once: <span class="tex">e^{z}</span> makes every score positive, and dividing by the total makes them add up to 1.</p>
+                  <div class="tex-block">p_i = \frac{e^{z_i / T}}{\sum_j e^{z_j / T}}</div>
+                  <p>Move the temperature: at <span class="tex">T&lt;1</span> the top token takes almost everything; at <span class="tex">T&gt;1</span> the rare tokens get a chance.</p></div></div>
+              <div class="viz" aria-label="Softmax with temperature">
+                <div class="row between small"><span>Temperature <b id="tval">1.0</b></span><span class="muted">logits: mat 7.1 · floor 5.3 · rug 4.0 · banana −2.0</span></div>
+                <input type="range" id="temp" min="0.2" max="2.5" step="0.1" value="1" aria-label="Temperature">
+                <div class="bars" id="bars"></div>
+              </div>
+              <div class="tools"><button class="btn small" data-fb="Softmax turns logits into probabilities">Feedback on this part</button><button class="btn small" data-fb="the softmax graph">Feedback on the graph</button><button class="btn small">Explain differently</button></div>
+            </div></details>
+
+          <details class="chunk" id="c3"><summary><h3>Temperature, top-k and top-p</h3><span class="pill">pp. 50–51</span></summary>
+            <div class="body">
+              <div class="book-says"><div class="eyebrow">What the book says</div>
+                <p class="reader">Sampling settings change which token is picked: top-k keeps the k most likely tokens, top-p keeps the smallest set whose
+                  probabilities add up to p, and temperature reshapes the distribution first.</p></div>
+              <div class="means"><div class="eyebrow">What it means</div><p class="reader">Closed for now: open it to read. Every part stays here, also after you know it.</p></div>
+            </div></details>
+
+          <div class="card q" id="quiz">
+            <div class="row between"><h2>Check your understanding</h2><span class="muted small">2 questions · think out loud</span></div>
+            <div class="eyebrow">Question 1 of 2 · Softmax</div>
+            <p>Which formula turns logits <span class="tex">z</span> into probabilities with temperature <span class="tex">T</span>?</p>
+            <div class="opts" id="q1">
+              <button class="opt"><span class="tex">p_i = z_i / \sum_j z_j</span></button>
+              <button class="opt"><span class="tex">p_i = e^{z_i/T} / \sum_j e^{z_j/T}</span></button>
+              <button class="opt"><span class="tex">p_i = e^{z_i} \cdot T / \sum_j e^{z_j}</span></button>
+              <button class="opt"><span class="tex">p_i = \max(z_i, 0) / T</span></button>
+            </div>
+            <div class="row between"><button class="btn small mic" id="mic"><i></i><span>Dictate your thinking</span></button>
+              <div class="conf" role="group" aria-label="How likely is your pick right?"><span class="small muted">How likely right?</span>
+                <button>0</button><button>30</button><button>50</button><button>70</button><button>90</button><button>100</button></div></div>
+            <textarea id="think1" aria-label="Your thinking" placeholder="Think out loud: why that answer? Typed or dictated; messy is fine."></textarea>
+
+            <div class="eyebrow" style="margin-top:8px">Question 2 of 2 · a calculation</div>
+            <p>Two logits, <span class="tex">2</span> and <span class="tex">0</span>, at temperature <span class="tex">T = 0.5</span>. What is the probability of the first token?
+              Work it out on the board; say what you do as you go.</p>
+            <div class="board"><canvas id="board" aria-label="Drawing board"></canvas>
+              <div class="tb"><button class="btn small" id="pen" aria-pressed="true">Pen</button><button class="btn small" id="eraser">Eraser</button><button class="btn small" id="clear">Clear</button></div></div>
+            <div class="row"><label class="small muted" for="ans2">Your answer</label><input id="ans2" style="width:120px;padding:6px 10px;border-radius:8px;border:1px solid var(--line-2);background:var(--bg)" placeholder="e.g. 0.98"></div>
+            <div class="row"><button class="btn primary" id="submit">Send answers and thinking</button><button class="btn">I don't know</button></div>
+            <div class="verdict" id="verdict" hidden><b>Question 1: right.</b> Your thinking (“the exponent makes everything positive, then T scales…”) shows you see
+              <i>why</i> it is <span class="tex">e^{z/T}</span>, not only that it is.<br><b>Question 2: right, 0.98.</b> On the board you divided by T before
+              exponentiating (<span class="tex">e^{4}</span> vs <span class="tex">e^{0}</span>): that is the step most people skip. This lesson moves to
+              <b>learned</b>; it comes back for recall in 3 days.</div>
+          </div>
+          <div class="selbar" id="selbar"><button class="btn small" data-fb-sel>Feedback on this</button><button class="btn small">Add a note</button><button class="btn small">Ask the tutor</button></div>
+        </div>
+
+        <aside class="aside card">
+          <div class="eyebrow">In this lesson</div>
+          <nav class="outline"><a href="#lesson" data-go="c1"><i class="dot learned"></i>Hidden state to logits</a><a href="#lesson" data-go="c2"><i class="dot learning"></i>Softmax</a>
+            <a href="#lesson" data-go="c3"><i class="dot ready"></i>Temperature, top-k, top-p</a><a href="#lesson" data-go="quiz"><i class="dot ready"></i>Check your understanding</a></nav>
+          <div class="eyebrow">Builds on</div>
+          <div class="chips"><span class="pill"><i class="dot mastered"></i>Matrix multiplication</span><span class="pill"><i class="dot learned"></i>Tokens and vocabulary</span></div>
+          <div class="eyebrow">Leads to</div>
+          <div class="chips"><span class="pill"><i class="dot ready"></i>Scaled dot-product attention</span><span class="pill"><i class="dot locked"></i>Speculative decoding</span></div>
+          <div class="eyebrow">Also in other books</div>
+          <p class="small">Softmax: <a href="#book">Understanding Deep Learning, ch. 5</a></p>
+          <div class="row"><a class="btn small" href="#chapter">← Prefill and decode</a><a class="btn small" href="#chapter">Attention →</a></div>
+        </aside>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="dialog" id="dialog" hidden role="dialog" aria-modal="true" aria-labelledby="fb-title">
+  <div class="card">
+    <h2 id="fb-title">Feedback on <span id="fb-what">this part</span></h2>
+    <p class="small muted" id="fb-quote"></p>
+    <div class="row" id="tags"><button class="tag">I didn't get it</button><button class="tag">The example didn't help</button><button class="tag">Show me a graph</button>
+      <button class="tag">Too long</button><button class="tag">More math</button><button class="tag">Possible error in the book</button></div>
+    <textarea id="fb-text" placeholder="What did you understand, what not, and what would help? Typed or dictated."></textarea>
+    <label class="small row"><input type="checkbox" checked> Rewrite this part for me now</label>
+    <p class="small muted">Your feedback also shapes the next lessons (examples, formulas, graphs), through your lesson guidelines.</p>
+    <div class="row"><button class="btn primary" id="fb-send">Send feedback</button><button class="btn" id="fb-cancel">Cancel</button></div>
+    <p class="small" id="fb-done" hidden>Thanks. This part is being rewritten; later lessons will follow it too.</p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js"></script>
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const tex = () => {
+  document.querySelectorAll('.tex').forEach(el => { if (el.dataset.done) return; try { katex.render(el.textContent, el, { output: 'mathml', throwOnError: false }); el.dataset.done = 1; } catch (e) {} });
+  document.querySelectorAll('.tex-block').forEach(el => { if (el.dataset.done) return; try { katex.render(el.textContent, el, { output: 'mathml', displayMode: true, throwOnError: false }); el.dataset.done = 1; } catch (e) {} });
+};
+tex();
+
+// ------------------------------------------------------------ book: chapters with summaries and lessons
+const CH = [
+  ['0', 'Inference', 'What inference engineering is, and the three layers (runtime, infrastructure, tooling) the book follows.', ['mastered','mastered','mastered','mastered','mastered']],
+  ['1', 'Prerequisites', 'Know your app and your model before you optimize: latency percentiles, TTFT, tokens per second.', ['mastered','learned','mastered','learned','rusty','mastered','learned']],
+  ['2', 'Models', 'From one linear layer to the transformer, and why prefill is compute-bound while decode is memory-bound.', ['learned','learned','learned','learned','learning','ready','ready','locked','locked']],
+  ['3', 'Hardware', 'GPU compute, memory and bandwidth; Hopper, Blackwell and multi-GPU instances.', ['ready','locked','locked','locked','locked','locked','locked','locked']],
+  ['4', 'Software', 'CUDA kernels, fusion, FlashAttention and the inference engines.', ['locked','locked','locked','locked','locked','locked','locked']],
+];
+$('#chapters').innerHTML = CH.map(([n, t, sum, st], i) => `<details class="chapter" ${i === 2 ? 'open' : ''}><summary><span class="num">${n.padStart(2, '0')}</span>
+  <div style="min-width:0"><h3>${t}</h3><div class="dots" style="margin-top:6px">${st.map(s => `<i class="${s}"></i>`).join('')}</div></div>
+  <span class="small muted">${st.filter(s => ['mastered','learned','rusty'].includes(s)).length}/${st.length} learned</span></summary>
+  <div class="inner"><p class="muted">${sum}</p><div class="row"><a class="btn small primary" href="#chapter">Open the chapter</a>
+  ${i === 2 ? '<a class="btn small" href="#lesson">Continue: Logits, softmax and sampling</a>' : ''}</div></div></details>`).join('');
+
+const LESSONS = [
+  ['Linear layer as matmul', 'pp. 46–47', 'One layer is one matrix product plus a bias; why that sets the cost.', 'learned', []],
+  ['Activation functions', 'p. 46', 'ReLU, GELU and SiLU, and why the network needs them.', 'learned', []],
+  ['Tokens and the chat template', 'pp. 48–49', 'From text to token ids, and how a chat becomes one token sequence.', 'learned', []],
+  ['Prefill and decode', 'p. 49', 'The two phases of every request and what each one waits on.', 'learned', []],
+  ['Logits, softmax and sampling', 'pp. 49–51', 'Scores to probabilities to the next token; temperature, top-k, top-p.', 'learning', ['Softmax also in Understanding Deep Learning']],
+  ['Scaled dot-product attention', 'pp. 52–54', 'Queries, keys and values; why we divide by √d.', 'ready', ['Dot product: strong']],
+  ['KV cache', 'p. 54', 'Keep the keys and values of earlier tokens instead of recomputing them.', 'ready', ['also in AI Engineering']],
+  ['Mixture of Experts', 'pp. 55–56', 'Many expert layers, a router picks a few per token.', 'locked', []],
+  ['Arithmetic intensity', 'pp. 64–68', 'FLOPs per byte, and why decode is limited by memory bandwidth.', 'locked', []],
+];
+$('#lessons').innerHTML = LESSONS.map(([t, pages, what, st, also], i) => `<a class="lesson-row ${i === 4 ? 'now' : ''}" href="#lesson">
+  <i class="dot ${st}" title="${st}"></i><div style="min-width:0"><div><b>${t}</b> <span class="small muted">${pages}</span></div><div class="what">${what}</div>
+  ${also.length ? `<div class="chips" style="margin-top:4px">${also.map(a => `<span class="pill">${a}</span>`).join('')}</div>` : ''}</div>
+  <span class="btn small ${i === 4 ? 'primary' : ''}">${i === 4 ? 'Continue' : ['learned','mastered'].includes(st) ? 'Open again' : st === 'locked' ? 'Open' : 'Start'}</span></a>`).join('');
+
+// ------------------------------------------------------------ the softmax widget
+const L = [['mat', 7.1], ['floor', 5.3], ['rug', 4.0], ['banana', -2.0]];
+function bars() {
+  const T = +$('#temp').value; $('#tval').textContent = T.toFixed(1);
+  const e = L.map(([, z]) => Math.exp(z / T)), s = e.reduce((a, b) => a + b, 0);
+  $('#bars').innerHTML = L.map(([w], i) => { const p = e[i] / s; return `<span>${w}</span><span class="b" style="width:${Math.max(1, p * 100)}%"></span><span>${(p * 100).toFixed(1)}%</span>`; }).join('');
+}
+$('#temp').addEventListener('input', bars); bars();
+
+// ------------------------------------------------------------ outline jumps
+document.querySelectorAll('[data-go]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); const t = document.getElementById(a.dataset.go); if (t.tagName === 'DETAILS') t.open = true; t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
+
+// ------------------------------------------------------------ feedback: buttons and text selection
+const dialog = $('#dialog');
+function openFeedback(what, quote) {
+  $('#fb-what').textContent = what; $('#fb-quote').textContent = quote ? `“${quote.slice(0, 160)}${quote.length > 160 ? '…' : ''}”` : '';
+  $('#fb-done').hidden = true; $('#fb-text').value = ''; dialog.hidden = false; $('#fb-text').focus();
+}
+document.querySelectorAll('[data-fb]').forEach(b => b.addEventListener('click', () => openFeedback(b.dataset.fb, '')));
+$('#fb-cancel').addEventListener('click', () => { dialog.hidden = true; });
+dialog.addEventListener('click', e => { if (e.target === dialog) dialog.hidden = true; });
+$('#fb-send').addEventListener('click', () => { $('#fb-done').hidden = false; setTimeout(() => { dialog.hidden = true; }, 1400); });
+document.querySelectorAll('.tag').forEach(t => t.addEventListener('click', () => t.setAttribute('aria-pressed', String(t.getAttribute('aria-pressed') !== 'true'))));
+const selbar = $('#selbar'), body = $('#lesson-body');
+let selText = '';
+document.addEventListener('selectionchange', () => {
+  const sel = document.getSelection(); const t = sel ? sel.toString().trim() : '';
+  if (!t || !sel.rangeCount || !body.contains(sel.anchorNode)) { selbar.classList.remove('on'); return; }
+  const r = sel.getRangeAt(0).getBoundingClientRect(), b = body.getBoundingClientRect();
+  selText = t; selbar.style.left = Math.max(0, r.left - b.left) + 'px'; selbar.style.top = (r.top - b.top - 42) + 'px'; selbar.classList.add('on');
+});
+selbar.querySelector('[data-fb-sel]').addEventListener('mousedown', e => { e.preventDefault(); selbar.classList.remove('on'); openFeedback('this passage', selText); });
+
+// ------------------------------------------------------------ quiz: options, confidence, dictation (a stand-in), drawing board
+document.querySelectorAll('#q1 .opt').forEach(b => b.addEventListener('click', () => document.querySelectorAll('#q1 .opt').forEach(x => x.setAttribute('aria-pressed', String(x === b)))));
+document.querySelectorAll('.conf button').forEach(b => b.addEventListener('click', () => b.parentElement.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)))));
+const mic = $('#mic'); let typing = null;
+mic.addEventListener('click', () => {
+  if (typing) { clearInterval(typing); typing = null; mic.classList.remove('on'); mic.querySelector('span').textContent = 'Dictate your thinking'; return; }
+  mic.classList.add('on'); mic.querySelector('span').textContent = 'Listening… stop';
+  const words = 'okay so the exponent makes everything positive, then dividing by the sum makes them add to one… and T scales the logits first, so I think it is B'.split(' ');
+  let i = 0; const ta = $('#think1'); ta.value = '';
+  typing = setInterval(() => { if (i >= words.length) { mic.click(); return; } ta.value += (i ? ' ' : '') + words[i++]; }, 140);
+});
+const cv = $('#board'), ctx = cv.getContext('2d'); let mode = 'pen', down = false, last = null;
+function size() { const r = cv.getBoundingClientRect(), d = Math.min(2, devicePixelRatio || 1); const old = cv.width ? ctx.getImageData(0, 0, cv.width, cv.height) : null;
+  cv.width = r.width * d; cv.height = r.height * d; ctx.setTransform(d, 0, 0, d, 0, 0); if (old) ctx.putImageData(old, 0, 0); }
+function pt(e) { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+cv.addEventListener('pointerdown', e => { down = true; last = pt(e); cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointermove', e => { if (!down) return; const p = pt(e);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.globalCompositeOperation = mode === 'eraser' ? 'destination-out' : 'source-over';
+  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim(); ctx.lineWidth = mode === 'eraser' ? 18 : 2.4;
+  ctx.beginPath(); ctx.moveTo(...last); ctx.lineTo(...p); ctx.stroke(); last = p; });
+window.addEventListener('pointerup', () => { down = false; });
+$('#pen').addEventListener('click', () => { mode = 'pen'; $('#pen').setAttribute('aria-pressed', 'true'); $('#eraser').setAttribute('aria-pressed', 'false'); });
+$('#eraser').addEventListener('click', () => { mode = 'eraser'; $('#eraser').setAttribute('aria-pressed', 'true'); $('#pen').setAttribute('aria-pressed', 'false'); });
+$('#clear').addEventListener('click', () => ctx.clearRect(0, 0, cv.width, cv.height));
+$('#submit').addEventListener('click', () => { $('#verdict').hidden = false; tex(); $('#verdict').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
+
+// ------------------------------------------------------------ routing
+function show() {
+  const h = location.hash.slice(1) || 'book';
+  for (const id of ['book', 'chapter', 'lesson']) document.getElementById('s-' + id).hidden = id !== h;
+  if (!['book', 'chapter', 'lesson'].includes(h)) document.getElementById('s-book').hidden = false;
+  window.scrollTo(0, 0);
+  if (h === 'lesson') requestAnimationFrame(size);
+}
+window.addEventListener('hashchange', show); window.addEventListener('resize', () => { if (location.hash === '#lesson') size(); });
+show();
+})();
+</script>

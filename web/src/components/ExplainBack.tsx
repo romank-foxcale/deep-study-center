@@ -2,12 +2,13 @@ import { useState } from 'react'
 import type { ExplainItem, Grading } from '../types'
 import Markdown from './Markdown'
 import { ConfidenceSlider, DictationArea } from './ThinkingInput'
+import DrawingBoard from './DrawingBoard'
 
 interface Props {
   item: ExplainItem
   grading?: Grading
   inProgress: boolean
-  onSubmit: (answer: string, confidence: number | null) => void
+  onSubmit: (answer: string, confidence: number | null, drawing?: string) => void
   /** Remove a grade you disagree with (its evidence is voided) and answer again. */
   onUndo?: () => void
 }
@@ -19,17 +20,21 @@ export default function ExplainBack({ item, grading, inProgress, onSubmit, onUnd
   const [text, setText] = useState('')
   const [retry, setRetry] = useState(false)
   const [confidence, setConfidence] = useState<number | null>(null)
+  const [board, setBoard] = useState(!!item.work)
+  const [png, setPng] = useState<string | null>(null)
+  const ready = png ? text.trim().length >= 1 : text.trim().length >= 15
   const showForm = !grading || retry || grading.status === 'ungraded' || grading.status === 'voided'
   const pending = inProgress || grading?.status === 'pending'
 
   return (
     <div className="check explain">
-      <div className="check-label">Explain it back</div>
+      <div className="check-label">{item.work ? 'Work it out' : 'Explain it back'}</div>
       <Markdown>{item.prompt}</Markdown>
       {grading && !retry && grading.status !== 'voided' && (
         <div className="explain-answer">
           <div className="muted small">Your answer</div>
           <p>{grading.answer}</p>
+          {grading.drawing && <img className="drawing-sent" src={`/api/drawing/${grading.drawing}`} alt="Your drawing board" />}
         </div>
       )}
       {pending && <p className="muted">Grading your explanation…</p>}
@@ -51,9 +56,13 @@ export default function ExplainBack({ item, grading, inProgress, onSubmit, onUnd
         <>
           <DictationArea rows={4} value={text} onChange={setText}
             placeholder="In your own words, as if explaining to a colleague. Type or dictate. Pictures-in-words and examples welcome." />
+          {board
+            ? <DrawingBoard onChange={setPng} />
+            : <button type="button" className="link small" onClick={() => setBoard(true)}>Use a drawing board for a calculation or a sketch</button>}
           <ConfidenceSlider value={confidence} onChange={setConfidence} />
-          <button className="btn btn-primary" disabled={text.trim().length < 15}
-            onClick={() => { onSubmit(text, confidence); setRetry(false) }}>Submit for grading</button>
+          <button className="btn btn-primary" disabled={!ready}
+            onClick={() => { onSubmit(text, confidence, png ?? undefined); setRetry(false); setPng(null) }}>Submit for grading</button>
+          {png && !text.trim() && <span className="muted small"> Add a line that says what the board shows.</span>}
         </>
       )}
     </div>

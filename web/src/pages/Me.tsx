@@ -15,9 +15,11 @@ export default function Me() {
   const { s, dispatch } = useStore()
   const { playbook } = s
   return (
-    <div className="page">
-      <h1>Me & playbook</h1>
-      <p className="lead">Knowledge center #2: how lessons are written for you. It's built from what you say and how practice goes, shared by all your goals, and you can correct any line.</p>
+    <div className="page page-wide">
+      <div><div className="eyebrow">You</div><h1>Me & playbook</h1></div>
+      <p className="lead">How lessons are written for you. It is built from what you say and how practice goes, shared by all your
+        books, sessions and goals, and you can correct any line.</p>
+      <div className="me-grid">
 
       <div className="card">
         <div className="row row-between">
@@ -120,6 +122,7 @@ export default function Me() {
         {s.notes.length === 0 ? <p className="muted">No notes yet.</p> : (
           <ul className="plain">{s.notes.map(n => <li key={n.id}><span className="muted small">{s.concepts.find(c => c.id === n.conceptId)?.title}:</span> {n.text}</li>)}</ul>
         )}
+      </div>
       </div>
     </div>
   )

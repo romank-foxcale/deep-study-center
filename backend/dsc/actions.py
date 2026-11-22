@@ -65,12 +65,30 @@ def explain(db: DB, jobs: Jobs, a: dict) -> None:
     item = _card_item(db, cid, item_id)
     if not item or item["kind"] != "explain":
         raise ActionError(f"unknown explain-back item {item_id}")
-    if len(text) < 15:
-        raise ActionError("write a few sentences in your own words first")
+    drawing = _save_drawing(a.get("drawing"))
+    if len(text) < 15 and not (drawing and len(text) >= 1):
+        raise ActionError("write a few sentences in your own words first" if not drawing else "add a line about your drawing")
     _, conf = progress.reasoning(a)
-    gid = db.x("INSERT INTO gradings(ts, concept_id, item_id, answer, status, confidence) VALUES(?,?,?,?,?,?)",
-               (now(), cid, item_id, text[:4000], "pending", conf))
+    gid = db.x("INSERT INTO gradings(ts, concept_id, item_id, answer, status, confidence, drawing) VALUES(?,?,?,?,?,?,?)",
+               (now(), cid, item_id, text[:4000], "pending", conf, drawing))
     jobs.enqueue("grade", "Grade explanation", {"grading_id": gid, "concept_id": cid, "angle": a.get("angle")})
+
+
+def _save_drawing(data: object) -> str | None:
+    """A drawing board image (a PNG data URL) saved under workspace/drawings; returns the file name."""
+    if not isinstance(data, str) or not data.startswith("data:image/png;base64,"):
+        return None
+    import base64
+    import secrets
+    from .db import workspace
+    raw = base64.b64decode(data.split(",", 1)[1], validate=True)
+    if len(raw) > 4_000_000 or not raw.startswith(b"\x89PNG"):
+        raise ActionError("the drawing is too big or not a PNG")
+    folder = workspace() / "drawings"
+    folder.mkdir(parents=True, exist_ok=True)
+    name = f"{secrets.token_hex(8)}.png"
+    (folder / name).write_bytes(raw)
+    return name
 
 
 def review(db: DB, jobs: Jobs, a: dict) -> None:
@@ -456,6 +474,11 @@ def start_session(db: DB, jobs: Jobs, a: dict) -> None:
 
 
 @_session
+def session_learn_again(db: DB, jobs: Jobs, a: dict) -> None:
+    session.learn_all_again(db, a["sessionId"])
+
+
+@_session
 def session_answer(db: DB, jobs: Jobs, a: dict) -> None:
     thinking, conf = progress.reasoning(a)
     session.answer(db, jobs, a["sessionId"], int(a["itemId"]), a.get("choice"), thinking, conf)
@@ -508,13 +531,14 @@ def book_retry(db: DB, jobs: Jobs, a: dict) -> None:
 
 
 @_book
-def book_study_part(db: DB, jobs: Jobs, a: dict) -> None:
-    db.set_meta("last_session", bookstudy.study(db, jobs, int(a["partId"])))
+def book_open_lesson(db: DB, jobs: Jobs, a: dict) -> None:
+    """Open a book lesson: its book's hidden goal becomes the active goal, so the lesson page works as for any lesson."""
+    bookstudy.open_lesson(db, jobs, str(a["conceptId"]))
 
 
 @_book
 def book_homework(db: DB, jobs: Jobs, a: dict) -> None:
-    db.set_meta("last_practice", bookstudy.homework(db, jobs, int(a["partId"])))
+    db.set_meta("last_practice", bookstudy.homework(db, jobs, str(a["bookId"]), int(a["chapter"])))
 
 
 @_book
@@ -860,6 +884,7 @@ ACTIONS = {
     "answer": answer, "explain": explain, "review": review,
     "startProbe": start_probe, "probeAnswer": probe_answer, "probeAssessNow": probe_assess_now, "applyProbe": apply_probe,
     "resetProbe": reset_probe, "dismissProbe": dismiss_probe,
+    "sessionLearnAgain": session_learn_again,
     "startSession": start_session, "sessionAnswer": session_answer, "sessionKnown": session_known, "sessionTeach": session_teach,
     "sessionAssessNow": session_assess_now, "sessionRetry": session_retry, "deleteSession": delete_session,
     "startPractice": start_practice, "practiceSubmit": practice_submit, "practiceGiveUp": practice_give_up,
@@ -877,7 +902,7 @@ ACTIONS = {
     "setApiKey": set_api_key, "clearApiKey": clear_api_key, "useApiForAll": use_api_for_all,
     "linkSource": link_source, "editSource": edit_source, "deleteSource": delete_source, "rereadSource": reread_source, "reset": reset,
     "restoreCut": restore_cut,
-    "studyBook": study_book, "bookRetry": book_retry, "bookStudyPart": book_study_part, "bookHomework": book_homework,
+    "studyBook": study_book, "bookRetry": book_retry, "bookOpenLesson": book_open_lesson, "bookHomework": book_homework,
     "deleteBook": delete_book, "setMapView": set_map_view,
     "setDictation": set_dictation, "downloadDictationModel": download_dictation_model,
     "removeDictationModel": remove_dictation_model,

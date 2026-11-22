@@ -35,8 +35,11 @@ function StartPractice() {
   }
   const ready = s.sources.filter(x => x.status === 'ready')
   return (
-    <div className="page page-narrow">
-      <h1>Practice</h1>
+    <div className="page page-wide">
+      <div className="row row-between">
+        <div><div className="eyebrow">Recall</div><h1>Practice</h1></div>
+        {due && due.dueCount > 0 && <span className="pill"><i className="state-dot state-rusty" /> {due.dueCount} idea{due.dueCount === 1 ? '' : 's'} due</span>}
+      </div>
       <p className="lead">Understanding is not enough: you must be able to recall an idea when a problem calls for it. Each
         problem makes you find the idea yourself. Think out loud; you get small hints, never the answer. Each idea comes back
         when it is due.</p>
@@ -48,7 +51,8 @@ function StartPractice() {
         </div>
       ) : null}
 
-      <div className="card">
+      <div className="practice-grid">
+      <div className="card practice-due-card">
         <div className="eyebrow">Due now</div>
         {!due ? <p className="muted">Loading…</p> : due.due.length === 0 ? (
           <p className="muted">Nothing to practise yet. Learn something in <Link to="/study">Study</Link> or a lesson first.
@@ -59,13 +63,15 @@ function StartPractice() {
               {due.dueCount > 0 && due.newCount > 0 && ', and '}
               {due.newCount > 0 && <><strong>{due.newCount}</strong> idea{due.newCount === 1 ? '' : 's'} you learned recently {due.newCount === 1 ? 'has' : 'have'} never been practised</>}.</p>
             <ul className="practice-due">{due.due.slice(0, 8).map(d => (
-              <li key={d.nodeId}><Markdown inline>{d.title}</Markdown> <span className={d.reason === 'due' ? 'pill pill-warn' : 'pill'}>{d.reason === 'due' ? 'due' : 'new'}</span></li>
+              <li key={d.nodeId}><i className={`state-dot state-${d.state}`} /><Markdown inline>{d.title}</Markdown>
+                <span className={d.reason === 'due' ? 'pill pill-warn' : 'pill'}>{d.reason === 'due' ? 'due' : 'first time'}</span></li>
             ))}</ul>
             <button className="btn btn-primary" disabled={starting !== undefined} onClick={() => start({})}>Practise 5 problems</button>
           </>
         )}
       </div>
 
+      <div className="practice-side">
       <div className="card">
         <div className="eyebrow">My own problem</div>
         <DictationArea value={own} onChange={setOwn} rows={3} placeholder="Paste or dictate a problem from your course, book or work" />
@@ -86,14 +92,16 @@ function StartPractice() {
       </div>
 
       {s.practices.length > 0 && (
-        <>
-          <h2>Earlier practice</h2>
-          <ul className="study-list">{s.practices.map(p => (
-            <li key={p.id}><Link to={`/practice/${p.id}`}>{p.title}</Link> <span className={p.status === 'done' ? 'pill pill-ok' : 'pill'}>{p.status}</span>
-              <span className="muted small"> · {new Date(p.createdAt).toLocaleDateString()}</span></li>
+        <div className="card">
+          <div className="eyebrow">Earlier practice</div>
+          <ul className="plain practice-earlier">{s.practices.slice(0, 8).map(p => (
+            <li key={p.id} className="row row-between"><Link to={`/practice/${p.id}`}>{p.title}</Link>
+              <span className="muted small">{p.status === 'done' ? 'done' : p.status} · {new Date(p.createdAt).toLocaleDateString()}</span></li>
           ))}</ul>
-        </>
+        </div>
       )}
+      </div>
+      </div>
     </div>
   )
 }
@@ -111,12 +119,13 @@ function PracticeRun({ id }: { id: string }) {
   const closed = v.items.filter(i => i.status !== 'open')
   const done = v.status === 'done'
   return (
-    <div className="page page-narrow practice">
+    <div className="page page-wide practice">
       <div className="row row-between">
-        <div><div className="eyebrow">Practice · problem {Math.min(v.items.length, v.count)} of {v.count}</div><h1>{v.title}</h1></div>
+        <div><div className="eyebrow"><Link to="/practice">Practice</Link> · problem {Math.min(v.items.length, v.count)} of {v.count}</div><h1>{v.title}</h1></div>
         {!done && <button className="link small" onClick={() => act({ type: 'practiceStop', practiceId: v.id })}>Stop</button>}
       </div>
-      <p className="muted small">Level {v.level} of 4: {v.levelText}. It goes up after a clean solve and down after a hard one.</p>
+      <div className="practice-grid">
+      <div className="practice-main">
       {v.error && (
         <div className="card card-warn"><p className="small">The last step failed: {v.error}</p>
           <button className="btn" onClick={() => act({ type: 'practiceRetry', practiceId: v.id })}>Try again</button></div>
@@ -134,6 +143,24 @@ function PracticeRun({ id }: { id: string }) {
       )}
       {closed.length > 0 && <h2>Solved and closed</h2>}
       {[...closed].reverse().map(it => <ProblemCard key={it.id} it={it} busy={false} act={act} />)}
+      </div>
+      <aside className="card practice-side practice-panel">
+        <div className="eyebrow">This run</div>
+        <div className="practice-steps" aria-label={`Problem ${Math.min(v.items.length, v.count)} of ${v.count}`}>
+          {Array.from({ length: v.count }, (_, n) => {
+            const it = v.items[n]
+            const cls = !it ? '' : it.status === 'open' ? 'now' : it.status === 'solved' ? 'ok' : 'bad'
+            return <i key={n} className={cls} />
+          })}
+        </div>
+        <div><div className="eyebrow">Level {v.level} of 4</div>
+          <div className="practice-level">{[1, 2, 3, 4].map(l => <i key={l} className={l <= v.level ? 'on' : ''} />)}</div>
+          <p className="muted small">{v.levelText}. It goes up after a clean solve and down after a hard one.</p></div>
+        {open && open.ideas.length > 0 && <div><div className="eyebrow">Ideas in this problem</div>
+          <ul className="plain small">{open.ideas.map(x => <li key={x.id}><Markdown inline>{x.title}</Markdown></li>)}</ul></div>}
+        <p className="muted small">Hints never give the answer. A solved problem moves the next review of its ideas further out.</p>
+      </aside>
+      </div>
     </div>
   )
 }
@@ -151,7 +178,7 @@ function ProblemCard({ it, busy, act }: { it: PracticeItem; busy: boolean; act: 
         {!open && <span className={it.status === 'solved' ? 'pill pill-ok' : 'pill pill-warn'}>
           {it.status === 'solved' ? `solved${it.hints ? `, ${it.hints} hint${it.hints > 1 ? 's' : ''}` : ''}` : it.status === 'given_up' ? 'gave up' : 'skipped'}</span>}
       </div>
-      <Markdown>{it.prompt}</Markdown>
+      <div className="reader"><Markdown>{it.prompt}</Markdown></div>
       {it.chunks.map((c, i) => (
         <div key={i} className="practice-chunk">
           {c.text && <div className="practice-thinking"><span className="muted small">Your thinking</span><p>{c.text}</p></div>}

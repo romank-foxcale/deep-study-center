@@ -789,3 +789,55 @@ Change log shows text changes only (not graph or question changes).
 - Session: explanations in the reading face, the plan with a state dot per idea.
 - Map: opens on everything, in Territories (`mapView` default "territory").
 - The clickable mockup is `docs/mockups/ui-redesign.html`.
+- Older pages in the new style (2026-11-22): Practice has two columns (the due ideas with state dots and "first time"
+  for never-practised ideas; your own problem and earlier runs) and, during a run, the problem in the reading face with
+  a side panel (problem steps, the level as 4 bars, the ideas in the problem). Settings is grouped into Appearance,
+  Models, Learning and Data, with a contents list on wide screens. Me is a two-column grid. Source library opens on
+  "My PDFs" (`?tab=goal` and `?tab=shared` for the card tabs). The map views zoom with two fingers (pinch).
+- The mock workspace also has a recall-practice run in progress (one problem solved, one open with a hint).
+- Known ideas can be learned again (2026-11-22): in a session's plan, a known idea can be ticked back in (`again`), and
+  "Learn it again" (`sessionLearnAgain`) puts every idea back, so a part you already know can still be read and
+  practised. "Start learning" is hidden, and refused by the backend, while the plan is empty. A finished session in
+  which nothing was taught shows its ideas and "Learn it again", which reopens it at the plan. On the book page, a part
+  whose ideas you all know offers "Review" instead of "Study".
+
+
+## 31. Book lessons: chapters of saved lessons (2026-11-22)
+- Purpose: a book is studied as lessons that follow the book closely, are written once and saved, and stay open
+  whatever the learner already knows. It replaces the parts-as-study-sessions of §28 (`books.version` 2; a version 1
+  book offers "Map it as lessons", which maps it again; sessions and evidence stay).
+- Data: a book study has a hidden goal (`goals.kind = 'bookstudy'`, `books.goal_id`) so the normal lesson machinery
+  works: one track (the book), one module per chapter, one concept per lesson. `book_chapters` holds each chapter's
+  title, pages, outline sections, summary, module and `mapped`. `book_parts` rows are the lessons (`concept_id`,
+  `ideas`); `book_nodes` links each lesson's graph node to the book. Hidden goals are left out of the goal lists, the
+  planner hours, the map's goal clusters and the hover card's goal lessons.
+- Map (job `book_map`, prompt `book_map.md`, one Opus call per chapter): a 2-4 sentence chapter summary and the
+  chapter's lessons **by topic** (a long section can become several lessons; short ones join): key, title, covers,
+  pages, key ideas, `prereq_keys` (lessons of this chapter, lessons of earlier chapters by id, or older graph ideas)
+  and `same_as` (the lesson is exactly an older graph idea). Concepts are made without cards.
+- Write on first open (`bookstudy.ensure_written`, called by `lesson.open_lesson`): `research_module` for a book goal
+  runs `bookstudy.write_cards` (prompt `book_cards.md`, the chapter's page text only, no web): one call writes the
+  cards of all the chapter's unwritten lessons. Each section has `book: {summary, pages}`, a close summary of what the
+  book says there (short quotes only), plus a check, one explain-back (`work: true` for a calculation) and graphs. The
+  card's source is the book with `source:<id>#page=N`. Then the opened lesson is written by the normal writer for this
+  learner (playbook, guidelines, feedback), which sees the book summaries and is told its text is "what it means".
+  The writer may link ideas the learner met elsewhere (`[words](#idea/<id>)`, only offered ids; `writer.book_links`).
+  The lesson is saved (prose cache and lesson versions) and opens at once next time. Research-ahead writes the
+  current and next chapter in the background (only mapped chapters).
+- Pages: Book (`/book/:id`): the lesson to continue, chapters that open and close with their summary and lessons
+  (what each covers, pages, state, "also in" other books, Open / Continue / Open again), homework per chapter, the
+  book's map. Chapter (`/book/:id/chapter/:n`): the summary, the lessons with their key ideas, homework, previous and
+  next chapter. Lesson: crumbs to book and chapter, each section a collapsible chunk with "What the book says" (pages)
+  and "What it means", feedback on any part as before, and "Check yourself" at the end with every check and the
+  explain-back (thinking, dictation, confidence). Opening a book lesson makes its hidden goal active
+  (`bookOpenLesson`).
+- Drawing board (`components/DrawingBoard.tsx`): pen colors, eraser, undo, clear; mouse, pen or finger. The PNG is
+  sent with an explain-back (`explain.drawing`), saved under `workspace/drawings/` (`gradings.drawing`, served at
+  `/api/drawing/<name>`), and the grader gets it as an image (`Call.images`: image blocks for the API, `--image` for
+  Codex, a copied file plus the Read tool for the Claude CLI, a copied file for Cursor).
+- Today's "Continue" is the newest of an unfinished session and the next book lesson.
+- Homework is per chapter (`bookHomework {bookId, chapter}`).
+- The mock workspace has the four books as chapters of lessons and one saved lesson ("Scaled dot-product attention")
+  with book chunks, idea links, checks and a worked explain-back; auto-research and auto-refresh are off there.
+- Markdown: a writer's `<details><summary>…</summary>…</details>` is drawn as a collapsible block (raw HTML stays off).
+- The clickable mockup is `docs/mockups/book-lessons.html`.

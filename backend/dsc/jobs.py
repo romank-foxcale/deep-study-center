@@ -311,6 +311,8 @@ def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
     m = db.one("SELECT * FROM modules WHERE id=?", (d["module_id"],))
     t = db.one("SELECT * FROM tracks WHERE id=?", (m["track_id"],))
     g = db.one("SELECT * FROM goals WHERE id=?", (t["goal_id"],))
+    if g["kind"] == "bookstudy":  # a book's chapter: its lessons are written from the book's pages (SPEC §31)
+        return bookstudy.write_cards(jobs, jid, d)
     earlier = db.q("""SELECT m.title FROM modules m JOIN tracks t ON t.id=m.track_id WHERE t.goal_id=?
                       AND (m.seq, t.ord, m.ord) < (?, ?, ?) ORDER BY m.seq, t.ord, m.ord""", (g["id"], m["seq"], t["ord"], m["ord"]))
     db.x("UPDATE modules SET research='researching' WHERE id=?", (m["id"],))
@@ -445,10 +447,16 @@ def run_grade(jobs: Jobs, jid: int, d: dict) -> dict:
     card = state.latest_card(db, g["concept_id"]) or {}
     sec = next(s for s in card.get("sections", []) if s.get("explain", {}).get("id") == g["item_id"])
     concept = db.one("SELECT title FROM concepts WHERE id=?", (g["concept_id"],))
+    drawing = workspace() / "drawings" / g["drawing"] if g.get("drawing") else None
+    answer = g["answer"]
+    if drawing and drawing.exists():
+        answer += ("\n\n[The learner also worked on a drawing board: the attached image. Read their calculation or "
+                   "sketch there and grade it with the words; say in the feedback where a step on the board goes wrong.]")
     out = jobs.call(jid, "Grading", Call(
         prompt=prompt("grade", concept=concept["title"], question=sec["explain"]["prompt"],
-                      rubric="\n".join(f"- {r}" for r in sec["explain"]["rubric"]), answer=g["answer"]),
-        schema=GRADE_SCHEMA, model="sonnet", timeout=240))
+                      rubric="\n".join(f"- {r}" for r in sec["explain"]["rubric"]), answer=answer),
+        schema=GRADE_SCHEMA, model="sonnet", timeout=240,
+        images=(drawing,) if drawing and drawing.exists() else ()))
     score = float(out["score"])
     db.x("UPDATE gradings SET status='graded', score=?, feedback=?, missing=?, followup=? WHERE id=?",
          (score, out["feedback"], dumps(out.get("missing", [])), out.get("followup") or "", g["id"]))

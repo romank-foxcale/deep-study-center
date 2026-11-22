@@ -26,8 +26,29 @@ def _parse(ts: str | None) -> datetime | None:
 
 
 def _continue(db: DB) -> dict | None:
-    """The newest study session that is not finished, else the next part of the newest book study."""
-    for s in db.q("SELECT id FROM sessions WHERE status NOT IN ('done') ORDER BY updated_at DESC LIMIT 5"):
+    """The newest of: a study session that is not finished, the next lesson of a book study."""
+    s = _continue_session(db)
+    b = _continue_book(db)
+    if s and b:
+        return s if s["updatedAt"] >= b["updatedAt"] else b
+    return s or b
+
+
+def _continue_book(db: DB) -> dict | None:
+    for b in db.q("SELECT id, updated_at FROM books WHERE status='ready' AND version=2 ORDER BY updated_at DESC LIMIT 3"):
+        v = bookstudy.view(db, b["id"])
+        if not v or not v["next"]:
+            continue
+        ch, les = next((c, x) for c in v["chapters"] for x in c["lessons"] if x["conceptId"] == v["next"])
+        return {"kind": "lesson", "bookId": v["id"], "bookTitle": v["title"], "conceptId": les["conceptId"], "title": les["title"],
+                "pages": les["pages"], "summary": les["covers"], "chapter": ch["chapter"], "chapterTitle": ch["title"],
+                "done": sum(1 for x in ch["lessons"] if x["state"] in KNOWN), "total": len(ch["lessons"]),
+                "updatedAt": b["updated_at"]}
+    return None
+
+
+def _continue_session(db: DB) -> dict | None:
+    for s in db.q("SELECT id, updated_at FROM sessions WHERE status NOT IN ('done') ORDER BY updated_at DESC LIMIT 5"):
         v = session.view(db, s["id"])
         if not v:
             continue
@@ -36,13 +57,8 @@ def _continue(db: DB) -> dict | None:
         idea = next((i for i in v["ideas"] if i["key"] == nxt), None)
         return {"kind": "session", "sessionId": v["id"], "title": v["title"], "status": v["status"], "book": v.get("book"),
                 "next": idea["title"] if idea else None, "nextStatement": idea["statement"] if idea else None,
-                "done": min(v["current"], len(plan)) if v["status"] == "teaching" else 0, "total": len(plan) or len(v["ideas"])}
-    for b in db.q("SELECT id FROM books WHERE status='ready' ORDER BY updated_at DESC LIMIT 3"):
-        v = bookstudy.view(db, b["id"])
-        part = next((p for p in v["parts"] if p["id"] == v["next"]), None) if v else None
-        if part:
-            return {"kind": "part", "bookId": v["id"], "bookTitle": v["title"], "partId": part["id"], "title": part["title"],
-                    "pages": part["pages"], "summary": part["summary"], "total": len(part["ideas"]), "done": 0}
+                "done": min(v["current"], len(plan)) if v["status"] == "teaching" else 0, "total": len(plan) or len(v["ideas"]),
+                "updatedAt": s["updated_at"]}
     return None
 
 

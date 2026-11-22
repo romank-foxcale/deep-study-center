@@ -196,6 +196,20 @@ function SessionPage({ id }: { id: string }) {
       {['teaching', 'extracting', 'done'].includes(v.status) && (
         <div className="study-grid">
           <div className="study-main">
+            {v.status === 'done' && !v.items.some(i => i.phase !== 'probe') && (
+              <div className="card study-all-known">
+                <p><strong>Nothing was taught in this session: you already knew every idea.</strong> Here they are. You can go
+                  through them again: you predict, read the explanation and check yourself.</p>
+                <ul className="book-ideas">
+                  {v.ideas.map(i => (
+                    <li key={i.key}><i className={`state-dot state-${i.nodeState}`} />
+                      <strong><Markdown inline>{i.title}</Markdown></strong>
+                      <span className="muted small study-statement"><Markdown inline>{i.statement}</Markdown></span></li>
+                  ))}
+                </ul>
+                <button className="btn btn-primary" onClick={() => act({ type: 'sessionLearnAgain', sessionId: v.id })}>Learn it again</button>
+              </div>
+            )}
             {v.status === 'done' && (
               <div className="card card-accent">
                 <div className="eyebrow">What you now understand</div>
@@ -204,13 +218,6 @@ function SessionPage({ id }: { id: string }) {
                   practice, so they show as “learning” until you practise them.</p>
                 {v.book && (
                   <div className="row">
-                    <button className="btn btn-primary" onClick={async () => {
-                      const before = s.lastPractice
-                      if (await dispatch({ type: 'bookHomework', partId: v.book!.partId })) {
-                        const now = (await fetch('/api/state').then(r => r.json())).lastPractice as string | null
-                        if (now && now !== before) navigate(`/practice/${now}`)
-                      }
-                    }}>Homework: practise these ideas</button>
                     <Link className="btn" to={`/book/${v.book.id}`}>Back to the book</Link>
                   </div>
                 )}
@@ -245,10 +252,17 @@ function PlanView({ v, act }: { v: SessionView; act: (a: Parameters<ReturnType<t
     <div className="card">
       {v.book
         ? <p>The ideas of <strong>{v.book.part}</strong> (pp. {v.book.pages[0]}–{v.book.pages[1]}), and the ideas they build on.
-            Untick what you already hold; each step is short.</p>
+            Untick what you already hold, tick what you want to learn again; each step is short.</p>
         : <p>The path from what you know to <strong>{v.ideas.find(i => i.target)?.title}</strong>. Untick what you already hold;
             each step is short.</p>}
       {v.probeStart && <div className="study-probe-start"><div className="eyebrow">Where to start</div><Markdown>{v.probeStart}</Markdown></div>}
+      {v.plan.length === 0 && (
+        <div className="study-all-known">
+          <p><strong>You already know every idea here.</strong> You can still go through them again: you predict, read the
+            explanation and check yourself, and your answers count as practice.</p>
+          <button className="btn btn-primary" onClick={() => act({ type: 'sessionLearnAgain', sessionId: v.id })}>Learn it again</button>
+        </div>
+      )}
       <ul className="study-ideas">
         {order.map(k => {
           const i = v.ideas.find(x => x.key === k)!
@@ -256,11 +270,13 @@ function PlanView({ v, act }: { v: SessionView; act: (a: Parameters<ReturnType<t
           return (
             <li key={k} className={known ? 'known' : ''}>
               <label className="study-idea-row">
-                <input type="checkbox" checked={!known} disabled={i.target || (i.level === 'known' && !i.skip)}
+                <input type="checkbox" checked={!known} disabled={i.target}
+                  title={known ? 'Tick to learn this idea again' : undefined}
                   onChange={e => act({ type: 'sessionKnown', sessionId: v.id, ideaKey: k, known: !e.target.checked })} />
                 <span><strong><Markdown inline>{i.title}</Markdown></strong>{i.target && <span className="pill small"> goal</span>}
                   <span className="muted small study-statement"><Markdown inline>{i.statement}</Markdown></span>
                   {known && <span className="pill pill-ok small">{i.fromGraph && i.level === 'known' ? 'in your graph' : 'you know this'}</span>}
+                  {!known && i.again && <span className="pill small">learning again</span>}
                   {!known && i.level === 'partial' && <span className="pill pill-warn small">partly</span>}
                   {i.fromGraph && <span className={NODE_STATE[i.nodeState] ?? 'pill'} title="This idea is already in your knowledge graph"> graph: {i.nodeState}</span>}
                   {i.probe?.level === 'untested' && <span className="pill small" title="No question reached this idea">not tested</span>}
@@ -271,8 +287,8 @@ function PlanView({ v, act }: { v: SessionView; act: (a: Parameters<ReturnType<t
           )
         })}
       </ul>
-      <button className="btn btn-primary" onClick={() => act({ type: 'sessionTeach', sessionId: v.id })}>
-        Start learning ({v.plan.length} step{v.plan.length === 1 ? '' : 's'})</button>
+      {v.plan.length > 0 && <button className="btn btn-primary" onClick={() => act({ type: 'sessionTeach', sessionId: v.id })}>
+        Start learning ({v.plan.length} step{v.plan.length === 1 ? '' : 's'})</button>}
     </div>
   )
 }

@@ -347,8 +347,19 @@ the graph state; a mapped chapter cannot be re-mapped from the UI (internal opti
 ### D7. ✅ DONE (2026-11-22, branch `claude/ui-redesign`, SPEC §30): The redesign
 Five main entries (Today, Books, Learn, Practice, Map) with goals on hold in their own group, the dark star-chart theme
 by default (Light and System in Settings), a Today page, a book shelf, a new Book page, a reading layout for sessions,
-and the map opening on Territories. Checked on the mock workspace in dark, light and phone width. Open: polish of the
-older pages (Practice, Library, Me, Settings) in the new style; touch zoom on the map.
+and the map opening on Territories. Checked on the mock workspace in dark, light and phone width. Then (branch
+`claude/page-polish`): Practice, Library, Me and Settings in the new style, and pinch zoom on the map. Open: the goal
+pages keep their old layout while goals are on hold; pinch zoom is not yet tried on a real touch screen.
+
+### D8. ✅ DONE (2026-11-22, branch `claude/page-polish`, SPEC §31): Book lessons
+A book is chapters of saved lessons by topic: a chapter summary, lessons written from the book's pages on first open
+(what the book says, what it means), idea links, feedback, a quiz at the end and a drawing board the grader reads.
+Checked with tests, on the mock workspace, and with a real run on a copy of the workspace (2026-11-22): "Inference
+Engineering" mapped into 11 chapters and 130 lessons in 7 minutes; the first open of "Attention and the KV cache"
+wrote all 16 lesson plans of its chapter in one call and the lesson in about 10 minutes, with book summaries per
+section and links to ideas from other goals; the grader read a drawing board and graded it. Fixed then: a writer's
+`<details>` block now renders as a collapsible block. Open: the appendices (glossary, reading list) become lessons
+with wide page ranges; skip them or make them one reference lesson. Re-map one chapter from the UI.
 
 ### D6. ✅ DONE (2026-11-22, branch `claude/book-study`, SPEC §29): Map views and a mock workspace
 Seven map views to choose from (Tree, Graph, Nebula, Skill wheel, Cells, Territories, Globe), saved per workspace, and
