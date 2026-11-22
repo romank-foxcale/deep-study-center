@@ -68,3 +68,17 @@ def test_evaluator_matches_the_page():
     assert math.isclose(vizcheck.value("sigma*sqrt(2*pi)", {"sigma": 1}), math.sqrt(2 * math.pi))
     assert math.isnan(vizcheck.value("1/0", {})) and math.isnan(vizcheck.value("q+1", {}))
     assert vizcheck.resolve("x/[n]", {"n": "2*[m]", "m": "3"}) == "x/(2*(3))"
+
+
+def test_a_plot_with_an_unknown_part_names_the_cause_once():
+    spec = {"type": "formula", "caption": "c", "tex": r"y = {{a}} \cdot {{k}} \cdot x",
+            "parts": [{"id": "a", "tex": "a", "label": "a", "param": "a"},
+                      {"id": "k", "tex": "2", "label": "factor", "expr": "2",
+                       "variants": [{"tex": "3", "expr": "3", "why": "steeper"}]}],
+            "params": [{"name": "a", "min": 0, "max": 5, "value": 1}],
+            "plotExpr": "[a]*[k]*[scale]*x", "checks": [{"kind": "peak", "label": "peak", "expect": 10}]}
+    clean, problems = viz.inspect(spec)
+    assert "plotExpr" not in clean
+    assert problems[0].startswith("the plot") and "uses [scale], but no part has that id" in problems[0] and "a, k" in problems[0]
+    assert "1 variant(s) and the checks that need it were removed too" in problems[1]
+    assert not any("changes nothing" in x or "use [k]" in x for x in problems)  # no advice that hides the cause
