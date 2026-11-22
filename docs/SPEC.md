@@ -936,3 +936,41 @@ Change log shows text changes only (not graph or question changes).
   (no review). The session's explain and repair turns now also name the wrong idea and follow it until it breaks.
 - History (`reasoning.history`, Me → "Your reasoning"): lesson checks, study-session answers and explain-backs, newest
   first, each with a link to where it was answered.
+
+## 36. Your preferred formula forms in every lesson (2026-11-22)
+- When the learner chooses a form in a formula lesson ("I prefer this form") and the formula has two or more forms,
+  `guidelines.text` (read by the lesson planner, the graph and question writer, the text writer, the reviewer, applying
+  feedback, the study-session tutor and practice) gets a line per formula: write it in that form; when the source
+  (a book) writes it another way, show the source's form once, map it symbol by symbol, then use the preferred form.
+  "What the book says" keeps the book's own notation.
+- It applies to text written from then on. On the formula lesson, "Forms of this formula" offers "Rewrite it with your
+  form" for each lesson that uses another form (a "Refresh for current me" of that lesson).
+
+## 37. Building blocks: the formula tree and shared book lessons (2026-11-22)
+- Purpose: knowledge accumulates in blocks. A complex formula or topic is understood only when the blocks under it are
+  held, so the app teaches from the bottom up, and a topic several sources teach is one block, not several lessons.
+  Grounded in knowledge space theory (ALEKS: prerequisite graphs and the "outer fringe" of what a learner is ready
+  for), research on symbol sense (reading through a formula, notation conventions), concreteness fading, faded worked
+  examples, and equation sensemaking (special cases).
+- Formula tree (`formula_lessons.decompose`, prompt `formula_blocks.md`, table `formula_blocks`): before a formula
+  lesson is written, its 2-6 direct blocks are found: notations (∏, Σ, the bar in Pr(y | x), argmin, subscripts),
+  simpler formulas it is built from, and ideas, each in general form and general words, matched to the learner's
+  formula lesson or graph idea when it is the same thing, or marked basic (school level). A block is known (green) when
+  its lesson or idea is learned, or basic; else new.
+- "Learn these first" (`learnBlocksFirst`): every new block becomes a short formula lesson (or a notation lesson,
+  prompt `notation_lesson.md`) placed right before the formula in its module and book chapter, linked to it in the
+  graph; each one finds its own blocks when written, so the tree grows down to what the learner holds.
+- Formula-lesson structure (`formula_lesson.md`), not a chapter lesson: read it aloud with every symbol in general
+  terms; build it from the blocks, one small step each (with the explain-back); tiny numbers in a neutral setting and
+  a faded worked example, with the explorable formula widget and a check; special cases and a common misreading;
+  only then where it is used, with every domain word explained; and its forms.
+- Page: "Built from" (each block, green or gray, with its lesson or idea) and "Used in" (formulas built from it and
+  lessons that use it); the hover card says how many blocks are new. Hover notes now give the general meaning first and
+  the lesson's example after "Here:".
+- Shared book lessons: the map sets `same_as` when a book teaches a topic another book or goal already has (even
+  explained a bit differently): one block, one mastery. Writing a chapter skips such a block when another version is
+  written; the book page shows "Shared block: you have this topic in …", opens the written version, and offers
+  "This book's version" (written from this book's pages when asked). The lesson page shows "One block, N versions".
+- Readiness: each book lesson lists what it builds on that the learner does not hold yet (this book's earlier
+  lessons and older ideas the map linked to it); "Next" is a lesson whose parts the learner holds (the one in
+  progress first), so the book is read in an order that builds.

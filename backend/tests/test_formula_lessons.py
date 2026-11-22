@@ -31,11 +31,29 @@ def card_reply(call):
                           "check": {"prompt": "q?", "options": ["a", "b", "c", "d"], "explanation": "e", "answer": 0}}]}}
 
 
+def blocks_reply(call):
+    if "You break one formula" not in call.prompt:
+        return {"formulas": [], "matches": []}
+    blocks_reply.prompts.append(call.prompt)
+    return {"blocks": [
+        {"name": "Multiplying numbers", "kind": "formula", "tex": "a \\cdot b", "meaning": "Multiply two numbers.", "ref": "", "basic": True},
+        {"name": "Product notation", "kind": "notation", "tex": "\\prod_i a_i", "meaning": "Multiply all terms.", "ref": "",
+         "basic": True},
+        {"name": "Scaling a vector", "kind": "formula", "tex": "c\\,\\mathbf{v}", "meaning": "Multiply every part of a vector by a number.",
+         "ref": "", "basic": False},
+        {"name": "Adding vectors", "kind": "formula", "tex": "\\mathbf{u} + \\mathbf{v}", "meaning": "Add matching parts.",
+         "ref": "c-vectors", "basic": False}]}
+
+
+blocks_reply.prompts = []
+
+
 @pytest.fixture
 def fx(env):
     db, jobs, runner = env
     card_reply.prompts = []
     runner.responses["Research"] = card_reply
+    runner.responses["Formula notes"] = blocks_reply
     runner.responses["Renditions"] = lambda call: {"sections": [{"id": line.split()[1], "body": "text"}
                                                                 for line in call.prompt.splitlines() if line.startswith("- s-")]}
     note(db, CID, FORM_A)
@@ -61,7 +79,8 @@ def test_make_a_formula_lesson_then_learn_it_turns_the_frame_green(fx):
     base = db.one("SELECT * FROM concepts WHERE id=?", (CID,))
     assert c["module_id"] == base["module_id"] and c["ord"] == base["ord"] + 1 and c["title"] == "Linear combination"
     p = card_reply.prompts[0]
-    assert FORM_A in p and "MUST have a `viz` of type \"formula\"" in p and "A weighted sum of vectors." in p
+    assert FORM_A in p and "Read it aloud" in p and "A weighted sum of vectors." in p
+    assert "Scaling a vector (formula)" in p and "does not know it yet" in p
     v = lesson.view(db, fid)
     assert v["sections"][0]["viz"]["type"] == "formula" and v["sections"][1]["explain"]["work"] is True
     assert v["formulaLesson"]["forms"][0]["from"]["id"] == CID
@@ -117,3 +136,47 @@ def test_notes_from_before_kinds_get_their_kind_once(fx):
                                                       if "You match formulas" in call.prompt else {"formulas": []})
     formulas.ensure(db, jobs, CID)
     assert not formulas.stale(db, CID) and frames(db, CID)[formulas.key("a + b = 3")] == ("step", None)
+
+
+def test_every_writer_gets_the_preferred_form(fx):
+    from dsc import guidelines
+    db, jobs, runner = fx
+    actions.dispatch(db, jobs, {"type": "makeFormulaLesson", "conceptId": CID, "key": formulas.key(FORM_A)})
+    fid = db.one("SELECT id FROM formula_lessons")["id"]
+    assert "prefers" not in guidelines.text(db)  # one form, nothing chosen
+    note(db, OTHER, FORM_B, fid=fid)
+    actions.dispatch(db, jobs, {"type": "addFormulaForm", "conceptId": OTHER, "key": formulas.key(FORM_B), "formulaId": fid})
+    actions.dispatch(db, jobs, {"type": "preferFormulaForm", "formulaId": fid, "key": formulas.key(FORM_B)})
+    text = guidelines.text(db)
+    assert "write “Linear combination” as $" + FORM_B + "$" in text and FORM_A in text and "symbol by symbol" in text
+    seen = []
+    runner.responses["Renditions"] = lambda call: (seen.append(call.prompt), {"sections": []})[1]
+    lesson.refresh(db, jobs, OTHER, by_learner=True)
+    assert seen and FORM_B in seen[0] and "prefers" in seen[0]  # the lesson writer of another lesson sees it
+
+
+def test_a_formula_is_built_from_blocks_and_missing_blocks_are_learned_first(fx):
+    db, jobs, runner = fx
+    blocks_reply.prompts = []
+    actions.dispatch(db, jobs, {"type": "makeFormulaLesson", "conceptId": CID, "key": formulas.key(FORM_A)})
+    fid = db.one("SELECT id FROM formula_lessons")["id"]
+    assert len(blocks_reply.prompts) == 1 and FORM_A in blocks_reply.prompts[0]
+    info = lesson.view(db, fid)["formulaLesson"]
+    by = {b["name"]: b for b in info["blocks"]}
+    assert by["Multiplying numbers"]["state"] == "known" and by["Multiplying numbers"]["basic"]
+    assert by["Scaling a vector"]["state"] == "new" and by["Scaling a vector"]["link"] is None
+    assert by["Product notation"]["state"] == "new" and not by["Product notation"]["basic"]  # a notation is never basic
+    assert by["Adding vectors"]["link"]["id"] == "c-vectors" and by["Adding vectors"]["link"]["kind"] == "idea"
+    assert info["missing"] == 2
+    n = len(card_reply.prompts)
+    actions.dispatch(db, jobs, {"type": "learnBlocksFirst", "formulaId": fid})
+    block = db.one("SELECT * FROM formula_lessons WHERE name='Scaling a vector'")
+    assert db.one("SELECT kind FROM formula_lessons WHERE name='Product notation'")["kind"] == "notation"
+    c, f = (db.one("SELECT * FROM concepts WHERE id=?", (i,)) for i in (block["id"], fid))
+    assert c["module_id"] == f["module_id"] and c["ord"] < f["ord"]  # the block comes before the formula built from it
+    assert len(card_reply.prompts) == n + 2 and any("Scaling a vector" in p for p in card_reply.prompts[-2:])
+    info = lesson.view(db, fid)["formulaLesson"]
+    assert info["missing"] == 0 and next(b for b in info["blocks"] if b["name"] == "Scaling a vector")["link"]["id"] == block["id"]
+    assert lesson.view(db, block["id"])["formulaLesson"]["usedIn"][0]["id"] == fid
+    with pytest.raises(actions.ActionError):
+        actions.dispatch(db, jobs, {"type": "learnBlocksFirst", "formulaId": fid})

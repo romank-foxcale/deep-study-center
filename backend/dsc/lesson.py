@@ -180,6 +180,7 @@ def view(db: DB, cid: str) -> dict:
         "book": book, "writingCards": writing_cards, "writing": writing(db, cid),
         "formulas": formulas.notes(db, cid),
         "formulaLesson": formula_lessons.info(db, cid),
+        "blockVersions": bookstudy.versions_of(db, cid),
         "formulasPending": any(j["status"] in ("queued", "running") and j["kind"] == "formula_notes"
                                and j["input"].get("concept_id") == cid for j in state.jobs(db)),
         "conceptId": cid, "card": state.public_card(card) if card else None, "sections": sections,

@@ -77,7 +77,7 @@ def test_today_shows_where_to_continue_what_is_due_and_the_books(mocked):
     v = bookstudy.view(db, ie["id"])
     assert len(v["chapters"]) == 8 and all(c["summary"] and c["lessons"] for c in v["chapters"])
     nxt = next(x for c in v["chapters"] for x in c["lessons"] if x["conceptId"] == v["next"])
-    assert nxt["started"] and nxt["state"] not in ("learned", "mastered")  # the lesson in progress comes first
+    assert nxt["state"] not in ("learned", "mastered") and nxt["ready"]  # a lesson whose parts you hold (the outer fringe)
 
 
 def test_the_mock_has_a_saved_book_lesson(mocked):

@@ -36,7 +36,11 @@ def save(db: DB, items: list[dict], source: str, summary: str = "") -> int:
 
 
 def text(db: DB) -> str:
+    """The guidelines every lesson writer follows, and the formula forms the learner prefers (SPEC §36)."""
+    from .formula_lessons import preferred_text
     g = current(db)
-    if not g or not g["items"]:
-        return "(none yet)"
-    return "\n".join(f'- {it["text"]}' for it in g["items"])
+    lines = "\n".join(f'- {it["text"]}' for it in g["items"]) if g and g["items"] else ""
+    forms = preferred_text(db)
+    if forms:
+        lines = (lines + "\n" if lines else "") + forms
+    return lines or "(none yet)"

@@ -11,6 +11,7 @@ import Viz from '../components/viz/Viz'
 import FeedbackDialog from '../components/FeedbackDialog'
 import LessonHistory from '../components/LessonHistory'
 import FormulaHover from '../components/FormulaHover'
+import FormulaTree from '../components/FormulaTree'
 import SidePanel, { SourceCardView, type Tab } from '../components/SidePanel'
 import StateBadge, { MasteryBar } from '../components/StateBadge'
 import { refFromSelection } from '../components/selection'
@@ -169,6 +170,15 @@ export default function Lesson() {
           ? <div className="crumbs"><Link to={`/book/${book.bookId}`}>{book.bookTitle}</Link> › <Link to={`/book/${book.bookId}/chapter/${book.chapter}`}>
               {book.chapterTitle}</Link> › lesson {book.index} of {book.count} · pp. {book.pages[0]}{book.pages[1] !== book.pages[0] ? `–${book.pages[1]}` : ''}</div>
           : <div className="crumbs"><Link to="/roadmap">{track?.title}</Link> › {module?.title}</div>}
+        {view && view.blockVersions.length > 1 && (
+          <div className="block-versions small" role="navigation" aria-label="Versions of this topic">
+            <span className="muted">One block, {view.blockVersions.length} versions:</span>
+            {view.blockVersions.map(v => v.current
+              ? <span key={v.conceptId} className="pill pill-accent">{v.where || v.title}</span>
+              : <Link key={v.conceptId} to={`/lesson/${v.conceptId}`} className="pill"
+                  title={v.written ? undefined : 'Written from that source when you open it'}>{v.where || v.title}{v.written ? '' : ' · not written yet'}</Link>)}
+          </div>
+        )}
         <header className="lesson-head">
           <h1>{concept.title}</h1>
           <p className="lead"><Markdown inline>{concept.objective}</Markdown></p>
@@ -211,10 +221,13 @@ export default function Lesson() {
         {loadError && <p className="error">{loadError}</p>}
         {!view && !loadError && <p className="muted">Opening…</p>}
 
-        {view?.formulaLesson && view.formulaLesson.forms.length > 0 && (
+        {view?.formulaLesson && (
           <div className="card formula-forms">
-            <div className="row row-between"><div className="eyebrow">Forms of this formula</div>
+            <div className="row row-between"><div className="eyebrow">{view.formulaLesson.kind === 'notation' ? 'Notation lesson' : view.formulaLesson.forms.length > 1 ? 'Forms of this formula' : 'Formula lesson'}</div>
               <span className="muted small">From <Link to={`/lesson/${view.formulaLesson.source.id}`}>{view.formulaLesson.source.title}</Link></span></div>
+            <FormulaTree id={id} info={view.formulaLesson} />
+            {view.formulaLesson.chosen && <p className="muted small">Lessons written from now on use your form. They show a book's other form
+              once and map it to yours.</p>}
             {view.formulaLesson.forms.map(f => {
               const pref = view.formulaLesson!.preferred === f.key
               return (
@@ -224,8 +237,13 @@ export default function Lesson() {
                     <span className="muted">in <Link to={`/lesson/${f.from.id}`}>{f.from.title}</Link></span>
                     <span className="spacer" />
                     {pref ? <span className="pill pill-ok small">your form</span>
-                      : <button className="btn btn-small" onClick={() => dispatch({ type: 'preferFormulaForm', formulaId: id, key: f.key })}
-                          title="The lesson is written again with this form as its main form">I prefer this form</button>}
+                      : <>
+                        {view.formulaLesson!.chosen && f.from.id !== id && (
+                          <button className="btn btn-small" onClick={() => { dispatch({ type: 'refresh', conceptId: f.from.id }); setToast(`Writing “${f.from.title}” again with your form…`) }}
+                            title="That lesson is written again; it shows its own form once and then uses yours">Rewrite it with your form</button>)}
+                        <button className="btn btn-small" onClick={() => dispatch({ type: 'preferFormulaForm', formulaId: id, key: f.key })}
+                          title="This lesson is written again with this form as its main form; new lessons use it too">I prefer this form</button>
+                      </>}
                   </div>
                 </div>
               )

@@ -300,3 +300,37 @@ def test_a_goal_lesson_opens_while_a_book_goal_is_active(book):
     assert state.active_goal(db) != goal
     act(db, jobs, type="bookOpenLesson", conceptId="c-dot")
     assert state.active_goal(db) == goal
+
+
+def test_a_topic_another_lesson_already_teaches_is_one_shared_block(book):
+    db, jobs, runner = book
+    base = map_reply
+
+    def reply(call):
+        out = base(call)
+        if "Chapter: Chapter 1" in call.prompt:  # this book's softmax lesson is the goal's linear-combination block
+            out["lessons"][0]["same_as"] = "c-lincomb"
+        return out
+    runner.responses["Book map"] = reply
+    bid = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]["id"]
+    ls = lessons(db, bid)
+    sm = ls["Softmax"]
+    assert sm["nodeId"] == "c-lincomb" and sm["shared"]["conceptId"] == "c-lincomb"  # one block, written elsewhere
+    # writing the chapter skips the shared block: this book's version is written only when asked for
+    act(db, jobs, type="bookOpenLesson", conceptId=ls["Attention"]["conceptId"])
+    lesson.open_lesson(db, jobs, ls["Attention"]["conceptId"])
+    assert not lessons(db, bid)["Softmax"]["carded"] and lessons(db, bid)["KV cache"]["carded"]
+    lesson.open_lesson(db, jobs, sm["conceptId"])  # "This book's version"
+    assert lessons(db, bid)["Softmax"]["carded"]
+    vs = lesson.view(db, sm["conceptId"])["blockVersions"]
+    assert {v["conceptId"] for v in vs} == {sm["conceptId"], "c-lincomb"} and all(v["written"] for v in vs)
+    assert next(v for v in vs if v["current"])["where"] == "Inference Book"
+
+
+def test_next_is_a_lesson_whose_parts_you_hold(book):
+    db, jobs, runner = book
+    bid = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]["id"]
+    ls = lessons(db, bid)
+    assert ls["Softmax"]["ready"] and not ls["Attention"]["ready"]
+    assert {n["title"] for n in ls["Attention"]["needs"]} >= {"Softmax"}
+    assert bookstudy.view(db, bid)["next"] == ls["Softmax"]["conceptId"]

@@ -216,6 +216,12 @@ CREATE TABLE IF NOT EXISTS formula_lessons (
 CREATE TABLE IF NOT EXISTS formula_forms (
   formula_id TEXT NOT NULL, key TEXT NOT NULL, tex TEXT NOT NULL, concept_id TEXT NOT NULL, added_at TEXT NOT NULL,
   PRIMARY KEY (formula_id, key));
+-- The formula tree (SPEC §37): a formula's building blocks (notations, simpler formulas, ideas), each matched to a
+-- formula lesson or graph idea of the learner (ref), or basic.
+CREATE TABLE IF NOT EXISTS formula_blocks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, formula_id TEXT NOT NULL, ord INTEGER NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL,
+  tex TEXT NOT NULL DEFAULT '', meaning TEXT NOT NULL DEFAULT '', ref_kind TEXT, ref TEXT, basic INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS book_cuts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL, ord INTEGER NOT NULL, source_id TEXT NOT NULL,
   chapter TEXT NOT NULL, pages TEXT NOT NULL DEFAULT '', rank TEXT NOT NULL, why TEXT NOT NULL DEFAULT '',
@@ -263,6 +269,9 @@ MIGRATIONS = [
     ("book_chapters", "kind", "TEXT NOT NULL DEFAULT 'chapter'"),
     ("reasoning_reviews", "session_item_id", "INTEGER"),   # a study-session answer (then concept_id is the session id)
     ("gradings", "review", "TEXT"),                         # the grader's reading of the explain-back (parts, assumption, …)
+    ("formula_lessons", "meaning", "TEXT NOT NULL DEFAULT ''"),  # what the formula says (from its note or block)
+    ("formula_lessons", "kind", "TEXT NOT NULL DEFAULT 'formula'"),  # formula | notation (a short notation lesson)
+    ("formula_lessons", "blocks_at", "TEXT"),              # when its building blocks were found
     ("formula_notes", "kind", "TEXT NOT NULL DEFAULT 'idea'"),  # idea | step (a step of a derivation: neutral frame)
     ("formula_notes", "formula_id", "TEXT"),               # the formula lesson this formula is (any form)
     ("formula_notes", "matched_at", "TEXT"),               # last match against the formula lessons  # chapter | reference (glossary, reading list: no lessons)
