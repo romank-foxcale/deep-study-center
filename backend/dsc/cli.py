@@ -16,6 +16,8 @@ from .db import DB, workspace
 
 ROOT = Path(__file__).resolve().parents[2]
 WEB = ROOT / "web"
+if getattr(sys, "frozen", False):  # the desktop app's bundled backend (PyInstaller): the built UI ships inside it
+    WEB = Path(getattr(sys, "_MEIPASS")) / "web"
 
 
 def frontend_stale() -> bool:

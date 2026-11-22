@@ -5,6 +5,7 @@ import type { Plan } from '../types'
 import { useStore } from '../store'
 import { MasteryBar } from '../components/StateBadge'
 import { GoalSources } from '../components/Sources'
+import ApiKeyCard from '../components/ApiKeyCard'
 
 export default function Home() {
   const { s, dispatch } = useStore()
@@ -16,6 +17,7 @@ export default function Home() {
         <h1>Welcome to Deep Study Center</h1>
         <p className="lead">Tell it what you want to master. After a short conversation, agents research the field, keep the best
           sources, and build a roadmap of small lessons, each written for you and adapted as you give feedback.</p>
+        {!s.providers.some(p => p.detected) && <ApiKeyCard compact />}
         <div className="grid-2">
           <Link className="card card-link card-accent" to="/goal/new">
             <h2>Start my goal</h2>

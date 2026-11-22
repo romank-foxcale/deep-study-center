@@ -581,3 +581,35 @@ Change log shows text changes only (not graph or question changes).
   `practices`, `lastPractice`, `practiceDue`.
 - Prompt rule for every job: write money as `\$35k` or "35k USD", because a bare `$` starts math.
 - Not yet: replacing the old Reviews page (one quiz question per lesson) with recall practice; prefetching problems.
+
+## 25. Desktop app and the Claude API with your own key (2026-11-21)
+- Purpose: anyone can install DSC and use it without a terminal, Python, Node or the agent CLIs. Step C1 of the TODO.
+- Shell (`desktop/`, Tauri 2): a native window shows a small "Starting…" page (`desktop/ui/index.html`), starts the
+  bundled backend `dsc-backend.exe serve --port <free port>` (no console window), waits until the port answers (90 s
+  at most), then loads `http://127.0.0.1:<port>/`. On exit it stops the backend. If the backend does not start, the
+  page shows the error and the log path. The backend log is `%LOCALAPPDATA%\app.deepstudycenter.desktop\logs\backend.log`.
+- Backend bundle (`desktop/backend/dsc-backend.spec`, PyInstaller, one folder of about 37 MB): the `dsc` package with
+  its prompts and data, uvicorn, keyring, and the built UI (`web/dist`, found through `sys._MEIPASS` in `cli.py`).
+- Data: the same workspace as the web app (`~/DeepStudy`, or `DSC_WORKSPACE`), so the web app and the desktop app share
+  one learner's data. Run only one of them at a time.
+- Build: `cd desktop && npm install && npm run build` → `desktop/src-tauri/target/release/bundle/nsis/Deep Study
+  Center_<version>_x64-setup.exe` (NSIS, per-user install, no admin rights). Icons come from `desktop/app-icon.png`
+  (`desktop/make_icon.py`, then `npm run icons`).
+- Claude API provider (`providers.AnthropicAPI`, provider id "anthropic", official `anthropic` SDK):
+  - Models: opus → `claude-opus-5-5` (effort `high`), sonnet → `claude-sonnet-5-5`, haiku → `claude-haiku-5-5`.
+    Thinking is adaptive (always on for these models).
+  - Streaming with `max_tokens` 64000; research jobs get server-side `web_search_20260209` and `web_fetch_20260209`
+    (20 uses each), and a `pause_turn` is resumed (6 rounds at most); their searches show as job progress.
+  - Structured output through `output_config.format` (the schema made strict by `api_schema`: no numeric or length
+    limits, `minItems` 0 or 1). With web tools the JSON is asked for in the prompt instead (web citations and a JSON
+    output format do not mix).
+  - Server-side refusal fallbacks are on (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`); a refusal
+    or a cut-off answer fails the job with a clear message.
+  - Order of providers for every job: the routed one, then the Claude CLI, then the Claude API when a key is set.
+    "Use the API for all jobs" routes every job to it (a Codex job goes to Opus).
+- The key (`apikey.py`): `ANTHROPIC_API_KEY` from the environment, else the system credential store through `keyring`
+  (Windows Credential Manager, service "Deep Study Center"). `setApiKey` checks it first with the Models API (no
+  tokens used); a rejected key is not stored. The key is never sent to the UI, written to the database, logs or job
+  folders. Settings → "Anthropic API key", and a "Connect a model" card on the welcome page when no provider is found.
+- Not yet: Pyodide (runnable Python) still loads from a CDN (needs the network), local dictation (C2), code signing
+  (Windows SmartScreen warns on the first run of an unsigned installer), automatic updates, macOS and Linux builds.

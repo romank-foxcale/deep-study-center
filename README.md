@@ -175,6 +175,25 @@ npm run dev                               # http://localhost:5173 (proxies /api 
 Or build the frontend once (`npm run build` in `web/`) and `dsc serve` serves the whole app on port 8000.
 Tests: `.venv/Scripts/python -m pytest` in `backend/`.
 
+No Claude CLI? Add an Anthropic API key in Settings (it is kept in the system credential store); jobs then run on the
+Claude API and are billed to that account.
+
+## Desktop app (Windows)
+
+The desktop app is a [Tauri](https://tauri.app) window around the same backend, bundled with PyInstaller, so it needs
+no Python, Node or terminal on the user's machine. Build it (needs Rust, Node 20+ and the backend venv with the dev
+extras):
+
+```bash
+cd desktop
+npm install
+npm run build     # builds the UI, the backend (desktop/backend/dist) and the installer
+```
+
+The installer is `desktop/src-tauri/target/release/bundle/nsis/Deep Study Center_<version>_x64-setup.exe`
+(per-user install, no admin rights). The app keeps its data in the same workspace (`~/DeepStudy`, or `DSC_WORKSPACE`)
+and writes the backend log to `%LOCALAPPDATA%\app.deepstudycenter.desktop\logs\backend.log`. See docs/SPEC.md §25.
+
 ## Layout
 
 ```
