@@ -72,12 +72,21 @@ export default function Today() {
           <div className="eyebrow">Due for recall</div>
           <div className="stat"><b>{t?.due.count ?? 0} {t?.due.count === 1 ? 'idea' : 'ideas'}</b>
             <span className="muted small">{t && t.due.count ? `about ${Math.max(5, t.due.count * 2)} minutes` : 'nothing is due'}</span></div>
-          {t && t.due.items.length > 0 && (
-            <div className="row chips">{t.due.items.slice(0, 4).map(d => (
-              <span key={d.nodeId} className="pill"><i className={`state-dot state-${d.state}`} title={STATE_LABEL[d.state]} /> <Markdown inline>{d.title}</Markdown></span>
-            ))}</div>
-          )}
-          <Link className="btn btn-small" to="/practice">Practise now</Link>
+          {(() => {
+            // Ideas due for review come first; when none is due, the ideas you learned but never practised are offered
+            // under their own label, so "nothing is due" never shows next to an idea chip.
+            const due = t?.due.items.filter(d => d.reason === 'due') ?? []
+            const fresh = t?.due.items.filter(d => d.reason === 'new') ?? []
+            const list = due.length ? due : fresh
+            if (!list.length) return null
+            return <>
+              {!due.length && <span className="muted small">Ready to practise for the first time:</span>}
+              <div className="row chips">{list.slice(0, 4).map(d => (
+                <span key={d.nodeId} className="pill"><i className={`state-dot state-${d.state}`} title={STATE_LABEL[d.state]} /> <Markdown inline>{d.title}</Markdown></span>
+              ))}</div>
+            </>
+          })()}
+          <Link className="btn btn-small" to="/practice">{t?.due.count ? 'Practise now' : 'Practise'}</Link>
         </div>
         <div className="card">
           <div className="eyebrow">This week</div>
