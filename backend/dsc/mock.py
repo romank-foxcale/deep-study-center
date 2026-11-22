@@ -4,11 +4,13 @@ It starts from the demo goal (``seed_demo``: the AI-researcher roadmap, the "Vec
 vector graph, a check and an explain-back) and adds:
 
 - a second complete lesson, "Dot product & similarity", with two interactive formula widgets and a check;
-- four mapped books (sample chapters and ideas, no PDF files) with their own idea graphs, ideas shared between books,
-  and prerequisite links inside and across books and to the goal;
+- four mapped books (SPEC §31: chapters with summaries, one lesson per idea, no PDF files), each with its own part of
+  the graph, lessons shared between books, and prerequisite links inside and across books and to the goal; one book
+  lesson is written and saved ("Scaled dot-product attention": what the book says, what it means, checks, a worked
+  explain-back);
 - every idea state, made from real evidence rows the normal way: know strongly (a passed review), learned, learning,
   due for review (a failed review), ready and locked;
-- three study sessions of book parts: one done (explanations with formulas and idea links), one in the middle of
+- three study sessions over book chapters: one done (explanations with formulas and idea links), one in the middle of
   teaching, one in the probe;
 - review schedules, so "practise what is due" has ideas.
 
@@ -19,11 +21,10 @@ from __future__ import annotations
 
 import json
 import random
-import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import bookstudy, engine, graph, viz
+from . import engine, graph, viz
 from .db import DB, dumps, now
 from .seed import seed_demo
 
@@ -120,9 +121,13 @@ def build(folder: Path) -> Path:
     base = datetime.now(timezone.utc) - timedelta(days=40)
     _dot_lesson(db)
     titles = _books(db, rnd)
+    _book_lesson(db, titles)
     _states(db, rnd, base, titles)
     _sessions(db, titles)
+    _practice(db, titles)
     db.set_meta("map_view", "territory")
+    db.set_meta("auto_research", "0")  # mock pages are not a real book: never spend model calls on them by itself
+    db.set_meta("auto_refresh", "0")
     return folder / "study.db"
 
 
@@ -187,49 +192,63 @@ def _dot_lesson(db: DB) -> None:
 # ---------------------------------------------------------------- books
 
 def _books(db: DB, rnd: random.Random) -> dict[str, str]:
-    """Insert the books as already mapped: sources (outline and page text), parts, ideas and links. Returns title -> node id."""
+    """Insert the books as already mapped (SPEC §31): a source (outline and page text), a hidden goal, one chapter per
+    module with a summary, one lesson (concept and graph node) per idea, and links. Returns title -> node id."""
     by_title: dict[str, str] = {}
     ts = now()
     for bi, (title, author, *_rest, chapters) in enumerate(BOOKS):
-        sid, bid = f"src-mock{bi}", f"b-mock{bi}"
-        page, outline, pages_text = 1, [], []
-        part_rows = []
+        sid, bid, gid = f"src-mock{bi}", f"b-mock{bi}", f"g-book-mock{bi}"
+        page, outline, pages_text, rows = 1, [], [], []
         for ci, (ch, ideas) in enumerate(chapters):
             n_pages = max(4, len(ideas))
             outline.append({"title": ch, "page": page, "level": 0})
-            part_rows.append((ci, ch, page, page + n_pages - 1, ideas))
+            rows.append((ci, ch, page, page + n_pages - 1, ideas))
             for k in range(n_pages):
                 pages_text.append((page + k, f"{ch}. " + " ".join(ideas[k::n_pages])))
             page += n_pages
         with db.tx():
             db.conn.execute("""INSERT INTO sources(id, title, author, kind, filename, bytes, pages, status, outline, added_at)
                                VALUES(?,?,?,?,?,?,?,?,?,?)""", (sid, title, author, "book", f"{title}.pdf", 0, page - 1, "ready", dumps(outline), ts))
-            for p, text in pages_text:
-                db.conn.execute("INSERT INTO source_pages(source_id, page, text) VALUES(?,?,?)", (sid, p, text))
-                db.conn.execute("INSERT INTO source_fts(source_id, page, text) VALUES(?,?,?)", (sid, p, text))
-            db.conn.execute("""INSERT INTO books(id, source_id, title, status, chapters_done, chapters, created_at, updated_at)
-                               VALUES(?,?,?,?,?,?,?,?)""", (bid, sid, title, "ready", len(chapters), len(chapters), ts, ts))
+            for pg, text in pages_text:
+                db.conn.execute("INSERT INTO source_pages(source_id, page, text) VALUES(?,?,?)", (sid, pg, text))
+                db.conn.execute("INSERT INTO source_fts(source_id, page, text) VALUES(?,?,?)", (sid, pg, text))
+            db.conn.execute("""INSERT INTO goals(id, title, why, done, hours, profile, created_at, kind) VALUES(?,?,?,?,?,?,?,?)""",
+                            (gid, title, f"Study the book {title}", "", 5, "", ts, "bookstudy"))
+            db.conn.execute("INSERT INTO tracks(id, goal_id, ord, title, summary) VALUES(?,?,?,?,?)", (f"{gid}-t", gid, 0, title, author))
+            db.conn.execute("""INSERT INTO books(id, source_id, title, status, chapters_done, chapters, created_at, updated_at, goal_id, version)
+                               VALUES(?,?,?,?,?,?,?,?,?,2)""", (bid, sid, title, "ready", len(chapters), len(chapters), ts, ts, gid))
             prev: list[str] = []
-            for ord_, (ci, ch, p0, p1, ideas) in enumerate(part_rows):
-                cur = db.conn.execute("""INSERT INTO book_parts(book_id, ord, chapter, chapter_title, title, page_from, page_to, summary)
-                                         VALUES(?,?,?,?,?,?,?,?)""", (bid, ord_, ci + 1, ch, ch, p0, p1,
-                                                                      f"What {title} says about {ch.lower()}. (Mock data.)"))
-                part_id = cur.lastrowid
+            n = 0
+            for ci, ch, p0, p1, ideas in rows:
+                mid = f"{gid}-c{ci + 1}"
+                db.conn.execute("""INSERT INTO modules(id, track_id, ord, title, research, planned, summary, seq) VALUES(?,?,?,?,?,?,?,?)""",
+                                (mid, f"{gid}-t", ci + 1, ch, "outline", len(ideas), f"What {title} says about {ch.lower()}.", ci + 1))
+                db.conn.execute("""INSERT INTO book_chapters(book_id, chapter, title, summary, page_from, page_to, sections, module_id, mapped)
+                                   VALUES(?,?,?,?,?,?,?,?,1)""",
+                                (bid, ci + 1, ch, f"What {title} says about {ch.lower()}: " + ", ".join(ideas[:3]).lower()
+                                 + (", and more." if len(ideas) > 3 else ".") + " (Mock data.)", p0, p1, "[]", mid))
                 for k, idea in enumerate(ideas):
-                    nid = f"n-{secrets.token_hex(5)}"
-                    db.conn.execute("INSERT INTO nodes(id, title, statement, kind, created_at, origin) VALUES(?,?,?,?,?,?)",
-                                    (nid, idea, STATEMENT.format(title=idea, chapter=ch, book=title), "concept", ts, "book"))
-                    db.conn.execute("INSERT INTO node_fts(node_id, text) VALUES(?,?)", (nid, idea))
+                    cid = f"{mid}-l{k + 1}"
+                    pg = p0 + k % (p1 - p0 + 1)
+                    pool = prev[-5:]  # local prerequisites: 1-2 of the lessons just before
+                    pre = rnd.sample(pool, min(len(pool), 1 + (rnd.random() < 0.45)))
+                    db.conn.execute("INSERT INTO concepts VALUES(?,?,?,?,?,?,?,?,0)",
+                                    (cid, mid, k, idea, STATEMENT.format(title=idea, chapter=ch, book=title), 15, dumps(pre), 0.1))
+                    cur = db.conn.execute("""INSERT INTO book_parts(book_id, ord, chapter, chapter_title, title, page_from, page_to, summary,
+                                             concept_id, ideas) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                                          (bid, n, ci + 1, ch, idea, pg, pg, STATEMENT.format(title=idea, chapter=ch, book=title), cid,
+                                           dumps([f"{idea}: the main point", "how it is used"])))
                     db.conn.execute("""INSERT INTO book_nodes(book_id, node_id, part_id, key, pages, created, ord)
-                                       VALUES(?,?,?,?,?,1,?)""", (bid, nid, part_id, f"c{ci + 1}-{k}", str(p0 + k % (p1 - p0 + 1)), k))
-                    by_title[idea] = nid
-                    pool = prev[-5:]  # local prerequisites: 1-2 of the ideas just before
-                    for src in rnd.sample(pool, min(len(pool), 1 + (rnd.random() < 0.45))):
-                        db.conn.execute("INSERT OR IGNORE INTO links(src, dst, why, origin) VALUES(?,?,?,?)", (src, nid, "", "book"))
-                    prev.append(nid)
-        bookstudy._split_big_parts(db, {"id": bid}, [dict(r) for r in db.q("SELECT * FROM book_parts WHERE book_id=?", (bid,))])
+                                       VALUES(?,?,?,?,?,1,?)""", (bid, cid, cur.lastrowid, cid, str(pg), k))
+                    by_title[idea] = cid
+                    prev.append(cid)
+                    n += 1
+    graph.sync(db)
     with db.tx():
-        for bi, idea, other in SHARED:  # the second book uses the first book's node
+        for c in db.q("SELECT id, prereqs FROM concepts WHERE id LIKE 'g-book-mock%'"):
+            for src in json.loads(c["prereqs"]):
+                db.conn.execute("INSERT OR IGNORE INTO links(src, dst, why, origin) VALUES(?,?,?,?)", (src, c["id"], "", "book"))
+        for bi, idea, other in SHARED:  # the second book also teaches the first book's idea
             nid = by_title[idea]
             part = db.conn.execute("SELECT id FROM book_parts WHERE book_id=? ORDER BY ord DESC LIMIT 1", (f"b-mock{other}",)).fetchone()[0]
             db.conn.execute("""INSERT OR IGNORE INTO book_nodes(book_id, node_id, part_id, key, pages, created, ord)
@@ -240,6 +259,74 @@ def _books(db: DB, rnd: random.Random) -> dict[str, str]:
             if src and dst:
                 db.conn.execute("INSERT OR IGNORE INTO links(src, dst, why, origin) VALUES(?,?,?,?)", (src, dst, "", "book"))
     return by_title
+
+
+ATTENTION = [
+    ("s-scores", "Scores from queries and keys", "pages", "52",
+     "The book introduces attention as a lookup: each token makes a query, every token offers a key, and the match between "
+     "them is their dot product. It writes the scores for all tokens at once as the matrix $QK^\\top$, one row per query.",
+     "Think of each token asking a question (its query $q$) and every token holding a label (its key $k$). The "
+     "[dot product](#idea/c-dot) $q\\cdot k$ is large when the two point the same way, so the score says how well a key "
+     "answers the question:\n\n$$S = QK^\\top, \\qquad S_{ij} = q_i \\cdot k_j$$\n\nFor $q = (1, 0)$ and keys $k_1 = (2, 0)$, "
+     "$k_2 = (0, 3)$: the scores are $2$ and $0$, so token 1 matches and token 2 does not, although $k_2$ is longer.",
+     {"prompt": "Query $q = (1, 1)$, keys $k_1 = (1, 0)$ and $k_2 = (-1, 0)$. Which key scores higher?",
+      "options": ["$k_1$", "$k_2$", "They are equal", "It depends on the values"], "answer": 0,
+      "explanation": "$q\\cdot k_1 = 1$ and $q\\cdot k_2 = -1$."}, None),
+    ("s-scale", "Why divide by the square root of d", "pages", "53",
+     "The book says the scores grow with the vector size $d_k$, and that large scores make softmax “almost one-hot”. "
+     "Dividing by $\\sqrt{d_k}$ keeps them in a useful range.",
+     "Each score is a sum of $d_k$ products. If the parts are random with variance 1, the sum has variance $d_k$, so its "
+     "typical size is $\\sqrt{d_k}$. [Softmax](#idea/{softmax}) of large numbers puts almost all weight on one token and "
+     "its gradient is almost zero there. Dividing by $\\sqrt{d_k}$ brings the variance back to 1:\n\n"
+     "$$\\mathrm{Var}\\!\\left(\\frac{q\\cdot k}{\\sqrt{d_k}}\\right) = 1$$",
+     None, {"prompt": "Work it out: with $d_k = 64$ and parts of variance 1, what is the typical size of $q\\cdot k$ "
+                      "before and after the scaling? Write the steps.", "work": True}),
+    ("s-mix", "Mixing the values", "pages", "54-55",
+     "Softmax turns each row of scores into weights that sum to one, and the output for a token is the weighted mix "
+     "of all value vectors. The book gives the full formula and calls it scaled dot-product attention.",
+     "Put the steps together:\n\n$$\\mathrm{Attention}(Q,K,V) = \\mathrm{softmax}\\!\\left(\\frac{QK^\\top}{\\sqrt{d_k}}\\right)V$$\n\n"
+     "Each output row is an average of the values, weighted by how well each key matched. With weights $(0.9, 0.1)$ "
+     "and values $v_1 = (1, 0)$, $v_2 = (0, 1)$, the output is $(0.9, 0.1)$: mostly token 1.",
+     {"prompt": "All scores in a row are equal. What is the output for that token?",
+      "options": ["The first value", "The average of all values", "Zero", "The largest value"], "answer": 1,
+      "explanation": "Equal scores give equal softmax weights, so the output is the plain average."}, None),
+]
+
+
+def _book_lesson(db: DB, by_title: dict[str, str]) -> None:
+    """One saved book lesson (SPEC §31): "Scaled dot-product attention" in Inference Engineering, with what the book
+    says per section, what it means, idea links, checks and a worked explain-back for the drawing board."""
+    cid = by_title["Scaled dot-product attention"]
+    softmax = by_title["Softmax"]
+    style = db.one("SELECT style FROM renditions WHERE concept_id='c-vectors'")["style"]
+    pb_version = db.one("SELECT playbook_version FROM renditions WHERE concept_id='c-vectors'")["playbook_version"]
+    sections, ts = [], now()
+    for sid, heading, _, pages, said, _means, check, explain in ATTENTION:
+        sec = {"id": sid, "heading": heading, "purpose": heading, "angles": ["algebraic"], "book": {"summary": said, "pages": pages}}
+        if check:
+            sec["check"] = {**check, "id": f"q-{sid}"}
+        if explain:
+            sec["explain"] = {**explain, "id": f"e-{sid}", "rubric": ["each score is a sum of $d_k$ products",
+                                                                      "variance $d_k$, size about 8", "after scaling about 1"]}
+        sections.append(sec)
+    body = {"objective": "Compute attention scores, explain the $\\sqrt{d_k}$ scaling and read the output as a weighted mix.",
+            "bloom": "understand", "core": "Attention scores every key against a query with a dot product, scales the scores, "
+            "turns them into weights with softmax and mixes the values.",
+            "formal": "$\\mathrm{softmax}(QK^\\top/\\sqrt{d_k})V$", "why": "A dot product measures alignment; scaling keeps softmax trainable.",
+            "angles": ["algebraic"], "examples": [], "misconceptions": ["Longer keys always score higher."],
+            "sources": [{"title": "Inference Engineering, pp. 52-55", "url": "source:src-mock0#page=52", "kind": "book",
+                         "why": "The book this lesson follows"}], "sections": sections}
+    with db.tx():
+        db.conn.execute("INSERT INTO cards(concept_id, version, body, fact_check, checked_at) VALUES(?,?,?,?,?)",
+                        (cid, 1, dumps(body), "passed", ts[:10]))
+        for sid, *_, means, _c, _e in ATTENTION:
+            db.conn.execute("INSERT OR REPLACE INTO prose VALUES(?,?,?,?,?,?,?,?)",
+                            (cid, 1, sid, "algebraic", style, means.replace("{softmax}", softmax), "mock", ts))
+        db.conn.execute("INSERT OR REPLACE INTO renditions VALUES(?,?,?,?,?,?,0)",
+                        (cid, 1, pb_version, style, dumps({x[0]: "algebraic" for x in ATTENTION}), "{}"))
+        db.conn.execute("UPDATE concepts SET started=1 WHERE id=?", (cid,))
+        mid = db.conn.execute("SELECT module_id FROM concepts WHERE id=?", (cid,)).fetchone()[0]
+        db.conn.execute("UPDATE modules SET research='ready' WHERE id=?", (mid,))
 
 
 # ---------------------------------------------------------------- idea states from evidence
@@ -265,7 +352,7 @@ def _evidence(db: DB, nid: str, state: str, day: float, base: datetime) -> None:
 
 
 def _states(db: DB, rnd: random.Random, base: datetime, by_title: dict[str, str]) -> None:
-    goal_nodes = [r["id"] for r in db.q("SELECT id FROM nodes WHERE origin='concept' ORDER BY id")]
+    goal_nodes = [r["id"] for r in db.q("SELECT id FROM nodes WHERE origin='concept' AND id LIKE 'c-%' ORDER BY id")]
     for i, nid in enumerate(goal_nodes):  # the goal's basics: mostly known strongly
         _evidence(db, nid, "mastered" if i < 5 else "learned" if i < 7 else "learning" if i < 8 else "none", 1 + i, base)
     for bi, (_title, _a, progress, rusty, chapters) in enumerate(BOOKS):
@@ -287,23 +374,17 @@ def _states(db: DB, rnd: random.Random, base: datetime, by_title: dict[str, str]
 
 def _sessions(db: DB, by_title: dict[str, str]) -> None:
     from . import session
-    parts = {r["title"]: r for r in db.q("SELECT * FROM book_parts WHERE book_id='b-mock0'")}
-
-    def start(title: str) -> str:
-        p = parts[title]
+    def start(title: str, part: slice) -> str:
+        rows = db.q("""SELECT n.id AS node_id, n.title, n.statement FROM book_parts p JOIN nodes n ON n.id = p.concept_id
+                       WHERE p.book_id='b-mock0' AND p.chapter_title=? ORDER BY p.ord""", (title,))[part]
         ideas = [{"key": f"i{n + 1}", "title": r["title"], "statement": r["statement"], "node": r["node_id"], "prereqs": [f"i{n}"] if n else [],
-                  "fromGraph": False}
-                 for n, r in enumerate(db.q("""SELECT bn.node_id, n.title, n.statement FROM book_nodes bn JOIN nodes n ON n.id = bn.node_id
-                                               WHERE bn.part_id=? ORDER BY bn.ord""", (p["id"],)))]
-        sid = session.start_from_ideas(db, _NoJobs(), f'{p["title"]} (Inference Engineering)', p["title"], ideas, ["src-mock0"],
-                                       book_part=p["id"])
-        db.x("UPDATE book_parts SET session_id=?, status='studying' WHERE id=?", (sid, p["id"]))
-        return sid
+                  "fromGraph": False} for n, r in enumerate(rows)]
+        return session.start_from_ideas(db, _NoJobs(), f'{title} (Inference Engineering)', title, ideas, ["src-mock0"])
 
     softmax, attn = by_title["Softmax"], by_title["Scaled dot-product attention"]
     mcq = lambda q, opts, ans, why: {"prompt": q, "options": opts, "explanation": why, "answer": ans}  # noqa: E731
     # 1. a finished session: predict -> explain (formulas, idea links) -> check, for three ideas
-    sid = start("Models (1/2)")
+    sid = start("Models", slice(0, 7))
     s = session.get(db, sid)
     plan = [i["key"] for i in s["ideas"]][:3]
     steps = [
@@ -342,9 +423,8 @@ def _sessions(db: DB, by_title: dict[str, str]) -> None:
     db.x("UPDATE sessions SET status='done', plan=?, current=?, summary=? WHERE id=?",
          (dumps(plan), len(plan), "You can now read a linear layer as $y = Wx + b$, turn logits into probabilities with softmax, "
           "and explain why attention scales its scores by $\\sqrt{d_k}$.", sid))
-    db.x("UPDATE book_parts SET status='done' WHERE session_id=?", (sid,))
     # 2. a session in the middle of teaching: the first idea done, an open prediction on the second
-    sid2 = start("Models (2/2)")
+    sid2 = start("Models", slice(7, None))
     s2 = session.get(db, sid2)
     keys = [i["key"] for i in s2["ideas"]]
     db.x("UPDATE sessions SET status='teaching', plan=?, current=1 WHERE id=?", (dumps(keys), sid2))
@@ -353,7 +433,7 @@ def _sessions(db: DB, by_title: dict[str, str]) -> None:
                                                        ["Only the new token", "All weights and the KV cache", "Only the KV cache", "Nothing"], 1,
                                                        "Decode is memory-bound: every step streams the weights and the cache.")), ts))
     # 3. a session in the probe: one answered question, one open
-    sid3 = start("Hardware")
+    sid3 = start("Hardware", slice(None))
     db.x("UPDATE sessions SET status='probing' WHERE id=?", (sid3,))
     k3 = session.get(db, sid3)["ideas"][0]["key"]
     db.x("""INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, choice, answered, correct, thinking, confidence, created_at, answered_at)
@@ -365,6 +445,32 @@ def _sessions(db: DB, by_title: dict[str, str]) -> None:
                                              ["Prefill", "Decode", "Tokenization", "Sampling"], 1, "Decode reads all weights per token.")), ts))
     db.set_meta("last_session", sid)
     db.set_meta("last_book", "b-mock0")
+
+
+def _practice(db: DB, by_title: dict[str, str]) -> None:
+    """A recall-practice run in progress: one problem solved, one open with the learner's thinking and a hint."""
+    ids = [by_title["Leader-follower"], by_title["Replication lag"]]
+    ts = now()
+    db.x("""INSERT INTO practices(id, title, node_ids, own, status, level, count, created_at, updated_at)
+            VALUES(?,?,?,?,?,?,?,?,?)""", ("p-mock", "Leader-follower, Replication lag", dumps(ids), "{}", "active", 2, 5, ts, ts))
+    solved = {"title": "Problem 1", "level": 2, "node_ids": ids[:1],
+              "prompt": "A shop has one database in Frankfurt. Reads are slow for users in Tokyo, but every write must keep a "
+                        "single order. What can you add, and which node takes the writes?",
+              "solution": "Add followers near the users for reads; the leader alone takes writes, so they keep one order."}
+    open_ = {"title": "Problem 2", "level": 2, "node_ids": ids,
+             "prompt": "A leader in Tokyo replicates to a follower in Frankfurt. A user writes a comment and reloads the page at "
+                       "once, and the comment is gone. What happened, and what is the smallest change that fixes it for this user?",
+             "solution": "The read went to a follower that had not received the write yet (replication lag). Read-your-writes: "
+                         "send this user's reads to the leader for a short time after they write."}
+    db.x("""INSERT INTO practice_items(practice_id, problem, status, hints, chunks, score, created_at, ended_at)
+            VALUES(?,?,?,?,?,?,?,?)""", ("p-mock", dumps(solved), "solved", 0, dumps([{"text": "followers in Tokyo for reads, the "
+         "leader keeps all writes so the order stays", "verdict": "solved", "feedback": "Yes: read replicas near the users, writes "
+         "through the leader."}]), 1.0, ts, ts))
+    db.x("""INSERT INTO practice_items(practice_id, problem, status, hints, chunks, created_at)
+            VALUES(?,?,?,?,?,?)""", ("p-mock", dumps(open_), "open", 1, dumps([{"text": "reads go to the follower, maybe it did "
+         "not get the write yet… replication lag?", "verdict": "progress", "feedback": "Right cause.",
+         "hint": "Think about who must see the write first: everyone, or only the person who made it?"}]), ts))
+    db.set_meta("last_practice", "p-mock")
 
 
 class _NoJobs:

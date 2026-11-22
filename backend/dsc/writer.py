@@ -99,8 +99,39 @@ def recent_feedback(db: DB, limit: int = 12) -> str:
 
 def _card_text(card: dict) -> str:
     keep = {k: card.get(k) for k in ("objective", "core", "formal", "why", "angles", "examples", "misconceptions")}
-    keep["sections"] = [{"id": s["id"], "heading": s["heading"], "purpose": s.get("purpose", "")} for s in card.get("sections", [])]
+    keep["sections"] = [{"id": s["id"], "heading": s["heading"], "purpose": s.get("purpose", ""),
+                         **({"book": s["book"]} if s.get("book") else {})} for s in card.get("sections", [])]
+    if any(s.get("book") for s in card.get("sections", [])):
+        keep["book_lesson"] = ("This lesson follows a book. The page shows each section's `book` summary (what the book says, with "
+                               "its pages) in its own block above your text. Your text is \"what it means\": explain the summary for this "
+                               "learner (intuition, a worked example, why each step holds, links to what they know). Keep the book's "
+                               "notation. Do not repeat the summary.")
     return json.dumps(keep, ensure_ascii=False, indent=1)
+
+
+def book_links(db: DB, cid: str, card: dict) -> dict[str, str]:
+    """For a book lesson: graph ideas its text may link as ``[text](#idea/<id>)`` (id -> title), so hovering shows where
+    the learner met the idea (another book, a goal, a session). Empty for other lessons."""
+    if not db.one("SELECT 1 FROM book_parts WHERE concept_id=?", (cid,)):
+        return {}
+    from . import graph
+    own = graph.node_of(db).get(cid, cid)
+    text = " ".join([card.get("core", "")] + [s.get("heading", "") for s in card.get("sections", [])])
+    near = [lk["src"] for lk in graph.links(db) if lk["dst"] == own] + [lk["dst"] for lk in graph.links(db) if lk["src"] == own]
+    found = [c["id"] for c in graph.candidates(db, text, k=15)]
+    want = [i for i in dict.fromkeys(near + found) if i != own][:30]
+    if not want:
+        return {}
+    rows = db.q(f"SELECT id, title FROM nodes WHERE id IN ({','.join('?' * len(want))})", want)
+    return {r["id"]: r["title"] for r in rows}
+
+
+def _links_text(links: dict[str, str]) -> str:
+    if not links:
+        return ""
+    return ("\n\nIdeas the learner met elsewhere (id: title). Where your text mentions one of these ideas, link its first mention as "
+            "`[words](#idea/<id>)`; hovering it shows where they learned it. Link only ids from this list:\n"
+            + "\n".join(f"- {i}: {t}" for i, t in links.items()))
 
 
 def _learner(db: DB) -> dict:
@@ -132,8 +163,9 @@ def write_prose(jobs: Jobs, jid: int, cid: str, card_version: int, style: str, w
         if (fixes or {}).get(sid):
             line += f". Fix: {fixes[sid]}"
         lines.append(line)
+    links = book_links(db, cid, card)
     out = jobs.call(jid, "Renditions", Call(
-        prompt=prompt("render", card=_card_text(card), goal=lr["goal"], profile=lr["profile"], playbook=lr["playbook"],
+        prompt=prompt("render", card=_card_text(card) + _links_text(links), goal=lr["goal"], profile=lr["profile"], playbook=lr["playbook"],
                       sections="\n".join(lines), guidelines=lr["guidelines"], reasoning=lr["reasoning"], **lr["pb"]["adjust"]),
         schema={"type": "object", "required": ["sections"], "properties": {"sections": {"type": "array", "items": {
             "type": "object", "required": ["id", "body"], "properties": {"id": {"type": "string"}, "body": {"type": "string"}}}}}},
@@ -141,8 +173,10 @@ def write_prose(jobs: Jobs, jid: int, cid: str, card_version: int, style: str, w
     written = 0
     for s in out.get("sections", []):
         if s["id"] in want and s["body"].strip():
+            from .session import idea_links
+            body = idea_links(s["body"].strip(), set(links))
             db.x("INSERT OR REPLACE INTO prose VALUES(?,?,?,?,?,?,?,?)",
-                 (cid, card_version, s["id"], want[s["id"]], style, s["body"].strip(), "llm", now()))
+                 (cid, card_version, s["id"], want[s["id"]], style, body, "llm", now()))
             written += 1
     return written
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getLesson, jobActive, openLesson, postActivity, useStore } from '../store'
-import type { Angle, LessonView } from '../types'
+import type { Angle, LessonSectionView, LessonView } from '../types'
 import Markdown from '../components/Markdown'
 import InlineCheck from '../components/InlineCheck'
 import CodeExercise from '../components/CodeExercise'
@@ -35,6 +35,15 @@ export default function Lesson() {
   const [current, setCurrent] = useState<string | undefined>()
   const [selection, setSelection] = useState<{ text: string; ref: FeedbackRef | null; top: number; left: number } | null>(null)
   const article = useRef<HTMLElement>(null)
+  const [closed, setClosed] = useState<Record<string, boolean>>({})
+  // A book lesson lives in its book's hidden goal: make that goal active, so this page finds the lesson (SPEC §31).
+  const [switching, setSwitching] = useState<'idle' | 'busy' | 'failed'>('idle')
+  useEffect(() => {
+    if (concept || switching !== 'idle') return
+    setSwitching('busy')
+    void dispatch({ type: 'bookOpenLesson', conceptId: id }).then(ok => setSwitching(ok ? 'idle' : 'failed'))
+  }, [concept, id, switching, dispatch])
+  useEffect(() => { setSwitching('idle'); setClosed({}) }, [id])
 
   // Opening the lesson applies playbook changes (re-renders if it isn't studied yet).
   useEffect(() => {
@@ -97,7 +106,9 @@ export default function Lesson() {
     return () => window.removeEventListener('scroll', hide, true)
   }, [])
 
-  if (!concept) return <div className="page"><p>Lesson not found. <Link to="/roadmap">Back to the roadmap</Link></p></div>
+  if (!concept) return switching === 'failed'
+    ? <div className="page"><p>Lesson not found. <Link to="/">Back to Today</Link></p></div>
+    : <div className="page"><p className="muted">Opening the lesson…</p></div>
 
   const onMouseUp = () => {
     const sel = window.getSelection()
@@ -121,12 +132,41 @@ export default function Lesson() {
   const rendition = view?.rendition
   const correct = Object.entries(s.answers).filter(([k, v]) => k.startsWith(id + ':') && v.correct).length
   const siblings = s.concepts.filter(c => c.moduleId === concept.moduleId)
-  const nextConcept = siblings[siblings.findIndex(c => c.id === id) + 1]
+  const book = view?.book ?? null
+  const nextConcept = book ? (book.next ?? undefined) : siblings[siblings.findIndex(c => c.id === id) + 1]
+  const quiz = book ? sections.filter(x => x.check || x.explain || x.code) : []
+
+  /** A section's check, exercise and explain-back. In a book lesson they are gathered into the quiz at the end. */
+  const items = (sec: LessonSectionView) => <>
+    {sec.check && sec.checkMine && <div className="mine-note"><span className="pill pill-accent small" title="This question was written for you from the source card">question made for you</span></div>}
+    {sec.check && (
+      <InlineCheck key={sec.check.id} check={sec.check} previous={s.answers[`${id}:${sec.check.id}`]}
+        onAnswer={(choice, r) => dispatch({ type: 'answer', conceptId: id, checkId: sec.check!.id, angle: sec.angle, choice, ...r })}
+        onUndo={() => dispatch({ type: 'undoAnswer', conceptId: id, itemId: sec.check!.id })} />
+    )}
+    {sec.code?.runtime === 'local' && (
+      <LocalExercise key={sec.code.id} conceptId={id} exercise={sec.code} angle={sec.angle}
+        passed={!!s.answers[`${id}:${sec.code.id}`]?.correct} />
+    )}
+    {sec.code && sec.code.runtime !== 'local' && (
+      <CodeExercise exercise={sec.code} passed={!!s.answers[`${id}:${sec.code.id}`]?.correct}
+        onResult={ok => dispatch({ type: 'answer', conceptId: id, checkId: sec.code!.id, angle: sec.angle, correct: ok })} />
+    )}
+    {sec.explain && (
+      <ExplainBack key={sec.explain.id} item={sec.explain} grading={s.gradings[`${id}:${sec.explain.id}`]}
+        inProgress={jobActive(s, 'grade', { concept_id: id })}
+        onSubmit={(answer, confidence, drawing) => dispatch({ type: 'explain', conceptId: id, itemId: sec.explain!.id, angle: sec.angle, answer, confidence, drawing })}
+        onUndo={() => dispatch({ type: 'undoAnswer', conceptId: id, itemId: sec.explain!.id })} />
+    )}
+  </>
 
   return (
     <div className="lesson-layout">
       <article className="lesson" ref={article} onMouseUp={onMouseUp}>
-        <div className="crumbs"><Link to="/roadmap">{track?.title}</Link> › {module?.title}</div>
+        {book
+          ? <div className="crumbs"><Link to={`/book/${book.bookId}`}>{book.bookTitle}</Link> › <Link to={`/book/${book.bookId}/chapter/${book.chapter}`}>
+              {book.chapterTitle}</Link> › lesson {book.index} of {book.count} · pp. {book.pages[0]}{book.pages[1] !== book.pages[0] ? `–${book.pages[1]}` : ''}</div>
+          : <div className="crumbs"><Link to="/roadmap">{track?.title}</Link> › {module?.title}</div>}
         <header className="lesson-head">
           <h1>{concept.title}</h1>
           <p className="lead">{concept.objective}</p>
@@ -209,7 +249,16 @@ export default function Lesson() {
           </div>
         )}
 
-        {view && !view.card && (
+        {view && !view.card && book && (
+          <div className="placeholder">
+            {view.writingCards
+              ? <p><strong>Writing this lesson from the book</strong> (pp. {book.pages[0]}–{book.pages[1]}). The other lessons of this
+                  chapter are written at the same time. The lesson is saved: it opens at once next time.</p>
+              : <><p><strong>Not written yet.</strong></p>
+                  <button className="btn btn-primary" onClick={() => openLesson(id).then(setView, () => {})}>Write it now</button></>}
+          </div>
+        )}
+        {view && !view.card && !book && (
           <div className="placeholder">
             <p><strong>Not researched yet.</strong> Deep research runs about one module ahead of you.</p>
             {module && module.research !== 'researching' && (
@@ -222,10 +271,15 @@ export default function Lesson() {
 
         {sections.map(sec => {
           const multi = sec.angles.length > 1
+          const shut = book && closed[sec.id]
           return (
-            <section key={sec.id} className="lesson-section" data-section-id={sec.id} onMouseEnter={() => setCurrent(sec.heading)}>
+            <section key={sec.id} className={`lesson-section${book ? ' lesson-chunk' : ''}${shut ? ' lesson-chunk-closed' : ''}`} data-section-id={sec.id} onMouseEnter={() => setCurrent(sec.heading)}>
               <div className="section-head">
-                <h2>{sec.heading}</h2>
+                {book
+                  ? <button className="chunk-toggle" onClick={() => setClosed(c => ({ ...c, [sec.id]: !c[sec.id] }))} aria-expanded={!shut}>
+                      <span aria-hidden>{shut ? '▸' : '▾'}</span><h2>{sec.heading}</h2>
+                      {sec.book?.pages && <span className="muted small">p. {sec.book.pages}</span>}</button>
+                  : <h2>{sec.heading}</h2>}
                 <div className="section-tools">
                   {multi && <span className="pill" title="Teaching angle used for this section">{sec.angle}</span>}
                   {multi && (
@@ -237,10 +291,17 @@ export default function Lesson() {
                   <button className="btn btn-small" onClick={() => setFeedbackFor({ sectionId: sec.id, label: `“${sec.heading}”`, angle: sec.angle, available: sec.angles })}>Feedback</button>
                 </div>
               </div>
-              {sec.body
+              {!shut && sec.book && (
+                <div className="book-says">
+                  <div className="eyebrow">What the book says{sec.book.pages ? ` · p. ${sec.book.pages}` : ''}</div>
+                  <Markdown>{sec.book.summary}</Markdown>
+                </div>
+              )}
+              {!shut && sec.book && sec.body && <div className="eyebrow means-label">What it means</div>}
+              {shut ? null : sec.body
                 ? <div className={sec.pending ? 'rendering' : ''}><Markdown runnable={id}>{sec.body}</Markdown></div>
                 : <div className="skeleton" aria-busy={sec.pending}>{sec.pending ? `Writing this section for you (${sec.angle})…` : 'Not rendered yet.'}</div>}
-              {sec.viz && (
+              {!shut && sec.viz && (
                 <div className="viz-block">
                   <Viz key={`${sec.id}-viz`} spec={sec.viz} />
                   <div className="viz-tools">
@@ -257,29 +318,24 @@ export default function Lesson() {
                 </div>
               )}
               {sec.approximate && <p className="muted small">{sec.pending ? 'Showing the closest earlier version while your new one is written.' : 'Closest earlier version.'}</p>}
-              {sec.check && sec.checkMine && <div className="mine-note"><span className="pill pill-accent small" title="This question was written for you from the source card">question made for you</span></div>}
-              {sec.check && (
-                <InlineCheck key={sec.check.id} check={sec.check} previous={s.answers[`${id}:${sec.check.id}`]}
-                  onAnswer={(choice, r) => dispatch({ type: 'answer', conceptId: id, checkId: sec.check!.id, angle: sec.angle, choice, ...r })}
-                  onUndo={() => dispatch({ type: 'undoAnswer', conceptId: id, itemId: sec.check!.id })} />
-              )}
-              {sec.code?.runtime === 'local' && (
-                <LocalExercise key={sec.code.id} conceptId={id} exercise={sec.code} angle={sec.angle}
-                  passed={!!s.answers[`${id}:${sec.code.id}`]?.correct} />
-              )}
-              {sec.code && sec.code.runtime !== 'local' && (
-                <CodeExercise exercise={sec.code} passed={!!s.answers[`${id}:${sec.code.id}`]?.correct}
-                  onResult={ok => dispatch({ type: 'answer', conceptId: id, checkId: sec.code!.id, angle: sec.angle, correct: ok })} />
-              )}
-              {sec.explain && (
-                <ExplainBack key={sec.explain.id} item={sec.explain} grading={s.gradings[`${id}:${sec.explain.id}`]}
-                  inProgress={jobActive(s, 'grade', { concept_id: id })}
-                  onSubmit={(answer, confidence) => dispatch({ type: 'explain', conceptId: id, itemId: sec.explain!.id, angle: sec.angle, answer, confidence })}
-                  onUndo={() => dispatch({ type: 'undoAnswer', conceptId: id, itemId: sec.explain!.id })} />
-              )}
+              {!book && items(sec)}
             </section>
           )
         })}
+
+        {quiz.length > 0 && (
+          <section className="lesson-quiz">
+            <h2>Check yourself</h2>
+            <p className="muted small">Questions on the whole lesson. Say how you think and how sure you are; for a calculation, use the
+              drawing board. Your answers count as practice for this idea.</p>
+            {quiz.map(sec => (
+              <div key={sec.id} className="quiz-item">
+                <div className="eyebrow">{sec.heading}</div>
+                {items(sec)}
+              </div>
+            ))}
+          </section>
+        )}
 
         {sections.length > 0 && (
           <footer className="gate">
@@ -292,7 +348,9 @@ export default function Lesson() {
             </div>
             <div className="row">
               {!rendition?.studied && <button className="btn" onClick={() => dispatch({ type: 'markStudied', conceptId: id })}>I've read it</button>}
+              {book?.prev && <Link className="btn" to={`/lesson/${book.prev.id}`}>← {book.prev.title}</Link>}
               {nextConcept && <Link className="btn btn-primary" to={`/lesson/${nextConcept.id}`}>Next: {nextConcept.title} →</Link>}
+              {book && !nextConcept && <Link className="btn btn-primary" to={`/book/${book.bookId}`}>Back to the book</Link>}
             </div>
           </footer>
         )}

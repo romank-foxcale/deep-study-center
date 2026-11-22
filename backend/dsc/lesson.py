@@ -58,6 +58,8 @@ def refresh(db: DB, jobs: Jobs, cid: str, by_learner: bool = False) -> None:
 
 
 def open_lesson(db: DB, jobs: Jobs, cid: str) -> dict:
+    from . import bookstudy
+    bookstudy.ensure_written(db, jobs, cid)  # a book lesson opened for the first time: write it from the book's pages
     r = ensure_rendition(db, cid)
     refreshed = False
     if r and state.is_stale(r, state.latest_card(db, cid), state.playbook(db)) and not _studied(db, cid, r) \
@@ -131,9 +133,16 @@ def view(db: DB, cid: str) -> dict:
             "viz": viz.validate(s.get("viz")),  # re-validated on every read: only safe widget specs reach the page
             "vizMine": s["vizMine"], "checkMine": s["checkMine"],
             "vizNotes": _viz_notes(s),
+            "book": s.get("book"),  # book lessons: a close summary of what the book says here, and its pages
         })
     p = writer.current_plan(db, cid, card["version"]) if card else None
+    from . import bookstudy
+    book = bookstudy.lesson_book(db, cid)
+    mod = db.one("SELECT module_id FROM concepts WHERE id=?", (cid,)) if book else None
+    writing = bool(mod) and any(j["status"] in ("queued", "running") and j["kind"] == "research_module"
+                                and j["input"].get("module_id") == mod["module_id"] for j in state.jobs(db))
     return {
+        "book": book, "writingCards": writing,
         "conceptId": cid, "card": state.public_card(card) if card else None, "sections": sections,
         "rendering": rendering, "renderError": failed if not rendering else None,
         "rendition": r and {"cardVersion": r["card_version"], "playbookVersion": r["playbook_version"],

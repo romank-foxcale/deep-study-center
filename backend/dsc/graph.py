@@ -197,7 +197,8 @@ def view(db: DB) -> dict:
     goals_of: dict[str, set[str]] = {}
     lessons_of: dict[str, list[dict]] = {}
     for r in db.q("""SELECT c.id, c.title, t.goal_id FROM concepts c JOIN modules m ON m.id = c.module_id
-                     JOIN tracks t ON t.id = m.track_id ORDER BY t.goal_id, m.seq, t.ord, m.ord, c.ord"""):
+                     JOIN tracks t ON t.id = m.track_id JOIN goals g ON g.id = t.goal_id WHERE g.kind != 'bookstudy'
+                     ORDER BY t.goal_id, m.seq, t.ord, m.ord, c.ord"""):
         nid = nodes.get(r["id"], r["id"])
         goals_of.setdefault(nid, set()).add(r["goal_id"])
         lessons_of.setdefault(nid, []).append({"id": r["id"], "title": r["title"], "goalId": r["goal_id"]})
@@ -218,7 +219,7 @@ def view(db: DB) -> dict:
                     "goals": sorted(goals_of.get(n["id"], ())), "concepts": sorted(concepts_of.get(n["id"], [])),
                     "sessions": sorted(sessions_of.get(n["id"], [])), "lessons": lessons_of.get(n["id"], []),
                     "books": sorted(books_of.get(n["id"], []))})
-    goals = [{"id": g["id"], "title": g["title"]} for g in db.q("SELECT id, title FROM goals ORDER BY created_at")]
+    goals = [{"id": g["id"], "title": g["title"]} for g in db.q("SELECT id, title FROM goals WHERE kind != 'bookstudy' ORDER BY created_at")]
     sessions = [{"id": r["id"], "title": r["title"]} for r in db.q("SELECT id, title FROM sessions ORDER BY created_at")]
     books = [{"id": r["id"], "title": r["title"]} for r in db.q("SELECT id, title FROM books ORDER BY created_at")]
     clusters, place = _clusters(db, out)
@@ -240,7 +241,7 @@ def _clusters(db: DB, nodes: list[dict]) -> tuple[list[dict], dict[str, dict]]:
         in_books.setdefault(r["node_id"], []).append(r)
     goal_rows = db.q("""SELECT cn.node_id, t.goal_id, t.ord AS tord, t.title AS ttitle, m.seq, m.ord AS mord, c.ord AS cord
                         FROM concept_nodes cn JOIN concepts c ON c.id = cn.concept_id JOIN modules m ON m.id = c.module_id
-                        JOIN tracks t ON t.id = m.track_id""")
+                        JOIN tracks t ON t.id = m.track_id JOIN goals g ON g.id = t.goal_id WHERE g.kind != 'bookstudy'""")
     in_goals: dict[str, list[dict]] = {}
     for r in goal_rows:
         in_goals.setdefault(r["node_id"], []).append(r)
@@ -287,8 +288,8 @@ def node_detail(db: DB, nid: str) -> dict | None:
         return {"id": i, "title": titles.get(i, i), "state": s.state if s else "pending"}
     ls = links(db)
     s = st.get(nid)
-    books = [{"id": r["book_id"], "title": r["title"], "part": r["part"], "pages": r["pages"]}
-             for r in db.q("""SELECT bn.book_id, b.title, p.title AS part, bn.pages FROM book_nodes bn
+    books = [{"id": r["book_id"], "title": r["title"], "part": r["part"], "pages": r["pages"], "conceptId": r["concept_id"]}
+             for r in db.q("""SELECT bn.book_id, b.title, p.title AS part, bn.pages, p.concept_id FROM book_nodes bn
                               JOIN books b ON b.id = bn.book_id JOIN book_parts p ON p.id = bn.part_id
                               WHERE bn.node_id=?""", (nid,))]
     sessions = [{"id": r["id"], "title": r["title"], "status": r["status"]}
@@ -297,7 +298,7 @@ def node_detail(db: DB, nid: str) -> dict | None:
     lessons = [{"id": r["id"], "title": r["title"], "goalId": r["goal_id"]}
                for r in db.q("""SELECT c.id, c.title, t.goal_id FROM concept_nodes cn JOIN concepts c ON c.id = cn.concept_id
                                 JOIN modules m ON m.id = c.module_id JOIN tracks t ON t.id = m.track_id
-                                WHERE cn.node_id=?""", (nid,))]
+                                JOIN goals g ON g.id = t.goal_id WHERE cn.node_id=? AND g.kind != 'bookstudy'""", (nid,))]
     return {"id": nid, "title": n["title"], "statement": n["statement"], "kind": n["kind"],
             "state": s.state if s else "pending", "mastery": s.mastery if s else 0.0,
             "buildsOn": [brief(lk["src"]) for lk in ls if lk["dst"] == nid],

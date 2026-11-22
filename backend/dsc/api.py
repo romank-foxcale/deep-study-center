@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -47,6 +48,14 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
         if not v:
             raise HTTPException(404, "no such book")
         return v
+
+    @app.get("/api/drawing/{name}")
+    def get_drawing(name: str):
+        """A drawing the learner made on the drawing board (SPEC §31)."""
+        path = workspace() / "drawings" / name
+        if not re.fullmatch(r"[0-9a-f]{16}\.png", name) or not path.exists():
+            raise HTTPException(404, "no such drawing")
+        return FileResponse(path, media_type="image/png")
 
     @app.get("/api/graph/node/{nid}")
     def get_node(nid: str) -> dict:

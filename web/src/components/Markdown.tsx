@@ -5,6 +5,7 @@ import rehypeKatex from 'rehype-katex'
 import RunnableCode from './RunnableCode'
 import IdeaLink, { IDEA_HREF } from './IdeaLink'
 import type { Components } from 'react-markdown'
+import type { ReactElement } from 'react'
 
 /** A line that is only $$...$$ is meant as a display formula, but remark-math reads a one-line $$...$$ as inline math.
  * Rewrite it as a block ($$ on their own lines), so it renders as a centered display formula. */
@@ -23,8 +24,26 @@ const LINKS: Components = {
   },
 }
 
+/** Writers sometimes fold a part away with `<details><summary>…</summary>…</details>`. Raw HTML is never rendered, so
+ * this one block is cut out of the text and drawn as a real collapsible block, its parts as Markdown again. */
+const DETAILS = /<details>\s*<summary>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/g
+
 /** ``runnable``: the lesson id; Python code blocks then become editable and runnable (one namespace per lesson). */
 export default function Markdown({ children, inline, runnable }: { children: string; inline?: boolean; runnable?: string }) {
+  if (!inline && children.includes('<details>')) {
+    const parts: ReactElement[] = []
+    let at = 0
+    for (const m of children.matchAll(DETAILS)) {
+      if (m.index! > at) parts.push(<Markdown key={at} runnable={runnable}>{children.slice(at, m.index)}</Markdown>)
+      parts.push(<details key={`d${m.index}`} className="md-details"><summary><Markdown inline>{m[1].trim()}</Markdown></summary>
+        <Markdown runnable={runnable}>{m[2].trim()}</Markdown></details>)
+      at = m.index! + m[0].length
+    }
+    if (parts.length) {
+      if (at < children.length) parts.push(<Markdown key={at} runnable={runnable}>{children.slice(at)}</Markdown>)
+      return <div className="md-parts">{parts}</div>
+    }
+  }
   return (
     <div className={inline ? 'md md-inline' : 'md'}>
       <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}

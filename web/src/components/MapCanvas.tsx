@@ -247,6 +247,10 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
   const rot = useRef([0.2, -0.35])
   const hover = useRef<N | null>(null)
   const drag = useRef<{ x: number; y: number; tx: number; ty: number; rot: number[]; moved: boolean } | null>(null)
+  // touch: the fingers on the canvas, and the start of a two-finger pinch (distance, zoom and pan at that moment)
+  const touches = useRef(new Map<number, { x: number; y: number }>())
+  const pinch = useRef<{ d: number; k: number; x: number; y: number } | null>(null)
+  const spread = () => { const p = [...touches.current.values()]; return p.length < 2 ? 1 : Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) }
   const raf = useRef(0)
   const drawRef = useRef<() => void>(() => {})
   const reduced = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -568,8 +572,21 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
   return (
     <div className="mc" ref={box}>
       <canvas ref={cv} className="mc-canvas" style={{ width: size.W, height: size.H }} aria-label="Knowledge map"
-        onPointerDown={e => { drag.current = { x: e.clientX, y: e.clientY, tx: t.current.x, ty: t.current.y, rot: rot.current.slice(), moved: false }; e.currentTarget.setPointerCapture(e.pointerId) }}
+        onPointerDown={e => {
+          touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+          e.currentTarget.setPointerCapture(e.pointerId)
+          if (touches.current.size === 2) { pinch.current = { d: spread(), ...t.current }; drag.current = null; return }
+          drag.current = { x: e.clientX, y: e.clientY, tx: t.current.x, ty: t.current.y, rot: rot.current.slice(), moved: false }
+        }}
         onPointerMove={e => {
+          if (touches.current.has(e.pointerId)) touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+          if (pinch.current && touches.current.size === 2 && !compact) {  // two fingers: zoom around their midpoint
+            const p = pinch.current, k = Math.min(6, Math.max(0.3, p.k * spread() / Math.max(1, p.d)))
+            const pts = [...touches.current.values()], r = cv.current!.getBoundingClientRect()
+            const mx = (pts[0].x + pts[1].x) / 2 - r.left, my = (pts[0].y + pts[1].y) / 2 - r.top
+            t.current = view === 'globe' ? { ...t.current, k } : { k, x: mx - ((mx - p.x) / p.k) * k, y: my - ((my - p.y) / p.k) * k }
+            showTip(null, 0, 0); drawRef.current(); return
+          }
           const [mx, my] = local(e), d = drag.current
           if (d) {
             const dx = e.clientX - d.x, dy = e.clientY - d.y
@@ -585,10 +602,13 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
           showTip(n, mx, my)
         }}
         onPointerUp={e => {
+          touches.current.delete(e.pointerId)
+          if (pinch.current) { if (touches.current.size < 2) pinch.current = null; drag.current = null; drawRef.current(); return }
           const d = drag.current; drag.current = null
           if (d && !d.moved) { const [mx, my] = local(e); const n = pick(mx, my); onSelect(n ? (n.id === selected ? null : n.id) : null) }
           drawRef.current()
         }}
+        onPointerCancel={e => { touches.current.delete(e.pointerId); pinch.current = null; drag.current = null }}
         onPointerLeave={() => { hover.current = null; showTip(null, 0, 0); drawRef.current() }} />
       <div className="mc-tip" ref={tipRef} hidden>
         <strong />

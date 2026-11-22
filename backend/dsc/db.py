@@ -196,6 +196,11 @@ CREATE TABLE IF NOT EXISTS book_nodes (
   book_id TEXT NOT NULL, node_id TEXT NOT NULL, part_id INTEGER NOT NULL, key TEXT NOT NULL,
   pages TEXT NOT NULL DEFAULT '', created INTEGER NOT NULL DEFAULT 0, ord INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (book_id, node_id));
+-- Book study v2 (SPEC §31): a chapter's summary and its module in the book's hidden goal (lessons = book_parts rows).
+CREATE TABLE IF NOT EXISTS book_chapters (
+  book_id TEXT NOT NULL, chapter INTEGER NOT NULL, title TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '',
+  page_from INTEGER NOT NULL, page_to INTEGER NOT NULL, sections TEXT NOT NULL DEFAULT '[]', module_id TEXT,
+  mapped INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (book_id, chapter));
 CREATE TABLE IF NOT EXISTS book_cuts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL, ord INTEGER NOT NULL, source_id TEXT NOT NULL,
   chapter TEXT NOT NULL, pages TEXT NOT NULL DEFAULT '', rank TEXT NOT NULL, why TEXT NOT NULL DEFAULT '',
@@ -235,6 +240,11 @@ MIGRATIONS = [
     ("feedback", "ref", "TEXT"),                           # the part it is about: {kind: text|formula|viz, quote, sectionId}                         # the section's angle when the feedback was given                     # a fact claim sent to the card check
     ("sessions", "probe_start", "TEXT NOT NULL DEFAULT ''"),  # the probe's advice where teaching starts (SPEC §26)
     ("sessions", "book_part", "INTEGER"),                  # the book part this session studies (SPEC §28)
+    ("gradings", "drawing", "TEXT"),                       # the learner's drawing board (a PNG under workspace/drawings)
+    ("books", "goal_id", "TEXT"),                          # v2: the book's hidden goal (goals.kind = 'bookstudy')
+    ("books", "version", "INTEGER NOT NULL DEFAULT 1"),    # 1 = parts taught as study sessions; 2 = chapters of saved lessons
+    ("book_parts", "concept_id", "TEXT"),                  # v2: the lesson (concept) this part is
+    ("book_parts", "ideas", "TEXT NOT NULL DEFAULT '[]'"), # v2: the lesson's key ideas
 ]
 
 

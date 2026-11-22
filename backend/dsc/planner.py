@@ -43,7 +43,7 @@ class Day:
 def settings(db: DB) -> dict:
     out = {k: db.meta(f"plan_{k}", v) for k, v in DEFAULTS.items()}
     days = sorted({int(d) for d in str(out["study_days"]).split(",") if d.strip().isdigit() and 0 <= int(d) <= 6})
-    goals = db.q("SELECT hours FROM goals")
+    goals = db.q("SELECT hours FROM goals WHERE kind != 'bookstudy'")
     default_hours = sum(g["hours"] for g in goals) or 5
     try:
         hours = float(out["weekly_hours"]) if out["weekly_hours"] else default_hours

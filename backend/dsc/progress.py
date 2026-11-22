@@ -120,6 +120,8 @@ def _research_ahead(db: DB, jobs: Jobs) -> str | None:
         return None
     modules = db.q("""SELECT m.* FROM modules m JOIN tracks t ON t.id = m.track_id
                       WHERE t.goal_id = ? AND m.known = 0 ORDER BY m.seq, t.ord, m.ord""", (gid,))
+    if db.one("SELECT 1 FROM goals WHERE id=? AND kind='bookstudy'", (gid,)):
+        modules = [m for m in modules if m["planned"] > 0]  # a book: only chapters the map has cut into lessons
     if not modules:
         return None
     concepts, states = state.concept_states(db, gid)

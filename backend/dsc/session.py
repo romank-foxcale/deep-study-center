@@ -149,13 +149,32 @@ def set_known(db: DB, sid: str, key: str, known: bool) -> None:
     for i in s["ideas"]:
         if i["key"] == key and not i.get("target"):
             i["skip"] = known
+            # an idea you already know can be learned again: "again" puts it back into the plan (SPEC §30)
+            i["again"] = (not known) and i.get("level") == "known"
     _save(db, sid, ideas=s["ideas"], plan=_plan(s["ideas"]))
+
+
+def learn_all_again(db: DB, sid: str) -> None:
+    """Put every idea of the session into the plan, also the ones you already know (to review a part). A finished session
+    in which nothing was taught (every idea was already known) opens again at the plan."""
+    s = get(db, sid)
+    taught = db.one("SELECT 1 FROM session_items WHERE session_id=? AND phase IN ('predict', 'explain', 'check')", (sid,))
+    if not s or not (s["status"] == "planning" or (s["status"] == "done" and not taught)):
+        raise ValueError("the plan can change only before teaching starts")
+    for i in s["ideas"]:
+        i["skip"] = False
+        i["again"] = i.get("level") == "known"
+    _save(db, sid, ideas=s["ideas"], plan=_plan(s["ideas"]), status="planning", current=0, summary="")
+    if s.get("book_part"):
+        db.x("UPDATE book_parts SET status='studying' WHERE id=?", (s["book_part"],))
 
 
 def start_teaching(db: DB, jobs: Jobs, sid: str) -> None:
     s = get(db, sid)
     if not s or s["status"] != "planning":
         raise ValueError("nothing to start")
+    if not _plan(s["ideas"]):
+        raise ValueError("there is nothing to learn in the plan; tick an idea, or choose \"Learn it again\"")
     _save(db, sid, status="teaching", plan=_plan(s["ideas"]), current=0)
     advance(db, jobs, sid)
 
@@ -209,7 +228,8 @@ def delete(db: DB, sid: str) -> None:
 
 def _plan(ideas: list[dict]) -> list[str]:
     """Ideas to teach, prerequisites first (topological order), the target last."""
-    todo = {i["key"]: i for i in ideas if i.get("target") or not (i.get("skip") or i.get("level") == "known")}
+    todo = {i["key"]: i for i in ideas
+            if i.get("target") or i.get("again") or not (i.get("skip") or i.get("level") == "known")}
     order: list[str] = []
     seen: set[str] = set()
 
@@ -579,7 +599,7 @@ def view(db: DB, sid: str) -> dict | None:
         pub.append(q)
     st = graph.states(db)
     ideas = [{**{k: i.get(k) for k in ("key", "title", "statement", "node", "prereqs", "target", "level", "skip", "fromGraph",
-                                       "probe")},
+                                       "probe", "again")},
               "nodeState": st[i["node"]].state if i.get("node") in st else "pending"} for i in s["ideas"]]
     return {"id": s["id"], "topic": s["topic"], "title": s["title"], "status": s["status"], "busy": running, "error": failed,
             "ideas": ideas, "plan": s["plan"], "current": s["current"], "items": pub, "summary": s["summary"],

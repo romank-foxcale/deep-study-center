@@ -170,7 +170,8 @@ def gradings(db: DB, concept_ids: list[str]) -> dict:
     for g in db.q(f"SELECT * FROM gradings WHERE concept_id IN ({','.join('?' * len(concept_ids))}) ORDER BY id", concept_ids):
         out[f'{g["concept_id"]}:{g["item_id"]}'] = {
             "id": g["id"], "status": g["status"], "answer": g["answer"], "score": g["score"],
-            "feedback": g["feedback"], "missing": loads(g["missing"], []), "followup": g["followup"]}
+            "feedback": g["feedback"], "missing": loads(g["missing"], []), "followup": g["followup"],
+            "drawing": g.get("drawing")}
     return out
 
 
@@ -201,7 +202,7 @@ def snapshot(db: DB) -> dict:
             "backups": {"folder": str(workspace() / "backups"), "last": db.meta("last_backup"), "items": _backups()[:5]},
             "firstRun": db.meta("first_run") == "1" and not db.one("SELECT 1 FROM goals LIMIT 1"),
             "ankiExport": db.meta("last_anki_export"),
-            "goals": [{"id": g["id"], "title": g["title"]} for g in db.q("SELECT id, title FROM goals ORDER BY created_at")]}
+            "goals": [{"id": g["id"], "title": g["title"]} for g in db.q("SELECT id, title FROM goals WHERE kind != 'bookstudy' ORDER BY created_at")]}
     if not gid:
         return {**base, "goal": None, "tracks": [], "modules": [], "concepts": [], "cards": [], "renditions": [],
                 "feedback": [], "notes": [], "diffs": [], "chats": {}, "answers": {}, "reviews": [], "gradings": {},

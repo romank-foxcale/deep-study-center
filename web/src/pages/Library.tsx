@@ -6,29 +6,29 @@ export default function Library() {
   const { s, dispatch } = useStore()
   // The tab lives in the URL (?tab=mine), so links can open a tab and the tab survives a reload.
   const [params, setParams] = useSearchParams()
-  const tab = (['shared', 'mine'] as const).find(t => t === params.get('tab')) ?? 'goal'
-  const setTab = (t: 'goal' | 'shared' | 'mine') => setParams(t === 'goal' ? {} : { tab: t }, { replace: true })
+  const tab = (['shared', 'goal'] as const).find(t => t === params.get('tab')) ?? 'mine'  // your PDFs first (SPEC §30)
+  const setTab = (t: 'goal' | 'shared' | 'mine') => setParams(t === 'mine' ? {} : { tab: t }, { replace: true })
   const shared = new Set(s.library.map(l => l.sourceConcept))
   const refreshing = new Set(s.jobs.filter(j => j.kind === 'refresh_card' && (j.status === 'queued' || j.status === 'running'))
     .map(j => j.input.concept_id ?? ''))
   const exported = s.ankiExport?.split('|')
   const suggested = new Set(s.shareSuggestions)
   return (
-    <div className="page">
-      <h1>Source library</h1>
-      <p className="lead">Knowledge center #1: canonical, fact-checked concept cards, the same for every learner. Cards change only when
-        the content should, never because of taste. Good cards can go into a shared library that research reuses across goals.</p>
+    <div className="page page-wide">
+      <div><div className="eyebrow">Library</div><h1>Source library</h1></div>
+      <p className="lead">Your PDFs, and the fact-checked concept cards that goal lessons are written from. To study a book, use
+        <Link to="/books"> Books</Link>.</p>
       <div className="row">
         <div className="tabs tabs-inline" role="tablist">
-          <button role="tab" aria-selected={tab === 'goal'} className={`tab ${tab === 'goal' ? 'on' : ''}`} onClick={() => setTab('goal')}>This goal ({s.cards.length})</button>
-          <button role="tab" aria-selected={tab === 'shared'} className={`tab ${tab === 'shared' ? 'on' : ''}`} onClick={() => setTab('shared')}>Shared library ({s.library.length})</button>
-          <button role="tab" aria-selected={tab === 'mine'} className={`tab ${tab === 'mine' ? 'on' : ''}`} onClick={() => setTab('mine')}>My sources ({s.sources.length})</button>
+          <button role="tab" aria-selected={tab === 'mine'} className={`tab ${tab === 'mine' ? 'on' : ''}`} onClick={() => setTab('mine')}>My PDFs ({s.sources.length})</button>
+          <button role="tab" aria-selected={tab === 'goal'} className={`tab ${tab === 'goal' ? 'on' : ''}`} onClick={() => setTab('goal')}>This goal's cards ({s.cards.length})</button>
+          <button role="tab" aria-selected={tab === 'shared'} className={`tab ${tab === 'shared' ? 'on' : ''}`} onClick={() => setTab('shared')}>Shared cards ({s.library.length})</button>
         </div>
         <span className="spacer" />
         {tab === 'mine' && <AddSources link={false} />}
         {tab === 'mine' && (
-          <Link className="btn btn-primary" to="/goal/book" title="A goal built from the 80/20 core of the sources you choose">
-            Understand books (80/20)</Link>
+          <Link className="btn" to="/goal/book" title="A goal built from the 80/20 core of the sources you choose (goals are on hold)">
+            Book goal (80/20)</Link>
         )}
         {suggested.size > 0 && (
           <button className="btn" title="Fact-checked cards for concepts you've learned"

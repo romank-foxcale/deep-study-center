@@ -189,7 +189,7 @@ def delete_goal(db: DB, goal_id: str) -> None:
             db.conn.execute(f"DELETE FROM {t} WHERE goal_id = ?", (goal_id,))
         db.conn.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
         db.conn.execute("DELETE FROM meta WHERE key = ?", (f"probe_dismissed:{goal_id}",))
-        nxt = db.conn.execute("SELECT id FROM goals ORDER BY created_at LIMIT 1").fetchone()
+        nxt = db.conn.execute("SELECT id FROM goals WHERE kind != 'bookstudy' ORDER BY created_at LIMIT 1").fetchone()
         if nxt:
             db.conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES('active_goal', ?)", (nxt[0],))
         else:

@@ -58,7 +58,8 @@ export default function IdeaLink({ id, children }: { id: string; children: React
             </span>
             <span className="idea-card-statement">{d.statement}</span>
             {d.books.length > 0 && <span className="idea-card-row"><span className="eyebrow">In books</span>
-              {d.books.map(b => <Link key={b.id + b.part} to={`/book/${b.id}`}>{b.title}{b.pages ? `, p. ${b.pages}` : ''}
+              {d.books.map(b => <Link key={b.id + b.part} to={b.conceptId ? `/lesson/${b.conceptId}` : `/book/${b.id}`}
+                title={b.conceptId ? 'Open this lesson' : undefined}>{b.title}{b.pages ? `, p. ${b.pages}` : ''}
                 <span className="muted"> · {b.part}</span></Link>)}</span>}
             {d.sessions.length > 0 && <span className="idea-card-row"><span className="eyebrow">Studied in</span>
               {d.sessions.slice(0, 4).map(x => <Link key={x.id} to={`/study/${x.id}`}>{x.title}</Link>)}</span>}

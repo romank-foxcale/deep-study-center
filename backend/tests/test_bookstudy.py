@@ -1,11 +1,12 @@
-"""Book study, "teach me this book" (SPEC §28): parts from the outline, the chapter-by-chapter map, studying a part,
-homework, idea links and hover details."""
+"""Book study v2 (SPEC §31): a book is chapters, a chapter is lessons by topic. Lessons are written from the book's
+pages on first open and saved; every lesson stays open whatever the learner knows."""
 
 import json
+import re
 
 import pytest
 
-from dsc import actions, bookstudy, graph, session, state
+from dsc import actions, bookstudy, graph, lesson, state, today
 from dsc.db import dumps
 
 OUTLINE = [
@@ -35,8 +36,8 @@ def add_book(db, pages=12):
         db.x("INSERT INTO source_fts(source_id, page, text) VALUES('src-1', ?, ?)", (p, text))
 
 
-def idea(key, title, prereqs=(), same_as=None, pages="4"):
-    d = {"key": key, "title": title, "statement": f"{title} explained.", "kind": "concept", "pages": pages,
+def lesson_(key, title, prereqs=(), same_as=None, pages="4"):
+    d = {"key": key, "title": title, "covers": f"{title} explained.", "pages": pages, "ideas": [f"{title} idea"],
          "prereq_keys": list(prereqs)}
     if same_as:
         d["same_as"] = same_as
@@ -44,21 +45,41 @@ def idea(key, title, prereqs=(), same_as=None, pages="4"):
 
 
 def map_reply(call):
-    """Chapter 1: attention (reuses the graph's dot product), kv cache; chapter 2: batching (needs kv cache from chapter 1);
-    chapter 3: bandwidth."""
+    """Chapter 1: softmax, attention (builds on softmax and the graph's dot product), kv cache; chapter 2: batching
+    (builds on the kv cache lesson of chapter 1); chapter 3: bandwidth."""
     map_reply.prompts.append(call.prompt)
     if "Chapter: Chapter 1" in call.prompt:
-        return {"parts": [
-            {"part": 0, "summary": "How attention works.", "ideas": [idea("softmax", "Softmax"),
-                                                                    idea("attention", "Attention", ["softmax", "c-dot"]),
-                                                                    idea("dot", "Dot product", same_as="c-dot")]},
-            {"part": 1, "summary": "Caching keys and values.", "ideas": [idea("kv-cache", "KV cache", ["attention"], pages="6-7")]},
-            {"part": 9, "summary": "bad index", "ideas": [idea("x", "Dropped")]}]}
+        return {"summary": "How a model attends.", "lessons": [
+            lesson_("softmax", "Softmax"), lesson_("attention", "Attention", ["softmax", "c-dot"]),
+            lesson_("kv-cache", "KV cache", ["attention"], pages="6-7")]}
     if "Chapter: Chapter 2" in call.prompt:
         if map_reply.fail_chapter_2:
             raise RuntimeError("model hiccup")
-        return {"parts": [{"part": 0, "summary": "Serving.", "ideas": [idea("batching", "Continuous batching", ["c1-kv-cache"])]}]}
-    return {"parts": [{"part": 0, "summary": "Bandwidth.", "ideas": [idea("bw", "Memory bandwidth")]}]}
+        kv = re.search(r"- (\S+-kv-cache): KV cache", call.prompt).group(1)
+        return {"summary": "Serving many users.", "lessons": [lesson_("batching", "Continuous batching", [kv], pages="8-9")]}
+    return {"summary": "Bandwidth.", "lessons": [lesson_("bw", "Memory bandwidth", pages="10-12")]}
+
+
+def cards_reply(call):
+    cards_reply.prompts.append(call.prompt)
+    ids = re.findall(r"^- id (\S+): ", call.prompt, re.M)
+    return {"cards": [{"id": i, "card": {
+        "bloom": "understand", "core": f"core of {i}", "formal": "", "why": "why", "examples": [{"label": "e", "domain": "ml"}],
+        "misconceptions": ["m"], "sections": [
+            {"id": "s-what", "heading": "What it is", "purpose": "the idea", "angles": ["geometric"],
+             "book": {"summary": "The book says it is a weighted sum.", "pages": "4"},
+             "check": {"prompt": "q?", "options": ["a", "b", "c", "d"], "explanation": "e", "answer": 0}},
+            {"id": "s-why", "heading": "Why it works", "purpose": "the reason", "angles": ["algebraic"],
+             "book": {"summary": "The book derives it.", "pages": "5"},
+             "explain": {"prompt": "Work it out.", "work": True, "rubric": ["the sum"]}}]}} for i in ids]}
+
+
+def prose_reply(call):
+    prose_reply.prompts.append(call.prompt)
+    ids = [line.split()[1] for line in call.prompt.splitlines() if line.startswith("- s-")]
+    softmax = re.search(r"^- (\S+-softmax): Softmax", call.prompt, re.M)
+    link = f" Uses [softmax](#idea/{softmax.group(1)}) and [magic](#idea/n-nope)." if softmax else ""
+    return {"sections": [{"id": i, "body": f"meaning of {i}.{link}"} for i in ids]}
 
 
 @pytest.fixture
@@ -67,165 +88,138 @@ def book(env):
     add_book(db)
     map_reply.prompts = []
     map_reply.fail_chapter_2 = False
+    cards_reply.prompts = []
+    prose_reply.prompts = []
     runner.responses["Book map"] = map_reply
+    runner.responses["Research"] = cards_reply
+    runner.responses["Renditions"] = prose_reply
     return db, jobs, runner
 
 
-def test_parts_from_the_outline():
-    ps = bookstudy.parts_from_outline(OUTLINE, 12)
-    assert [(p["chapter"], p["title"], p["page_from"], p["page_to"]) for p in ps] == [
-        (1, "1.1 Attention", 3, 5),        # the chapter's first pages go to its first section
-        (1, "1.2 KV cache", 6, 7),
-        (2, "Chapter 2: Serving", 8, 9),    # a chapter without sections is one part
-        (3, "3.1 Memory bandwidth", 10, 12)]
-    chunks = bookstudy.parts_from_outline([], 30)
-    assert [(p["page_from"], p["page_to"]) for p in chunks] == [(1, 12), (13, 24), (25, 30)]
+def lessons(db, bid):
+    return {x["title"]: x for ch in bookstudy.view(db, bid)["chapters"] for x in ch["lessons"]}
 
 
-def test_map_makes_parts_ideas_and_links(book):
+def test_chapters_from_the_outline():
+    ch = bookstudy.chapters_from_outline(OUTLINE, 12)
+    assert [(c["chapter"], c["title"], c["page_from"], c["page_to"], len(c["sections"])) for c in ch] == [
+        (1, "Chapter 1: Models", 3, 7, 2), (2, "Chapter 2: Serving", 8, 9, 0), (3, "Chapter 3: Hardware", 10, 12, 1)]
+    assert [(c["page_from"], c["page_to"]) for c in bookstudy.chapters_from_outline([], 30)] == [(1, 12), (13, 24), (25, 30)]
+
+
+def test_map_makes_chapters_of_lessons_in_a_hidden_goal(book):
     db, jobs, runner = book
     s = act(db, jobs, type="studyBook", sourceId="src-1")
     b = s["studyBooks"][0]
     assert b["status"] == "ready" and b["chapters"] == 3 and b["chaptersDone"] == 3 and s["lastBook"] == b["id"]
+    assert b["goalId"] not in {g["id"] for g in s["goals"]}  # the book's goal is hidden from the goal lists
     v = bookstudy.view(db, b["id"])
-    parts = {p["title"]: p for p in v["parts"]}
-    att = parts["1.1 Attention"]
-    assert att["summary"] == "How attention works." and [i["title"] for i in att["ideas"]] == ["Softmax", "Attention", "Dot product & similarity"]
-    dot = att["ideas"][2]  # the graph's node keeps its own title
-    assert dot["id"] == "c-dot" and dot["fromGraph"]  # same_as reused the graph's node
-    assert not any(i["title"] == "Dropped" for p in v["parts"] for i in p["ideas"])
-    ids = {i["title"]: i["id"] for p in v["parts"] for i in p["ideas"]}
+    assert [c["summary"] for c in v["chapters"]] == ["How a model attends.", "Serving many users.", "Bandwidth."]
+    ls = lessons(db, b["id"])
+    assert list(ls) == ["Softmax", "Attention", "KV cache", "Continuous batching", "Memory bandwidth"]
+    kv = ls["KV cache"]
+    assert kv["pages"] == [6, 7] and kv["covers"] == "KV cache explained." and kv["ideas"] == ["KV cache idea"]
+    assert not kv["carded"] and not kv["written"] and kv["state"] in ("pending", "locked")
+    # each lesson is a concept of the hidden goal, with its prerequisites, and a node of the graph
+    c = db.one("SELECT * FROM concepts WHERE id=?", (ls["Continuous batching"]["conceptId"],))
+    assert json.loads(c["prereqs"]) == [kv["conceptId"]]
     pairs = {(lk["src"], lk["dst"]) for lk in graph.links(db)}
-    assert (ids["Softmax"], ids["Attention"]) in pairs and ("c-dot", ids["Attention"]) in pairs
-    assert (ids["KV cache"], ids["Continuous batching"]) in pairs  # across chapters, by key
-    assert db.one("SELECT origin FROM nodes WHERE id=?", (ids["Softmax"],))["origin"] == "book"
-    # the second chapter's prompt saw the first chapter's ideas, and the graph's matching ideas
-    assert "c1-kv-cache: KV cache" in map_reply.prompts[1]
-    assert v["next"] == att["id"]
+    assert (ls["Softmax"]["nodeId"], ls["Attention"]["nodeId"]) in pairs and ("c-dot", ls["Attention"]["nodeId"]) in pairs
+    assert (kv["nodeId"], ls["Continuous batching"]["nodeId"]) in pairs
+    assert graph.view(db)["books"][0]["id"] == b["id"]
+    assert v["next"] == ls["Softmax"]["conceptId"]
+    assert "c-dot: Dot product & similarity" in map_reply.prompts[0]  # the mapper sees the older graph ideas
 
 
 def test_a_failed_chapter_is_retried_without_redoing_earlier_ones(book):
     db, jobs, runner = book
     map_reply.fail_chapter_2 = True
-    s = act(db, jobs, type="studyBook", sourceId="src-1")
-    b = s["studyBooks"][0]
-    assert b["status"] == "failed" and b["chaptersDone"] == 1
-    assert bookstudy.view(db, b["id"])["error"]
+    b = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]
+    assert b["status"] == "failed" and b["chaptersDone"] == 1 and bookstudy.view(db, b["id"])["error"]
     map_reply.fail_chapter_2 = False
     calls = len(map_reply.prompts)
-    s = act(db, jobs, type="bookRetry", bookId=b["id"])
-    assert s["studyBooks"][0]["status"] == "ready"
+    assert act(db, jobs, type="bookRetry", bookId=b["id"])["studyBooks"][0]["status"] == "ready"
     assert len(map_reply.prompts) == calls + 2 and "Chapter: Chapter 2" in map_reply.prompts[calls]
+    assert len(lessons(db, b["id"])) == 5
 
 
-def test_study_a_part_then_homework(book):
+def test_first_open_writes_the_chapter_from_the_book_then_the_lesson_is_saved(book):
     db, jobs, runner = book
     bid = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]["id"]
-    kv = next(p for p in bookstudy.view(db, bid)["parts"] if p["title"] == "1.2 KV cache")
-    probe_prompts = []
+    att = lessons(db, bid)["Attention"]
+    act(db, jobs, type="bookOpenLesson", conceptId=att["conceptId"])
+    assert state.active_goal(db) == bookstudy.get(db, bid)["goal_id"]
+    v = lesson.open_lesson(db, jobs, att["conceptId"])
+    # one call wrote the cards of all three lessons of chapter 1, from the chapter's pages, without web tools
+    research = [c for r, c in runner.calls if r == "Research"]
+    assert len(research) == 1 and not research[0].tools and "[p. 4]" in research[0].prompt
+    assert all(lessons(db, bid)[t]["carded"] for t in ("Softmax", "Attention", "KV cache"))
+    assert not lessons(db, bid)["Continuous batching"]["carded"]
+    sec = v["sections"][0]
+    assert sec["book"] == {"summary": "The book says it is a weighted sum.", "pages": "4"}
+    assert sec["body"].startswith("meaning of s-what") and sec["check"]["id"] == "q-s-what"
+    assert v["sections"][1]["explain"]["work"] is True and "rubric" not in v["sections"][1]["explain"]
+    assert v["book"]["chapter"] == 1 and v["book"]["pages"] == [4, 4] and v["book"]["prev"]["title"] == "Softmax"
+    assert v["card"]["sources"][0]["url"] == "source:src-1#page=4"
+    # the writer saw the book summaries; idea links survive only for offered ideas
+    assert "The book says it is a weighted sum." in prose_reply.prompts[0]
+    softmax = lessons(db, bid)["Softmax"]["nodeId"]
+    assert f"[softmax](#idea/{softmax})" in sec["body"] and "#idea/n-nope" not in sec["body"] and "magic" in sec["body"]
+    # opening again changes nothing: the lesson is saved
+    n = len(runner.calls)
+    lesson.open_lesson(db, jobs, att["conceptId"])
+    assert len(runner.calls) == n and lessons(db, bid)["Attention"]["written"]
 
-    def tutor(call):
-        if "Your task:" in call.prompt:
-            return {"body": "x", "check": {"prompt": "q", "options": ["a", "b"], "explanation": "e", "answer": 0}}
-        probe_prompts.append(call.prompt)
-        return {"done": True, "result": {"start": "Start with attention.", "ideas": []}}
-    runner.responses["Study tutor"] = tutor
-    act(db, jobs, type="bookStudyPart", partId=kv["id"])
-    sid = db.meta("last_session")
-    v = session.view(db, sid)
-    assert v["book"]["part"] == "1.2 KV cache" and v["book"]["pages"] == [6, 7]
-    titles = [i["title"] for i in v["ideas"]]
-    assert titles == ["Attention", "KV cache"]  # the outside prerequisite comes in first
-    kv_idea = next(i for i in v["ideas"] if i["title"] == "KV cache")
-    att_idea = next(i for i in v["ideas"] if i["title"] == "Attention")
-    assert kv_idea["prereqs"] == [att_idea["key"]]
-    assert v["status"] == "planning" and probe_prompts and "KV cache" in probe_prompts[0]
-    # the teaching turns read the part's own pages only
-    assert all(6 <= e["page"] <= 7 for e in __import__("dsc").sources.excerpts(db, None, "kv cache", ids=["src-1"], pages=(6, 7)))
-    # opening the part again returns the same session
-    act(db, jobs, type="bookStudyPart", partId=kv["id"])
-    assert db.meta("last_session") == sid
-    part = db.one("SELECT * FROM book_parts WHERE id=?", (kv["id"],))
-    assert part["status"] == "studying" and part["session_id"] == sid
-    bookstudy.on_session_done(db, sid)
-    assert db.one("SELECT status FROM book_parts WHERE id=?", (kv["id"],))["status"] == "done"
+
+def test_homework_per_chapter_and_today_continues_the_book(book):
+    db, jobs, runner = book
+    bid = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]["id"]
+    ls = lessons(db, bid)
+    c = today.view(db)["continue"]
+    assert c["kind"] == "lesson" and c["conceptId"] == ls["Softmax"]["conceptId"] and c["chapter"] == 1 and c["total"] == 3
     runner.responses["Practice"] = {"title": "t", "problem": "p", "solution": "s", "node_ids": [], "level": 1}
-    act(db, jobs, type="bookHomework", partId=kv["id"])
+    act(db, jobs, type="bookHomework", bookId=bid, chapter=1)
     pr = db.one("SELECT * FROM practices WHERE id=?", (db.meta("last_practice"),))
-    assert json.loads(pr["node_ids"]) == [kv_idea["node"]]
+    assert json.loads(pr["node_ids"]) == [ls[t]["nodeId"] for t in ("Softmax", "Attention", "KV cache")]
 
 
-def test_hover_details_and_delete(book):
+def test_delete_removes_the_hidden_goal_and_keeps_used_ideas(book):
     db, jobs, runner = book
     bid = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]["id"]
-    ids = {i["title"]: i["id"] for p in bookstudy.view(db, bid)["parts"] for i in p["ideas"]}
-    d = graph.node_detail(db, ids["Attention"])
-    assert d["books"][0]["part"] == "1.1 Attention" and d["books"][0]["pages"] == "4"
-    assert {x["title"] for x in d["buildsOn"]} == {"Softmax", "Dot product & similarity"} and [x["title"] for x in d["leadsTo"]] == ["KV cache"]
-    assert graph.view(db)["books"][0]["id"] == bid
-    db.x("""INSERT INTO evidence(ts, concept_id, item_id, kind, correct, score) VALUES('2026-01-01', ?, 'x', 'practice', 1, 1.0)""",
-         (ids["Softmax"],))
+    gid = bookstudy.get(db, bid)["goal_id"]
+    ls = lessons(db, bid)
     act(db, jobs, type="deleteBook", bookId=bid)
-    assert db.one("SELECT 1 FROM nodes WHERE id=?", (ids["Softmax"],))  # has evidence: kept
-    assert not db.one("SELECT 1 FROM nodes WHERE id=?", (ids["KV cache"],))
-    assert db.one("SELECT 1 FROM nodes WHERE id='c-dot'")  # a graph node the book reused stays
-    assert not db.q("SELECT * FROM book_parts")
+    assert not db.one("SELECT 1 FROM goals WHERE id=?", (gid,))
+    assert not db.q("SELECT 1 FROM concepts WHERE id=?", (ls["Softmax"]["conceptId"],))
+    assert not db.q("SELECT * FROM book_parts") and not db.q("SELECT * FROM book_chapters")
+    assert db.one("SELECT 1 FROM nodes WHERE id='c-dot'")  # an older graph idea the book built on stays
 
 
-def test_turn_links_only_offered_ideas(book):
+def test_a_version_1_book_is_mapped_again_as_lessons(book):
+    db, jobs, runner = book
+    db.x("""INSERT INTO books(id, source_id, title, status, chapters_done, chapters, created_at, updated_at)
+            VALUES('b-old', 'src-1', 'Inference Book', 'ready', 3, 3, 't', 't')""")
+    db.x("""INSERT INTO book_parts(book_id, ord, chapter, chapter_title, title, page_from, page_to)
+            VALUES('b-old', 0, 1, 'Chapter 1', 'Old part', 3, 5)""")
+    bid = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]["id"]
+    assert bid != "b-old" and not bookstudy.get(db, "b-old") and bookstudy.get(db, bid)["version"] == 2
+    assert len(lessons(db, bid)) == 5
+
+
+PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+
+def test_the_grader_sees_the_drawing_board(book):
     db, jobs, runner = book
     bid = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]["id"]
-    att = next(p for p in bookstudy.view(db, bid)["parts"] if p["title"] == "1.1 Attention")
-    softmax = next(i["id"] for i in att["ideas"] if i["title"] == "Softmax")
-    turn_prompts = []
-
-    def tutor(call):
-        if "Your task: **predict**" in call.prompt:
-            return {"predict": {"prompt": "p", "options": ["a", "b"], "explanation": "e", "answer": 0}}
-        if "Your task:" in call.prompt:
-            turn_prompts.append(call.prompt)
-            return {"body": f"Attention uses [softmax](#idea/{softmax}) and [magic](#idea/n-nope).",
-                    "check": {"prompt": "q", "options": ["a", "b"], "explanation": "e", "answer": 0}}
-        return {"done": True, "result": {"start": "", "ideas": []}}
-    runner.responses["Study tutor"] = tutor
-    act(db, jobs, type="bookStudyPart", partId=att["id"])
-    sid = db.meta("last_session")
-    act(db, jobs, type="sessionTeach", sessionId=sid)
-    q = next(i for i in session.view(db, sid)["items"] if i["phase"] == "predict")
-    act(db, jobs, type="sessionAnswer", sessionId=sid, itemId=q["id"], choice=0)
-    body = next(i for i in session.view(db, sid)["items"] if i["phase"] == "explain")["body"]
-    assert f"[softmax](#idea/{softmax})" in body and "magic" in body and "#idea/n-nope" not in body
-    assert f"- {softmax}: Softmax" in turn_prompts[0]
-
-
-def test_big_parts_are_split_and_a_chapter_can_be_mapped_again(book):
-    db, jobs, runner = book
-    many = [idea(f"s{n}", f"Serving idea {n}") for n in range(12)]
-    base = map_reply
-
-    def reply(call):
-        if "Chapter: Chapter 2" in call.prompt:
-            reply.prompts.append(call.prompt)
-            return {"parts": [{"part": 0, "summary": "Serving.", "ideas": many}]}
-        return base(call)
-    reply.prompts = []
-    runner.responses["Book map"] = reply
-    bid = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]["id"]
-    serving = [p for p in bookstudy.view(db, bid)["parts"] if p["title"].startswith("Chapter 2")]
-    assert [(p["title"], len(p["ideas"])) for p in serving] == [("Chapter 2: Serving (1/2)", 8), ("Chapter 2: Serving (2/2)", 4)]
-    assert [p["ord"] for p in bookstudy.view(db, bid)["parts"]] == list(range(5))
-    # the mapper saw all older graph ideas by title, and the subsections of a part
-    assert "c-dot: Dot product & similarity" in map_reply.prompts[0]  # chapter 1; chapter 2 sees it as a book idea
-    assert "1.1 Attention" in map_reply.prompts[0]
-    # mapping chapter 2 again joins and splits it again, with no duplicates; a model that points at the chapter's
-    # own old ideas (same_as or a prerequisite id) gets new ideas, never a link to a deleted one
-    old_id = serving[0]["ideas"][0]["id"]
-    many[1] = {**many[1], "same_as": old_id, "prereq_keys": [old_id]}
-    jobs.enqueue("book_map", "again", {"book_id": bid, "only": [1]})
-    assert not db.q("SELECT node_id FROM book_nodes WHERE node_id NOT IN (SELECT id FROM nodes)")
-    assert not db.q("SELECT src FROM links WHERE src NOT IN (SELECT id FROM nodes) OR dst NOT IN (SELECT id FROM nodes)")
-    serving = [p for p in bookstudy.view(db, bid)["parts"] if p["title"].startswith("Chapter 2")]
-    assert [(p["title"], len(p["ideas"])) for p in serving] == [("Chapter 2: Serving (1/2)", 8), ("Chapter 2: Serving (2/2)", 4)]
-    assert db.one("SELECT COUNT(*) AS n FROM book_nodes WHERE book_id=?", (bid,))["n"] == 3 + 1 + 12 + 1
-    made = db.one("SELECT COUNT(*) AS n FROM book_nodes WHERE book_id=? AND created=1", (bid,))["n"]
-    assert db.one("SELECT COUNT(*) AS n FROM nodes WHERE origin='book'")["n"] == made  # no orphans from the first map
+    cid = lessons(db, bid)["Attention"]["conceptId"]
+    act(db, jobs, type="bookOpenLesson", conceptId=cid)
+    lesson.open_lesson(db, jobs, cid)
+    runner.responses["Grading"] = {"score": 1, "feedback": "ok", "missing": [], "followup": ""}
+    act(db, jobs, type="explain", conceptId=cid, itemId="e-s-why", answer="see board", drawing=PNG)
+    call = [c for r, c in runner.calls if r == "Grading"][-1]
+    assert len(call.images) == 1 and call.images[0].read_bytes().startswith(b"\x89PNG") and "drawing board" in call.prompt
+    g = state.gradings(db, [cid])[f"{cid}:e-s-why"]
+    assert g["status"] == "graded" and g["drawing"].endswith(".png")
+    with pytest.raises(actions.ActionError):
+        act(db, jobs, type="explain", conceptId=cid, itemId="e-s-why", answer="short")  # no drawing: words needed

@@ -10,6 +10,7 @@ web research, and with learner/web text passed as data inside tags.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import shutil
@@ -38,6 +39,20 @@ class Call:
     timeout: int = 600
     max_turns: int | None = None
     on_event: Callable[[str], None] | None = None  # live progress (web searches/fetches), where supported
+    images: tuple[Path, ...] = ()     # PNG files the model must look at (e.g. the learner's drawing board)
+
+
+def with_images(call: Call, cwd: Path) -> str:
+    """For the CLIs: copy the images into the job folder and name them in the prompt (the agent reads them there)."""
+    if not call.images:
+        return call.prompt
+    names = []
+    for n, src in enumerate(call.images):
+        dst = cwd / f"image-{n + 1}{Path(src).suffix or '.png'}"
+        dst.write_bytes(Path(src).read_bytes())
+        names.append(str(dst))
+    return call.prompt + "\n\nLook at these image files (open each one with your file-reading tool before you answer):\n" + \
+        "\n".join(f"- {x}" for x in names)
 
 
 class Provider:
@@ -56,13 +71,14 @@ class ClaudeCLI(Provider):
 
     def command(self, call: Call) -> list[str]:
         fmt = ["stream-json", "--verbose"] if call.on_event else ["json"]
+        tools = tuple(call.tools) + (("Read",) if call.images and "Read" not in call.tools else ())
         cmd = [shutil.which(self.binary) or self.binary, "-p",
                "--output-format", *fmt, "--model", call.model,
-               "--tools", ",".join(call.tools),
+               "--tools", ",".join(tools),
                "--strict-mcp-config", "--setting-sources", "user",
                "--no-session-persistence", "--permission-prompts", "none"]
-        if call.tools:
-            cmd += ["--allowedTools", ",".join(call.tools)]
+        if tools:
+            cmd += ["--allowedTools", ",".join(tools)]
         if call.schema:
             cmd += ["--json-schema", json.dumps(call.schema)]
         if call.system:
@@ -76,6 +92,8 @@ class ClaudeCLI(Provider):
             raise ProviderUnavailable("claude CLI not found on PATH")
         cwd.mkdir(parents=True, exist_ok=True)
         env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}  # use the subscription login
+        if call.images:
+            call = dataclasses.replace(call, prompt=with_images(call, cwd))
         if call.on_event:
             return self._run_streaming(call, cwd, env)
         try:
@@ -177,6 +195,8 @@ class CodexCLI(Provider):
             cmd += ["--model", call.model]
         if schema_file:
             cmd += ["--output-schema", str(schema_file)]
+        for img in call.images:
+            cmd += ["--image", str(img)]
         return cmd + ["-"]
 
     def run(self, call: Call, cwd: Path) -> dict | str:
@@ -230,7 +250,8 @@ class CursorCLI(Provider):
         if not self.available():
             raise ProviderUnavailable("Cursor CLI (cursor-agent / agent) not found on PATH")
         cwd.mkdir(parents=True, exist_ok=True)
-        prompt = call.prompt if not call.system else f"{call.system}\n\n{call.prompt}"
+        body = with_images(call, cwd)
+        prompt = body if not call.system else f"{call.system}\n\n{body}"
         if call.schema:
             prompt += ("\n\nReturn only a JSON object (no prose, no code fence) that matches this JSON Schema:\n"
                        + json.dumps(call.schema))
@@ -346,7 +367,13 @@ class AnthropicAPI(Provider):
             params["output_config"] = output_config
         if web:
             params["tools"] = self.WEB_TOOLS
-        messages: list = [{"role": "user", "content": prompt}]
+        content: list | str = prompt
+        if call.images:
+            import base64
+            content = [{"type": "image", "source": {"type": "base64", "media_type": "image/png",
+                                                    "data": base64.b64encode(Path(i).read_bytes()).decode()}} for i in call.images]
+            content.append({"type": "text", "text": prompt})
+        messages: list = [{"role": "user", "content": content}]
         try:
             for _ in range(self.MAX_CONTINUATIONS):
                 with client.beta.messages.stream(messages=messages, **params) as stream:

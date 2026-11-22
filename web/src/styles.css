@@ -799,3 +799,106 @@ a.shelf-card:hover { text-decoration: none; border-color: var(--border-2); }
   .nav-main .nav-badge { position: absolute; top: 0; right: 0; font-size: 9px; padding: 0 5px; line-height: 14px; }
   .main { padding-bottom: 72px; }
 }
+
+/* ===================================================================== older pages in the new style (SPEC §30) */
+/* practice */
+.practice-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.practice-main, .practice-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.practice-due-card { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.practice-due { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; align-self: stretch; }
+.practice-due li { display: flex; align-items: center; gap: 8px; }
+.practice-due li .pill { margin-left: auto; }
+.practice-due .md-inline { display: inline; }
+.practice-earlier li { padding: 4px 0; border-bottom: 1px solid var(--border); }
+.practice-panel { position: sticky; top: 16px; }
+.practice-steps { display: flex; gap: 6px; }
+.practice-steps i { flex: 1; height: 6px; border-radius: 999px; background: var(--surface-2); }
+.practice-steps i.now { background: var(--accent); }
+.practice-steps i.ok { background: var(--st-learned); }
+.practice-steps i.bad { background: var(--st-rusty); }
+.practice-level { display: flex; gap: 4px; margin: 4px 0; }
+.practice-level i { width: 18px; height: 8px; border-radius: 3px; background: var(--surface-2); }
+.practice-level i.on { background: var(--st-mastered); }
+.practice-problem .reader { font-size: 16.5px; }
+.practice-hint { background: color-mix(in srgb, var(--st-mastered) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--st-mastered) 40%, var(--border));
+  border-radius: 10px; padding: 8px 10px; margin-top: 6px; }
+@media (max-width: 900px) { .practice-grid { grid-template-columns: minmax(0, 1fr); } .practice-panel { position: static; } }
+/* settings: sections with a table of contents */
+.settings-layout { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 24px; align-items: start; }
+.settings-toc { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 2px; }
+.settings-toc a { color: var(--muted); padding: 6px 10px; border-radius: 8px; font-weight: 500; }
+.settings-toc a:hover { color: var(--text); background: var(--surface-2); text-decoration: none; }
+.settings-sections { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+.settings-section { display: flex; flex-direction: column; gap: 14px; scroll-margin-top: 16px; }
+.settings-head { border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+.settings-head h2 { margin: 0 0 2px; font-size: 1.35rem; }
+.settings-head p { margin: 0; }
+.settings-section .table { display: block; overflow-x: auto; }
+@media (max-width: 860px) { .settings-layout { grid-template-columns: minmax(0, 1fr); } .settings-toc { position: static; flex-direction: row; flex-wrap: wrap; } }
+/* me */
+.me-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+.me-grid > .card { min-width: 0; }
+@media (max-width: 900px) { .me-grid { grid-template-columns: minmax(0, 1fr); } }
+/* library */
+.tabs-inline .tab.on { background: var(--surface-2); color: var(--text); }
+
+.study-all-known { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 12px 14px; margin-bottom: 12px;
+  border-radius: 10px; background: color-mix(in srgb, var(--st-mastered) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--st-mastered) 35%, var(--border)); }
+.study-all-known p { margin: 0; }
+
+/* ---------- Book study v2 (SPEC §31): chapters, lessons, book chunks, quiz, drawing board ---------- */
+.book-ch { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.book-ch-open { border-color: color-mix(in srgb, var(--c-1) 35%, var(--border)); }
+.book-ch-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; gap: 12px; align-items: center; width: 100%;
+  padding: 11px 14px; background: none; border: 0; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.book-ch-head:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.book-ch-num { font: 400 12px var(--mono); color: var(--faint); }
+.book-ch-title { font: 600 15px var(--font-display); min-width: 0; }
+.book-ch-head .book-dots { margin: 0; max-width: 220px; justify-content: flex-end; }
+.book-ch-caret { color: var(--muted); width: 12px; }
+.book-ch-body { padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.book-ch-summary { font-family: var(--font-serif, inherit); color: var(--text); border-left: 2px solid color-mix(in srgb, var(--c-1) 50%, transparent);
+  padding: 2px 0 2px 12px; }
+.book-ch-summary p { margin: 0 0 6px; }
+.book-lessons { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.book-lesson { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 9px 12px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+.book-lesson-next { border-color: color-mix(in srgb, var(--c-1) 60%, var(--border)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c-1) 35%, transparent); }
+.book-lesson-num { font: 400 12px var(--mono); color: var(--faint); padding-top: 3px; }
+.book-lesson-title { font-weight: 600; color: var(--text); text-decoration: none; }
+.book-lesson-title:hover { text-decoration: underline; }
+.book-lesson-covers { color: var(--muted); margin-top: 2px; }
+.book-lesson-also { margin-top: 3px; color: var(--muted); }
+.book-lesson-main .md-inline { display: inline; }
+.book-lesson-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.book-lesson-side .pill { white-space: nowrap; }
+.chapter-summary { font-family: var(--font-serif, inherit); }
+.chapter .book-lessons { margin: 12px 0 16px; }
+@media (max-width: 560px) {
+  .book-ch-head { grid-template-columns: auto minmax(0, 1fr) auto auto; } .book-ch-head .book-dots { display: none; }
+  .book-lesson { grid-template-columns: minmax(0, 1fr); } .book-lesson-num { display: none; } .book-lesson-side { flex-direction: row; align-items: center; }
+}
+
+.lesson-chunk { border-top: 1px solid var(--border); padding-top: 6px; }
+.chunk-toggle { display: flex; align-items: baseline; gap: 10px; background: none; border: 0; padding: 0; color: var(--text); cursor: pointer;
+  font: inherit; text-align: left; }
+.chunk-toggle h2 { margin: 0; }
+.chunk-toggle > span:first-child { color: var(--muted); width: 12px; }
+.lesson-chunk-closed { padding-bottom: 4px; }
+.book-says { margin: 10px 0 12px; padding: 10px 14px; border-radius: 10px; font-family: var(--font-serif, inherit);
+  background: color-mix(in srgb, var(--c-2, var(--c-1)) 7%, var(--surface)); border-left: 3px solid color-mix(in srgb, var(--c-2, var(--c-1)) 55%, transparent); }
+.book-says p { margin: 4px 0; }
+.means-label { margin: 4px 0 2px; }
+.lesson-quiz { margin-top: 28px; padding-top: 12px; border-top: 2px solid color-mix(in srgb, var(--c-1) 40%, var(--border)); }
+.lesson-quiz .quiz-item { margin: 14px 0; }
+
+.drawing-board { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.drawing-tools { gap: 6px; flex-wrap: wrap; align-items: center; }
+.drawing-tools .ink { width: 20px; height: 20px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.drawing-tools .ink-on { border-color: var(--text); }
+.drawing-canvas { width: 100%; aspect-ratio: 900 / 420; border-radius: 10px; border: 1px solid var(--border); touch-action: none; cursor: crosshair; }
+.drawing-sent { display: block; max-width: 100%; margin-top: 6px; border-radius: 8px; border: 1px solid var(--border); }
+
+.md-details { margin: 8px 0; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.md-details summary { cursor: pointer; color: var(--muted); }
+.md-details summary .md-inline { display: inline; }

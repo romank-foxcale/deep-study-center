@@ -14,16 +14,12 @@ const EMPTY = new Set<string>()
 
 /** Today (SPEC §30): pick up where you stopped, recall what is due, see the week. */
 export default function Today() {
-  const { s, dispatch } = useStore()
+  const { s } = useStore()
   const navigate = useNavigate()
   const [t, setT] = useState<TodayView | null>(null)
   const [g, setG] = useState<GraphView | null>(null)
-  const [going, setGoing] = useState<string | null | undefined>(undefined)
   useEffect(() => { getToday().then(setT, () => {}) }, [s])
   useEffect(() => { getGraph().then(setG, () => {}) }, [s.studyBooks.length, s.sessions.length])
-  useEffect(() => {
-    if (going !== undefined && s.lastSession && s.lastSession !== going) navigate(`/study/${s.lastSession}`)
-  }, [s.lastSession, going, navigate])
   const links = useMemo(() => g?.links ?? [], [g])
   const hour = new Date().getHours()
   const greet = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
@@ -40,20 +36,18 @@ export default function Today() {
 
       {c && (
         <div className="card continue-card">
-          <div className="eyebrow">Continue{c.kind === 'session' && c.book ? ` · ${c.book.title}` : c.kind === 'part' ? ` · ${c.bookTitle}` : ''}</div>
+          <div className="eyebrow">Continue{c.kind === 'session' && c.book ? ` · ${c.book.title}` : c.kind === 'lesson' ? ` · ${c.bookTitle} · ${c.chapterTitle}` : ''}</div>
           <h2><Markdown inline>{c.title}</Markdown></h2>
           {c.kind === 'session' && c.next && <p className="muted">Next idea: <strong className="text"><Markdown inline>{c.next}</Markdown></strong></p>}
           {c.kind === 'session' && !c.next && <p className="muted">{c.status === 'probing' ? 'A few quick questions find what you already know.' : 'Your plan is ready.'}</p>}
-          {c.kind === 'part' && <p className="muted">pp. {c.pages[0]}–{c.pages[1]} · {c.total} ideas{c.summary ? ` · ${c.summary}` : ''}</p>}
+          {c.kind === 'lesson' && <p className="muted">{c.pages[0] === c.pages[1] ? `p. ${c.pages[0]}` : `pp. ${c.pages[0]}–${c.pages[1]}`}{c.summary ? ' · ' : ''}<Markdown inline>{c.summary}</Markdown></p>}
+          {c.kind === 'lesson' && <p className="muted small">{c.chapterTitle}: {c.done} of {c.total} lessons known</p>}
           {c.total > 0 && <div className="bar"><span style={{ width: `${Math.round((c.done / c.total) * 100)}%` }} /></div>}
           <div className="row">
             {c.kind === 'session'
               ? <Link className="btn btn-primary" to={`/study/${c.sessionId}`}>Continue the session</Link>
-              : <button className="btn btn-primary" disabled={going !== undefined} onClick={async () => {
-                  setGoing(s.lastSession)
-                  if (!await dispatch({ type: 'bookStudyPart', partId: c.partId })) setGoing(undefined)
-                }}>{going !== undefined ? 'Starting…' : 'Study this part'}</button>}
-            {(c.kind === 'part' || c.book) && <Link className="btn" to={`/book/${c.kind === 'part' ? c.bookId : c.book!.id}`}>Open the book</Link>}
+              : <Link className="btn btn-primary" to={`/lesson/${c.conceptId}`}>Open the lesson</Link>}
+            {(c.kind === 'lesson' || c.book) && <Link className="btn" to={`/book/${c.kind === 'lesson' ? c.bookId : c.book!.id}`}>Open the book</Link>}
           </div>
         </div>
       )}

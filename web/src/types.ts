@@ -119,7 +119,8 @@ export type RunResult =
   | { status: 'ran'; passed: boolean; output: string }
 
 /** Explain-back item as the learner sees it: the grading rubric stays on the server. */
-export interface ExplainItem { id: string; prompt: string }
+/** work: the answer is a calculation or derivation; the learner gets a drawing board (SPEC §31). */
+export interface ExplainItem { id: string; prompt: string; work?: boolean }
 
 export interface Grading {
   id: number
@@ -129,6 +130,8 @@ export interface Grading {
   feedback: string | null
   missing: string[]
   followup: string | null
+  /** The drawing board image sent with the answer (file name under /api/drawing/). */
+  drawing?: string | null
 }
 
 export interface PracticeChunk { text: string; ts: string; askedHint: boolean; verdict?: string; feedback?: string; hint?: string }
@@ -166,7 +169,7 @@ export interface GraphView {
 /** Book study (SPEC §28). */
 export interface StudyBookSummary {
   id: string; sourceId: string; title: string; author: string; status: 'mapping' | 'ready' | 'failed'
-  chapters: number; chaptersDone: number; parts: number; partsDone: number; updatedAt: string
+  chapters: number; chaptersDone: number; parts: number; partsDone: number; updatedAt: string; goalId: string | null
   /** The book's ideas: how many, how many known (learned, strong or due) and how many strong. */
   ideas: number; known: number; strong: number
 }
@@ -176,29 +179,41 @@ export interface TodayView {
     kind: 'session'; sessionId: string; title: string; status: string; next: string | null; nextStatement: string | null
     done: number; total: number; book: SessionView['book']
   } | {
-    kind: 'part'; bookId: string; bookTitle: string; partId: number; title: string; pages: [number, number]; summary: string
-    done: number; total: number
+    kind: 'lesson'; bookId: string; bookTitle: string; conceptId: string; title: string; pages: [number, number]; summary: string
+    chapter: number; chapterTitle: string; done: number; total: number
   }
   due: { count: number; items: { nodeId: string; title: string; state: string; reason: 'due' | 'new' }[] }
   week: { learned: number; strong: number; answers: number; sessions: number }
   recent: { id: string; title: string; status: string; updatedAt: string }[]
 }
-export interface BookIdea {
-  id: string; title: string; statement: string; kind: string; pages: string; state: string; fromGraph: boolean; otherBooks: string[]
+/** One lesson of a book (SPEC §31): a topic of a chapter, one concept and one idea of the graph. */
+export interface BookLesson {
+  id: number; conceptId: string; nodeId: string; title: string; covers: string; pages: [number, number]; ideas: string[]
+  state: string; mastery: number
+  /** written: its text is saved; carded: its plan is written from the book; started: opened at least once. */
+  written: boolean; carded: boolean; started: boolean
+  alsoIn: { id: string; title: string }[]
 }
-export interface BookPart {
-  id: number; ord: number; chapter: number; chapterTitle: string; title: string; pages: [number, number]; summary: string
-  status: 'todo' | 'studying' | 'done'; sessionId: string | null; practiceId: string | null; ideas: BookIdea[]
+export interface BookChapter {
+  chapter: number; title: string; summary: string; pages: [number, number]; moduleId: string; mapped: boolean
+  writing: boolean; lessons: BookLesson[]
 }
 export interface BookView {
-  id: string; sourceId: string; title: string; status: 'mapping' | 'ready' | 'failed'; chapters: number; chaptersDone: number
-  parts: BookPart[]; next: number | null; error: string | null; progress: string; busy: boolean
+  id: string; sourceId: string; title: string; status: 'mapping' | 'ready' | 'failed'; goalId: string | null; version: number
+  chapters: BookChapter[]; chapterCount: number; chaptersDone: number
+  /** The concept id of the lesson to continue with. */
+  next: string | null; error: string | null; progress: string; busy: boolean
+}
+/** Where a book lesson sits in its book (on the lesson page). */
+export interface LessonBook {
+  bookId: string; bookTitle: string; sourceId: string; chapter: number; chapterTitle: string; pages: [number, number]
+  covers: string; prev: { id: string; title: string } | null; next: { id: string; title: string } | null; index: number; count: number
 }
 /** One idea for a hover card (SPEC §28). */
 export interface IdeaDetail {
   id: string; title: string; statement: string; kind: string; state: string; mastery: number
   buildsOn: { id: string; title: string; state: string }[]; leadsTo: { id: string; title: string; state: string }[]
-  books: { id: string; title: string; part: string; pages: string }[]
+  books: { id: string; title: string; part: string; pages: string; conceptId?: string | null }[]
   sessions: { id: string; title: string; status: string }[]; lessons: { id: string; title: string; goalId: string }[]
 }
 
@@ -213,6 +228,8 @@ export type SessionItem = SessionQuestion | SessionExplain
 export interface SessionIdea {
   key: string; title: string; statement: string; node: string; prereqs: string[]; target: boolean
   level: 'known' | 'partial' | 'unknown' | null; skip?: boolean; fromGraph: boolean; nodeState: string
+  /** A known idea put back into the plan, to learn it again. */
+  again?: boolean
   /** What the probe found on this idea (SPEC §26); absent when no question reached it. */
   probe?: { level: 'known' | 'partial' | 'unknown' | 'untested'; reasonsFrom: string; runsOut: string; misconceptions: string[] } | null
 }
@@ -317,6 +334,8 @@ export interface LessonSectionView {
   /** What the app had to fix or remove in this graph after computing it (empty when it works as written). */
   vizNotes: string[]
   checkMine: boolean
+  /** Book lessons: a close summary of what the book says in this section, and its pages. */
+  book?: { summary: string; pages: string } | null
 }
 
 /** How the lesson was written for this learner: the planner's summary and briefs, and the reviewer's findings. */
@@ -334,6 +353,10 @@ export interface LessonPlan {
 /** Knowledge center #2 output for one lesson, as the page shows it. */
 export interface LessonView {
   conceptId: string
+  /** Book lessons (SPEC §31): the book, chapter and pages, and the lessons before and after. */
+  book: LessonBook | null
+  /** The chapter's lessons are being written from the book's pages. */
+  writingCards: boolean
   card: SourceCard | null
   sections: LessonSectionView[]
   rendering: boolean

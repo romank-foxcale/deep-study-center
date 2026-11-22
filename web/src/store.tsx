@@ -35,7 +35,7 @@ export type Action =
   | { type: 'adjust'; key: 'pace' | 'depth' | 'rigor'; value: number }
   | { type: 'route'; role: string; provider: string; model: string }
   | { type: 'useRecommendedRoutes' }
-  | { type: 'explain'; conceptId: string; itemId: string; answer: string; angle?: Angle; confidence?: number | null }
+  | { type: 'explain'; conceptId: string; itemId: string; answer: string; angle?: Angle; confidence?: number | null; drawing?: string }
   | { type: 'startPractice'; nodeIds?: string[]; own?: string; source?: { id: string; page: number } }
   | { type: 'practiceSubmit'; itemId: number; text: string; hint?: boolean }
   | { type: 'practiceGiveUp'; itemId: number }
@@ -48,13 +48,14 @@ export type Action =
   | { type: 'sessionAssessNow'; sessionId: string }
   | { type: 'sessionRetry'; sessionId: string }
   | { type: 'deleteSession'; sessionId: string }
+  | { type: 'sessionLearnAgain'; sessionId: string }
   | { type: 'setApiKey'; key: string }
   | { type: 'clearApiKey' }
   | { type: 'useApiForAll' }
   | { type: 'studyBook'; sourceId: string }
   | { type: 'bookRetry'; bookId: string }
-  | { type: 'bookStudyPart'; partId: number }
-  | { type: 'bookHomework'; partId: number }
+  | { type: 'bookOpenLesson'; conceptId: string }
+  | { type: 'bookHomework'; bookId: string; chapter: number }
   | { type: 'deleteBook'; bookId: string }
   | { type: 'setMapView'; view: import('./types').MapViewId }
   | { type: 'setDictation'; mode?: 'browser' | 'local'; model?: string }
