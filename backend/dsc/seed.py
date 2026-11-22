@@ -30,6 +30,7 @@ EXTRA_ROUTES = [
     {"role": "Practice", "description": "Recall practice: write problems and read your thinking (hints, never answers)", "provider": "claude", "model": "sonnet"},
     {"role": "Lesson review", "description": "Check each new lesson against your guidelines and feedback", "provider": "claude", "model": "sonnet"},
     {"role": "Book map", "description": "Read a book chapter by chapter and map its ideas into your graph", "provider": "claude", "model": "opus"},
+    {"role": "Formula notes", "description": "Explain each formula of a lesson for the hover card: name, symbols, where you met it", "provider": "claude", "model": "sonnet"},
     {"role": "Reasoning review", "description": "Read your thinking on an answer: what is right, what is off and why", "provider": "claude", "model": "sonnet"},
 ]
 

@@ -62,6 +62,34 @@ def answer(db: DB, jobs: Jobs, a: dict) -> None:
     progress.research_ahead(db, jobs)
 
 
+def _formula(fn):
+    def run(db: DB, jobs: Jobs, a: dict) -> None:
+        from .formula_lessons import FormulaError
+        try:
+            fn(db, jobs, a)
+        except FormulaError as e:
+            raise ActionError(str(e)) from e
+    return run
+
+
+@_formula
+def make_formula_lesson(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import formula_lessons
+    formula_lessons.make(db, jobs, str(a["conceptId"]), str(a["key"]))
+
+
+@_formula
+def add_formula_form(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import formula_lessons
+    formula_lessons.add_form(db, jobs, str(a["conceptId"]), str(a["key"]), str(a["formulaId"]))
+
+
+@_formula
+def prefer_formula_form(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import formula_lessons
+    formula_lessons.prefer(db, jobs, str(a["formulaId"]), str(a["key"]))
+
+
 def review_reasoning(db: DB, jobs: Jobs, a: dict) -> None:
     """Let the tutor read the thinking of an earlier answer (one given before reviews existed, or one whose review failed)."""
     cid, item_id = a["conceptId"], a["itemId"]
@@ -929,7 +957,8 @@ ACTIONS = {
     "setApiKey": set_api_key, "clearApiKey": clear_api_key, "useApiForAll": use_api_for_all,
     "linkSource": link_source, "editSource": edit_source, "deleteSource": delete_source, "rereadSource": reread_source, "reset": reset,
     "restoreCut": restore_cut,
-    "studyBook": study_book, "bookRetry": book_retry, "bookOpenLesson": book_open_lesson, "reviewReasoning": review_reasoning, "bookRemapChapter": book_remap_chapter, "bookHomework": book_homework,
+    "studyBook": study_book, "bookRetry": book_retry, "bookOpenLesson": book_open_lesson, "reviewReasoning": review_reasoning,
+    "makeFormulaLesson": make_formula_lesson, "addFormulaForm": add_formula_form, "preferFormulaForm": prefer_formula_form, "bookRemapChapter": book_remap_chapter, "bookHomework": book_homework,
     "deleteBook": delete_book, "setMapView": set_map_view,
     "setDictation": set_dictation, "downloadDictationModel": download_dictation_model,
     "removeDictationModel": remove_dictation_model,

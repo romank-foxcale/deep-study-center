@@ -881,3 +881,46 @@ Change log shows text changes only (not graph or question changes).
 - Display formulas: a multi-line `$$` block with text on its fence lines (`$$\begin{aligned}` … `\end{aligned}$$`) is
   rewritten with the fences on their own lines before rendering; before, the formula broke and the text after it
   showed as one red KaTeX error.
+
+## 33. Formula hover notes and 3D surfaces (2026-11-22)
+- Formula notes (`formulas.py`, job `formula_notes`, route "Formula notes", prompt `formula_notes.md`): a lesson's
+  display formulas and its inline formulas that say something (an equation, a sum, a fraction; not plain arithmetic)
+  are collected from the text the page shows and the book summaries, at most 25. One call writes a note for each:
+  a name, its meaning in 1-2 sentences, its symbols (TeX and meaning) and 0-3 graph ideas it is, uses or comes from
+  (only ids offered: this lesson's idea, the ideas it builds on or leads to, word matches). Notes are saved in
+  `formula_notes` by the formula's TeX without spaces. The job runs after a lesson is written or revised, and on open
+  for a lesson that has formulas without notes (switch: meta `formula_notes`, default on).
+- Page (`components/FormulaHover.tsx`): hovering a formula reads KaTeX's TeX annotation, finds the note and shows a
+  card: name, meaning, symbols, and "Where you met it" with each idea's state and a link to its lesson (or the map).
+  Formula widgets keep their own part labels.
+- 3D surface widget (`surface3d`, `components/viz/Surface3D.tsx`): z = f(x, y) from the plot syntax over a box,
+  drawn on a canvas with our own projection (drag to turn, top view), with optimizer paths from one start point:
+  gradient descent, momentum (β 0.9), RMSProp (ρ 0.9) and Adam (0.9, 0.999). The learner changes the learning rate
+  (log slider) and the start point, plays the steps and reads each method's loss. The writers may use it for loss
+  landscapes, descent and its variants, saddle points and valleys (`_widgets.md`); `viz.validate` checks the
+  expression (x and y only), the box, the start, the optimizers, the learning rate (up to 2) and the steps (5-300).
+- The mock workspace has a saved "Gradient descent" lesson (Understanding Deep Learning) with two surfaces: a narrow
+  valley (gradient descent zigzags, momentum does not) and the Rosenbrock valley (all four methods).
+
+## 34. Formula lessons and colored formula frames (2026-11-22)
+- Purpose: a formula met for the first time can become its own short lesson; a formula met in another form is joined
+  to that lesson, which then compares the forms; the frame color says at a glance what you know.
+- Notes get a `kind` (idea, or step: a line of a derivation or a calculation) and a `formula_id` (the formula lesson
+  that is this formula, in any form). The notes job sees the learner's formula lessons with their forms and matches;
+  a lesson's notes are matched again (job `formula_notes`, prompt `formula_match.md`, which also sets the kind) when a
+  formula lesson was made after they were matched, or when they were written before kinds existed.
+- Frames (`FormulaHover.tsx`): every display formula, and every inline formula that has a note and is an idea:
+  green = you learned its formula lesson and this form is one of its forms; orange = a formula lesson exists but this
+  form is new to it; gray = no formula lesson yet (or not learned yet); a faint dashed frame = a step.
+- Hover card actions: gray → "Make a lesson about this formula" (`makeFormulaLesson`); orange → "Add this form to that
+  lesson" (`addFormulaForm`); green → a link to the formula lesson.
+- A formula lesson (`formula_lessons.py`, tables `formula_lessons`, `formula_forms`) is a concept right after the
+  lesson it came from (and a lesson of the same book chapter), linked to it in the graph. The job `formula_lesson`
+  (prompt `formula_lesson.md`, route "Research", no web) writes its card from the formula, its note, the text around
+  it, the book's pages and the ideas the learner knows: "What each part means" with the explorable formula widget
+  (required), "Where it comes from" (derived from known ideas, with the explain-back), "Use it" (worked example and a
+  check) and "Its forms" (two or more forms: side by side, symbol by symbol, why each, when each is handy). Adding a
+  form or preferring one (`preferFormulaForm`) writes the card again (a new version) and the lesson again. The lesson
+  page shows "Forms of this formula" with "I prefer this form".
+- Normal lessons use at most one formula widget, for their central formula (`_widgets.md`); formula lessons use it
+  fully. Widget captions and lesson objectives now render math.

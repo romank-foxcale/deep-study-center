@@ -206,6 +206,16 @@ CREATE TABLE IF NOT EXISTS book_chapters (
 CREATE TABLE IF NOT EXISTS reasoning_reviews (
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, evidence_id INTEGER NOT NULL, concept_id TEXT NOT NULL,
   item_id TEXT NOT NULL, status TEXT NOT NULL, body TEXT NOT NULL DEFAULT '{}');
+-- Formula notes (SPEC §33): per lesson and formula (TeX without spaces): name, meaning, symbols, graph ideas.
+CREATE TABLE IF NOT EXISTS formula_notes (
+  concept_id TEXT NOT NULL, key TEXT NOT NULL, tex TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL,
+  PRIMARY KEY (concept_id, key));
+-- Formula lessons (SPEC §34): a lesson about one formula, made from a hover card; its forms (the ways lessons write it).
+CREATE TABLE IF NOT EXISTS formula_lessons (
+  id TEXT PRIMARY KEY, name TEXT NOT NULL, source_concept TEXT NOT NULL, preferred TEXT, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS formula_forms (
+  formula_id TEXT NOT NULL, key TEXT NOT NULL, tex TEXT NOT NULL, concept_id TEXT NOT NULL, added_at TEXT NOT NULL,
+  PRIMARY KEY (formula_id, key));
 CREATE TABLE IF NOT EXISTS book_cuts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL, ord INTEGER NOT NULL, source_id TEXT NOT NULL,
   chapter TEXT NOT NULL, pages TEXT NOT NULL DEFAULT '', rank TEXT NOT NULL, why TEXT NOT NULL DEFAULT '',
@@ -250,7 +260,10 @@ MIGRATIONS = [
     ("books", "version", "INTEGER NOT NULL DEFAULT 1"),    # 1 = parts taught as study sessions; 2 = chapters of saved lessons
     ("book_parts", "concept_id", "TEXT"),                  # v2: the lesson (concept) this part is
     ("book_parts", "ideas", "TEXT NOT NULL DEFAULT '[]'"), # v2: the lesson's key ideas
-    ("book_chapters", "kind", "TEXT NOT NULL DEFAULT 'chapter'"),  # chapter | reference (glossary, reading list: no lessons)
+    ("book_chapters", "kind", "TEXT NOT NULL DEFAULT 'chapter'"),
+    ("formula_notes", "kind", "TEXT NOT NULL DEFAULT 'idea'"),  # idea | step (a step of a derivation: neutral frame)
+    ("formula_notes", "formula_id", "TEXT"),               # the formula lesson this formula is (any form)
+    ("formula_notes", "matched_at", "TEXT"),               # last match against the formula lessons  # chapter | reference (glossary, reading list: no lessons)
 ]
 
 

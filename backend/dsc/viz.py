@@ -11,8 +11,10 @@ LIMIT = 10.0
 FUNCTIONS = {"sin", "cos", "tan", "exp", "log", "sqrt", "abs", "tanh", "sigmoid", "relu", "max", "min"}
 _TOKEN = re.compile(r"\s*(?:(\d+\.?\d*|\.\d+)|([a-z_][a-z0-9_]*)|(\*\*|[-+*/^(),]))")
 
+OPTIMIZERS = ["sgd", "momentum", "rmsprop", "adam"]
+
 SCHEMA = {"type": "object", "required": ["type", "caption"], "properties": {
-    "type": {"enum": ["vectors2d", "lincomb2d", "matrix2d", "plot", "formula"]},
+    "type": {"enum": ["vectors2d", "lincomb2d", "matrix2d", "plot", "formula", "surface3d"]},
     # formula: an annotated, draggable formula. `tex` uses {{id}} for each part; a part has its own TeX (it may contain
     # other {{id}}), a short label, a color, and optionally the parameter it shows (dragged left/right to change it).
     "tex": {"type": "string"},
@@ -39,6 +41,10 @@ SCHEMA = {"type": "object", "required": ["type", "caption"], "properties": {
     "target": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}},
     "matrix": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}}},
     "expr": {"type": "string"}, "xmin": {"type": "number"}, "xmax": {"type": "number"},
+    "ymin": {"type": "number"}, "ymax": {"type": "number"},
+    "start": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}},
+    "optimizers": {"type": "array", "maxItems": 4, "items": {"enum": OPTIMIZERS}},
+    "lr": {"type": "number"}, "steps": {"type": "integer"},
     "params": {"type": "array", "maxItems": 3, "items": {"type": "object", "required": ["name", "min", "max", "value"], "properties": {
         "name": {"type": "string"}, "min": {"type": "number"}, "max": {"type": "number"}, "value": {"type": "number"}}}},
 }}
@@ -113,7 +119,27 @@ def validate(spec, numeric: bool = True) -> dict | None:
         return {"type": t, "caption": caption, "expr": expr, "xmin": xmin, "xmax": xmax, "params": params}
     if t == "formula":
         return _formula(spec, caption, numeric)
+    if t == "surface3d":
+        return _surface(spec, caption)
     return None
+
+
+def _surface(spec: dict, caption: str) -> dict | None:
+    """A 3D surface z = f(x, y) with optimizer paths walking down it from one start point (SPEC §33)."""
+    expr = str(spec.get("expr") or "").strip().lower()
+    if not expr_ok(expr, {"y"}):
+        return None
+    box = []
+    for lo_key, hi_key in (("xmin", "xmax"), ("ymin", "ymax")):
+        lo, hi = _num(spec.get(lo_key), -100, 100), _num(spec.get(hi_key), -100, 100)
+        box += [lo, hi] if lo is not None and hi is not None and lo < hi else [-3.0, 3.0]
+    start = _pair(spec.get("start")) or [box[0] + 0.8 * (box[1] - box[0]), box[2] + 0.8 * (box[3] - box[2])]
+    start = [max(box[0], min(box[1], start[0])), max(box[2], min(box[3], start[1]))]
+    opts = [o for o in dict.fromkeys(spec.get("optimizers") or []) if o in OPTIMIZERS] or ["sgd", "momentum"]
+    lr = _num(spec.get("lr"), 0.0001, 2.0) or 0.1
+    steps = int(_num(spec.get("steps"), 5, 300) or 60)
+    return {"type": "surface3d", "caption": caption, "expr": expr, "xmin": box[0], "xmax": box[1], "ymin": box[2], "ymax": box[3],
+            "start": start, "optimizers": opts, "lr": lr, "steps": steps}
 
 
 # TeX commands that could reach outside the formula (links, HTML attributes, images, macros) are never accepted.

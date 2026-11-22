@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import books, bookstudy, dictation, reasoning, engine, graph, guidelines, library, mcq, ohtani, practice, probe, progress, providers, runner, session, sources, state, versions, viz, writer
+from . import books, bookstudy, dictation, formula_lessons, formulas, reasoning, engine, graph, guidelines, library, mcq, ohtani, practice, probe, progress, providers, runner, session, sources, state, versions, viz, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
@@ -86,6 +86,8 @@ class Jobs:
             self.db.x("UPDATE jobs SET status='done', output=?, updated_at=? WHERE id=?", (dumps(out), now(), jid))
             if job["kind"] == "research_module":
                 progress.research_ahead(self.db, self)  # keep going until research is one module ahead
+            if job["kind"] in ("render", "apply_feedback") and data.get("concept_id"):
+                formulas.ensure(self.db, self, data["concept_id"])  # notes for the formulas of the new text
         except ProviderUnavailable as e:
             if fallback:
                 fallback(self, jid, data)
@@ -830,6 +832,8 @@ HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "dictation_model": (dictation.run_download, None),
     "book_map": (bookstudy.run_map, None),
     "reasoning_review": (reasoning.run, reasoning.fallback),
+    "formula_notes": (formulas.run, None),
+    "formula_lesson": (formula_lessons.run, None),
     "render": (run_render, None),
     "tutor": (run_tutor, fallback_tutor),
     "roadmap_review": (run_roadmap_review, fallback_roadmap_review),
