@@ -464,9 +464,9 @@ Change log shows text changes only (not graph or question changes).
   when the roadmap is. The roadmap shows a banner until the result is used ("Not now" hides it: `dismissProbe`).
 - Rounds (`probe.run_round`, job `probe_round`, route "Placement"): the agent (`probe.md`) gets the goal and profile,
   the steps in order without merge steps, what the learner learned in other goals (concepts with a review, known steps),
-  and every answer with its thinking and confidence. It searches each area from the middle (toward the basics after a
-  miss, "I don't know" or a guess; toward advanced steps after a sure hit), then drills into the edge. A round has at
-  most 4 short questions (under 30 s each, "I don't know" added by the page). Limits: 5 rounds, 20 questions; at the
+  and every answer with its thinking and confidence. Since §26 a round is one question, chosen from all earlier
+  answers; the agent brackets the edge of each area (it starts high, see §26). Questions are short (under 30 s each,
+  "I don't know" added by the page) and their options are shuffled. Limit: 15 questions; at the
   limit, or on "Stop and see where I stand" (`probeAssessNow`), the agent must assess. A reply without usable
   questions fails the job (the page offers "Try again"); it never ends the probe.
 - Each answer (`probeAnswer`: item, choice or null, thinking, confidence) shows right / wrong and a one-line why at
@@ -514,9 +514,10 @@ Change log shows text changes only (not graph or question changes).
      ones, with their state). Each idea becomes a node at once: the existing node, or a new one (origin "session",
      `session_nodes.created = 1`), with reasoning links between the ideas. Ideas the graph holds as learned or
      mastered are marked known.
-  2. Probe ("Study tutor" route, `session_probe.md`): rounds of up to 4 quick questions on the ideas not known yet,
-     middle of the tree first; at most 3 rounds / 12 questions; "Stop asking and show the plan" ends it. Levels:
-     known / partial / unknown.
+  2. Probe ("Study tutor" route, `session_probe.md`): quick questions on the ideas not known yet, one at a time,
+     at most 10 (§26); "Stop asking and show the plan" ends it and still writes the result. The result per idea:
+     known / partial / unknown / untested, what the learner reasons from, where their reasoning stopped, and the
+     misconceptions; plus where to start.
   3. Plan: the ideas to teach, prerequisites first (topological order), the target last. The learner can untick ideas
      they hold (`sessionKnown`; not the target), then "Start learning" (`sessionTeach`).
   4. Teach (`session_turn.md`): per idea **predict** (a question before any explanation, answered with thinking and
@@ -611,5 +612,81 @@ Change log shows text changes only (not graph or question changes).
   (Windows Credential Manager, service "Deep Study Center"). `setApiKey` checks it first with the Models API (no
   tokens used); a rejected key is not stored. The key is never sent to the UI, written to the database, logs or job
   folders. Settings → "Anthropic API key", and a "Connect a model" card on the welcome page when no provider is found.
-- Not yet: Pyodide (runnable Python) still loads from a CDN (needs the network), local dictation (C2), code signing
+- Not yet: Pyodide (runnable Python) still loads from a CDN (needs the network), code signing
   (Windows SmartScreen warns on the first run of an unsigned installer), automatic updates, macOS and Linux builds.
+
+## 26. A sharper probe (2026-11-22)
+- Purpose: find the edge of the learner's understanding with fewer, better questions, and give the teacher a clear
+  picture: what the learner reasons from, where their reasoning stops, and which wrong beliefs to repair. TODO B7.
+  The ideas come from the probe of learnharness (AGPL-3.0); DSC copies no code or prompt text from it.
+- One question at a time (both probes): each probe job returns one question (`session_probe`: `question`;
+  `probe_round`: a list of at most 1), chosen from every earlier answer and its thinking. Limits: 10 questions in a
+  study session (`session.PROBE_MAX`), 15 in the goal probe (`probe.MAX_QUESTIONS`).
+- Bracketing the edge (prompts `session_probe.md`, `probe.md`): start near the top of what the target needs; a right
+  answer with sound reasoning allows a big jump; weak reasoning or confidence at or below chance allows a small step at
+  most; a miss or "I don't know" moves toward the prerequisites. Drill into a detail only when it would change what
+  gets taught. Stop when the teacher has enough; do not raise the level until a miss.
+- Questions that split mental models: a prediction, a comparison or a short case where two mental models give two
+  answers. One question can give evidence on several ideas.
+- Fair options (`mcq.py`, every generated multiple-choice question: both probes, study-session predict and check,
+  lesson checks):
+  - `mcq.SCHEMA` puts `explanation` before `answer`, so the model reasons out the right option first, then commits.
+  - The prompts ask for bare claims of the same form, wrong options built from real misconceptions, and no
+    "all/none of the above".
+  - `mcq.shuffle` puts the options in a random order when the question is stored and remaps `answer`. A refreshed
+    lesson card keeps the order of a check it already had, so past answers still line up. Tests turn the shuffle off
+    (`mcq.SHUFFLE`, autouse fixture in `conftest.py`).
+- Confidence compared with chance: confidence is the learner's estimate that the pick is right. A right answer counts
+  as a guess (half evidence; no recall in reviews) when the confidence is at or below max(1/n, 30%) for n options
+  (`mcq.guess_line`, `progress.guessed`). The prompts show "confidence 70% (chance: 25%)". The slider snaps to
+  0 / 30 / 50 / 70 / 90 / 100 % ("I think it is wrong", "Doubtful", "Coin flip", "Fairly sure", "Sure", "Certain");
+  it stays "not set" until the learner touches it.
+- The study-session result (`session.apply_result`): per idea `probe = {level, reasonsFrom, runsOut, misconceptions}`
+  in the session's `ideas` JSON, with level known / partial / unknown / untested ("untested" never sets a level, so the
+  idea is taught), and `sessions.probe_start` (where to start). A new result replaces an earlier one. The text is
+  written to the learner as "you". The plan page shows "Where to start" and, under each idea, "You reason from",
+  "Your reasoning stopped at" and "To fix". Every teaching turn of an idea gets its result and the start advice
+  (`session_turn.md`: `{probe}`, `{start}`).
+- Checked with a real run on a copy of the workspace (Bayes' theorem, 5 questions): the probe started at the target,
+  moved to a prerequisite after a miss with low confidence, re-tested the missed idea, and stopped; the first teaching
+  question built on what the result said the learner already uses.
+- Not yet: free-recall probe questions (the learner writes the answer; better fit for practice), and a separate
+  "thinking while reading" field for teaching checks.
+
+## 27. Local dictation with Whisper (2026-11-22)
+- Purpose: dictation without sending the learner's voice to a cloud service, also in desktop webviews that have no
+  speech API. TODO C2.
+- Backend (`dictation.py`, faster-whisper 1.2.1 on the CPU, int8; `av` pinned to 15.1.0 because av 16+ breaks
+  faster-whisper 1.2.1):
+  - Settings in `meta`: `dictation_mode` "browser" (default) or "local"; `dictation_model` "base" (default, 142 MB,
+    about 1.2-1.8 s for a 4 s phrase on a laptop CPU) or "small" (464 MB, more accurate, 5-6 s per phrase).
+  - Download: action `downloadDictationModel` → job `dictation_model` → `huggingface_hub.snapshot_download` of
+    `Systran/faster-whisper-<size>` (only the files the model needs) into `<workspace>/models/whisper`. The "xet"
+    transfer is turned off for it, so the folder grows while it downloads and the job reports "downloaded N%" (the
+    folder size, also for paths longer than 260 characters). An incomplete download fails the job.
+    `removeDictationModel` deletes a model.
+  - `POST /api/transcribe` (raw audio body: webm/opus from the page, or ogg/wav; at most 8 MB) → `{text, language,
+    seconds}`. The model loads from the local folder (no network) on the first phrase and stays in memory (one model
+    at a time). The audio goes to a temporary file that is deleted at once; it is never stored. Language is detected
+    per phrase. Voice-activity filtering drops silence.
+  - The state snapshot has `dictation: {mode, model, available, ready, models: [{id, label, mb, installed}]}`.
+- Page (`components/localDictation.ts`, used by `useDictation` in `ThinkingInput.tsx`):
+  - The local engine is used when the mode is "local" and the chosen model is downloaded, or when the browser has no
+    speech API and a model is downloaded. Otherwise the browser's speech API is used. The Dictate button's tooltip
+    says "(on this computer)" for the local engine.
+  - One `MediaRecorder` per phrase on the microphone stream. A level meter (RMS against a running noise floor) ends
+    a phrase after 0.7 s of silence, or after 20 s. A phrase with less than 0.25 s of speech is dropped. Each phrase
+    is posted on its own; results are added in order. While a phrase is written down the hint says "Writing down what
+    you said…".
+  - Settings → Dictation: the engine, the model (download with progress, delete), and a box to try it.
+- Checked: unit tests (settings, download job with progress, incomplete download, transcription, errors); a real
+  download of the base model; a real transcription of a spoken test phrase as WebM and WAV with Hugging Face network
+  access turned off; and the full page path (the test phrase played into a stand-in microphone in the Settings box:
+  two phrases came out right and in order).
+- Desktop bundle (`desktop/backend/dsc-backend.spec`): collects faster-whisper (with its voice-activity ONNX file),
+  CTranslate2's DLLs, onnxruntime and av; `hf_xet` is left out. The backend folder grows from about 37 MB to 266 MB
+  (av 81 MB, CTranslate2 61 MB, onnxruntime 44 MB), the installer from 19.7 to 74.2 MiB. Checked: the bundled backend
+  downloaded the base model with progress and wrote down a test phrase in 1.2-1.8 s.
+- Not yet: a test with a real microphone (TODO A2), and a check that WebView2 in the desktop app allows the
+  microphone (it asks the learner once).
+- Model downloads write no progress bars or Windows symlink warnings to the backend log.

@@ -51,6 +51,9 @@ export type Action =
   | { type: 'setApiKey'; key: string }
   | { type: 'clearApiKey' }
   | { type: 'useApiForAll' }
+  | { type: 'setDictation'; mode?: 'browser' | 'local'; model?: string }
+  | { type: 'downloadDictationModel'; model: string }
+  | { type: 'removeDictationModel'; model: string }
   | { type: 'startProbe' }
   | { type: 'probeAnswer'; itemId: number; choice: number | null; thinking?: string; confidence?: number | null }
   | { type: 'probeAssessNow' }
@@ -179,6 +182,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return <div className="boot">{error ? <p className="error">{error}</p> : <p className="muted">Loading…</p>}</div>
   }
   return <StoreCtx.Provider value={{ s, dispatch, reload: load, error, clearError: () => setError('') }}>{children}</StoreCtx.Provider>
+}
+
+/** The dictation settings, or null outside the store (components that may render before it loads). */
+export function useDictationSettings() {
+  return useContext(StoreCtx)?.s.dictation ?? null
 }
 
 export function useStore() {

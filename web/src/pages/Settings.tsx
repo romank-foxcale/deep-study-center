@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { useStore } from '../store'
 import ApiKeyCard from '../components/ApiKeyCard'
+import { DictationArea } from '../components/ThinkingInput'
 
 export default function Settings() {
   const { s, dispatch } = useStore()
@@ -99,6 +101,8 @@ export default function Settings() {
         </table>
       </div>
 
+      <DictationCard />
+
       <div className="card">
         <h2>Local Python for exercises</h2>
         <p className="muted small">Exercises that need PyTorch run on your machine in a separate environment in your workspace
@@ -181,6 +185,67 @@ export default function Settings() {
         <p className="muted small">Replaces everything in the workspace database with the demo AI roadmap.</p>
         <button className="btn" onClick={() => { if (confirm('Erase all goals, notes, feedback and progress, and load the demo?')) dispatch({ type: 'reset' }) }}>Reset to demo</button>
       </div>
+    </div>
+  )
+}
+
+/** Dictation (SPEC §27): the browser's speech API, or Whisper on this computer. */
+function DictationCard() {
+  const { s, dispatch } = useStore()
+  const [tryText, setTryText] = useState('')
+  const d = s.dictation
+  const job = (model: string) => s.jobs.find(j => j.kind === 'dictation_model' && (j.status === 'queued' || j.status === 'running')
+    && j.label.includes(`(${model})`))
+  const failed = s.jobs.find(j => j.kind === 'dictation_model' && j.status === 'failed')
+  const browserApi = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
+  return (
+    <div className="card">
+      <h2>Dictation</h2>
+      <p className="muted small">Speak your thinking instead of typing it. The browser's dictation sends your voice to its
+        maker's servers (Google for Chrome and Edge). Local dictation keeps your voice on this computer: a Whisper model
+        writes down each phrase. It needs a one-time download, then it works offline.</p>
+      {!d.available && <p className="error small">Local dictation is not installed: the backend has no faster-whisper package.</p>}
+      <div className="row" role="radiogroup" aria-label="Dictation engine">
+        <label className="row"><input type="radio" checked={d.mode === 'browser'} onChange={() => dispatch({ type: 'setDictation', mode: 'browser' })} />
+          Browser{browserApi ? '' : ' (not available in this browser)'}</label>
+        <label className="row"><input type="radio" checked={d.mode === 'local'} disabled={!d.available}
+          onChange={() => dispatch({ type: 'setDictation', mode: 'local' })} />
+          On this computer (Whisper)</label>
+      </div>
+      {d.available && (
+        <ul className="dictation-models">
+          {d.models.map(m => {
+            const j = job(m.id)
+            return (
+              <li key={m.id} className="row">
+                <label className="row"><input type="radio" name="dictation-model" checked={d.model === m.id}
+                  onChange={() => dispatch({ type: 'setDictation', model: m.id })} />{m.label}</label>
+                {m.installed
+                  ? <><span className="pill pill-ok small">downloaded</span>
+                      <button className="link small" onClick={() => {
+                        if (window.confirm(`Delete the ${m.id} model (${m.mb} MB)? You can download it again later.`)) {
+                          dispatch({ type: 'removeDictationModel', model: m.id })
+                        }
+                      }}>Delete</button></>
+                  : j
+                    ? <span className="muted small">{j.progress[j.progress.length - 1] ?? 'starting the download…'}</span>
+                    : <button className="btn btn-small" onClick={() => dispatch({ type: 'downloadDictationModel', model: m.id })}>
+                        Download ({m.mb} MB)</button>}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {failed && !d.ready && <p className="error small">The last download failed: {failed.error}</p>}
+      {d.mode === 'local' && !d.ready && d.available && (
+        <p className="small">Download the chosen model to use local dictation. Until then, the browser's dictation is used.</p>
+      )}
+      {(d.mode === 'browser' ? browserApi : d.ready) && (
+        <div className="dictation-try">
+          <span className="small muted">Try it: click “Dictate” and say a sentence.</span>
+          <DictationArea value={tryText} onChange={setTryText} rows={2} placeholder="Your words appear here." />
+        </div>
+      )}
     </div>
   )
 }

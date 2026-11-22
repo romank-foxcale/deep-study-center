@@ -7,7 +7,7 @@ import type { ProbeAnswered } from '../types'
 
 const LEVEL = { known: { label: 'known', cls: 'pill pill-ok' }, partial: { label: 'partly', cls: 'pill pill-warn' }, unknown: { label: 'new', cls: 'pill' } }
 
-/** The probe: quick rounds of questions an agent picks from your answers and thinking, then where you stand. */
+/** The probe: quick questions, one at a time, an agent picks from your answers and thinking, then where you stand. */
 export default function Probe() {
   const { s, dispatch } = useStore()
   const [choice, setChoice] = useState<number | null>(null)
@@ -26,21 +26,21 @@ export default function Probe() {
   return (
     <div className="page page-narrow">
       <h1>Where you stand</h1>
-      <p className="lead">Quick questions that find the edge of what you know for “{s.goal.title}”. Each round is chosen from your
+      <p className="lead">Quick questions that find the edge of what you know for “{s.goal.title}”. Each question is chosen from your
         earlier answers. Think out loud, typed or dictated: your thinking tells the agent more than the answer. “I don't know” is a
         good answer; a guess is not.</p>
 
       {p.status !== 'done' && p.asked > 0 && (
         <div className="probe-progress">
           <div className="probe-bar"><span style={{ width: `${Math.min(100, (p.asked / p.maxQuestions) * 100)}%` }} /></div>
-          <span className="muted small">{p.asked} answered · round {p.rounds} · at most {p.maxQuestions}</span>
+          <span className="muted small">{p.asked} answered · at most {p.maxQuestions}</span>
         </div>
       )}
 
       {p.status === 'idle' && (
         <div className="card">
           {p.error && <p className="error small">The last attempt failed: {p.error}</p>}
-          <p>About 10–20 short questions, in rounds of four. It takes 5–10 minutes.</p>
+          <p>About 6–12 short questions, one at a time. It takes 5–10 minutes.</p>
           <button className="btn btn-primary" onClick={() => dispatch({ type: 'startProbe' })}>{p.error ? 'Try again' : 'Start'}</button>
         </div>
       )}
@@ -48,12 +48,12 @@ export default function Probe() {
       {last && p.status !== 'done' && <LastAnswer a={last} />}
 
       {p.status === 'thinking' && (
-        <div className="card"><p className="muted">{p.asked === 0 ? 'Choosing your first questions…' : 'Reading your answers and choosing the next questions…'}</p></div>
+        <div className="card"><p className="muted">{p.asked === 0 ? 'Choosing your first question…' : 'Reading your answer and choosing the next question…'}</p></div>
       )}
 
       {p.status === 'asking' && p.question && (
         <div className="card">
-          <div className="eyebrow">Round {p.question.round} · {p.question.module}</div>
+          <div className="eyebrow">Question {p.question.round} · {p.question.module}</div>
           <Markdown>{p.question.prompt}</Markdown>
           <div className="check-options" role="radiogroup">
             {p.question.options.map((o, i) => (

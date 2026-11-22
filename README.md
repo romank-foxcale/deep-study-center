@@ -178,6 +178,11 @@ Tests: `.venv/Scripts/python -m pytest` in `backend/`.
 No Claude CLI? Add an Anthropic API key in Settings (it is kept in the system credential store); jobs then run on the
 Claude API and are billed to that account.
 
+Dictation: by default the browser's speech API writes down what you say (Chrome and Edge send the audio to Google).
+For dictation that keeps your voice on your computer, open Settings → Dictation, choose "On this computer (Whisper)"
+and download a model once (base, about 140 MB). It is stored in `<workspace>/models/whisper` and then works offline.
+See docs/SPEC.md §27.
+
 ## Desktop app (Windows)
 
 The desktop app is a [Tauri](https://tauri.app) window around the same backend, bundled with PyInstaller, so it needs

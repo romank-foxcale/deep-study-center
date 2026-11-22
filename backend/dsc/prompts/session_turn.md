@@ -15,6 +15,8 @@ The plan (ideas in order):
 Ideas they already hold (do not re-teach; build on them): {known}
 
 The idea now: {idea}
+What the probe found on this idea: {probe}
+The probe's advice where to start: {start}
 
 What happened on this idea so far (questions with their choice, confidence and raw thinking; explanations given):
 <current>
@@ -33,4 +35,5 @@ Your task: **{kind}**.
 - predict: before any explanation, ask one multiple-choice question that makes them reason out the next step themselves ("What do you expect happens when …?"). It must be answerable by reasoning from what they already hold, not by recall. 3-4 options; `explanation` = one sentence shown after they answer.
 - explain: write `body`, the explanation of this one idea, fitted to their prediction and thinking: start from what they said (confirm what was right, fix exactly what was wrong), then the one reasoning step, then one concrete example. 60-200 words, Markdown, `$...$` / `$$...$$` for math, a short ```python block only if code makes it clearer. Then `check`: one multiple-choice question that tests understanding of this idea in a slightly new setting (not a copy of the example). `explanation` = why the right option is right.
 - repair: their last check was wrong. Write `body` that addresses exactly the mistake their choice and thinking show, from a different angle than before (60-150 words), then a new `check` on the same idea in another setting.
+Options (for every question): each is a bare claim of the same form and length, with no "because"; each wrong option is what one specific misconception would answer; no "all/none of the above" (the page shuffles them). Write `explanation` before `answer`.
 Address the learner as "you". Return JSON matching the schema.

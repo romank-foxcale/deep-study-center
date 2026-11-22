@@ -240,6 +240,36 @@ recall practice, prefetch the next problem, and watch whether the judge sometime
   with 3 problems.
 - **Done when:** due reviews run as recall practice, and results change node states on the map.
 
+### B7. ✅ DONE (2026-11-22, branch `claude/probe-edge`, SPEC §26): A sharper probe (ideas from learnharness)
+Done as planned, checked with a real study-session probe on a copy of the workspace. Left for later: free-recall
+probe questions, and a "thinking while reading" field for teaching checks. Models sometimes still put a "because" in
+every option; the options stay even, so it gives nothing away.
+Idea source: the probe of [learnharness](https://github.com/amosblomqvist/learnharness) (AGPL-3.0). Copy the ideas
+only, never its code or prompt text.
+- **Why:** the probe asks rounds of 4 questions, so 3 of 4 questions cannot use the newest answer. It starts in the
+  middle and moves one step at a time. The model sees which option it wrote first, and position bias can give the
+  answer away. The guess line is 25% for every number of options. The result is only known / partial / unknown, so
+  the teacher does not learn where the learner's reasoning stops.
+- **What:**
+  1. One question at a time: each question is chosen from the last answer and its thinking (both probes).
+  2. Bracket the edge: start near the top of what the goal needs; a well-reasoned right answer allows a big jump; a
+     miss narrows back. Stop when the lesson has enough evidence; do not keep going until a miss.
+  3. Questions that split mental models: two different mental models give two different answers. One question can
+     give evidence on more than one idea.
+  4. Fair options: the model writes the explanation before it picks the answer; options are bare claims; each wrong
+     option is the answer of one real misconception. The backend shuffles the options of every generated
+     multiple-choice question and remaps the answer.
+  5. Confidence compared with chance: a right answer counts as a guess when the confidence is at or below
+     max(1/n, 30%) for n options. The slider snaps to 0 / 30 / 50 / 70 / 90 / 100 %, with plain labels. The probe
+     prompt sees the chance level next to each confidence.
+  6. A result per idea (strand): what the learner reasons from reliably (floor), where their reasoning stops
+     (ceiling), the misconceptions, and "not tested" kept apart from "tested and missed". The study plan shows it,
+     and the teaching turns of that idea get it.
+- **How to check:** tests: the shuffle keeps the right option right; the guess rule follows the number of options;
+  the probe asks one question per job and stores the per-idea result; a teaching turn prompt contains the result.
+  Browser: one real study-session probe on a copy of the workspace.
+- **Done when:** both probes ask one question at a time, options are shuffled, and the plan shows the per-idea result.
+
 ---
 
 ## C. Desktop app and open source (step 7)
@@ -263,7 +293,11 @@ macOS/Linux builds, a single-instance guard (two app windows would start two bac
   API key; run a lesson; close and reopen (data kept).
 - **Done when:** a fresh machine can install and use DSC without a terminal.
 
-### C2. Local dictation (Whisper)
+### C2. ✅ DONE (2026-11-22, branch `claude/probe-edge`, SPEC §27): Local dictation (Whisper)
+Done with faster-whisper (base model by default, small as an option), a one-time download in Settings → Dictation,
+and phrase-by-phrase recording in the page. Checked with a real model and a recorded test phrase, not yet with a real
+microphone (A2). The desktop bundle includes it (installer 74 MiB instead of 19.7 MiB). Left for later: check the
+microphone prompt of WebView2 in the installed desktop app.
 - **Why:** the browser's speech API sends audio to Google, and desktop webviews may not support it.
 - **How:** a local Whisper model (for example faster-whisper `small`, or whisper.cpp) in the backend:
   `POST /api/transcribe` takes short audio chunks recorded with `MediaRecorder`; `useDictation` uses it when the
@@ -288,4 +322,5 @@ macOS/Linux builds, a single-instance guard (two app windows would start two bac
 1. A1 (merge and test the probe), A3 (sources on the goal page), A2 (dictation check).
 2. B3 (graph data model): the base for everything else.
 3. B4 (teach me X), then B5 (skill tree), then B6 (recall practice).
+   B7 (a sharper probe) after B6.
 4. C1–C3 (desktop and open source), with A4 items whenever there is time.

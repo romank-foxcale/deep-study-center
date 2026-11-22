@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from fastapi.responses import Response
 
-from . import actions, backup, graph, lesson, library, planner, practice, progress, providers, runner, session, sources, state, versions
+from . import actions, backup, dictation, graph, lesson, library, planner, practice, progress, providers, runner, session, sources, state, versions
 from .db import DB, workspace
 from .jobs import Jobs
 from .seed import ensure_routes, init_empty
@@ -143,6 +144,15 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
             sources.link(db, state.active_goal(db), sid, True)
         jobs.enqueue("ingest_source", f"Read {filename}", {"source_id": sid})
         return state.snapshot(db)
+
+    @app.post("/api/transcribe")
+    async def transcribe(request: Request) -> dict:
+        """Local dictation (SPEC §27): one recorded phrase as the raw body → its text. The audio is not stored."""
+        data = await request.body()
+        try:
+            return await asyncio.to_thread(dictation.transcribe, db, data, request.query_params.get("lang"))
+        except dictation.DictationError as e:
+            raise HTTPException(400, str(e)) from e
 
     @app.get("/api/sources/{sid}/file")
     def source_file(sid: str):

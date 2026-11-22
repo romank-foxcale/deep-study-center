@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from . import apikey, engine, providers, runner
+from . import apikey, dictation, engine, providers, runner
 from .db import DB, loads, workspace
 
 
@@ -194,6 +194,7 @@ def snapshot(db: DB) -> dict:
             "library": library.listing(db),
             "sources": sources.listing(db),
             "sessions": session.listing(db), "lastSession": db.meta("last_session"),
+            "dictation": dictation.status(db),
             "practices": practice.listing(db), "lastPractice": db.meta("last_practice"), "practiceDue": practice.due_count(db),
             "runner": runner_status(db),
             "backups": {"folder": str(workspace() / "backups"), "last": db.meta("last_backup"), "items": _backups()[:5]},
