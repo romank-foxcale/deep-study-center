@@ -253,3 +253,14 @@ def test_a_broken_graph_goes_back_to_the_writer_once_and_the_fix_is_kept(env):
     assert sec["vizNotes"][0].startswith("The app found 1 problem(s) in this graph and the writer fixed 1")
     review = [c for r, c in runner.calls if r == "Lesson review"][0].prompt
     assert "Graph numbers (computed as the page shows them): Start values: a = 1. Result a*2 = 2." in review
+
+
+def test_the_reviewer_sees_how_the_learner_reasons(env):
+    db, jobs, runner = env
+    db.x("""INSERT INTO evidence(ts, concept_id, item_id, kind, choice, correct, score, confidence, thinking)
+            VALUES('2026-01-01', 'c-vectors', 'x', 'practice', 1, 0, 0, 0.9, 'arrows add tip to tail only if parallel')""")
+    runner.responses["Renditions"] = prose_reply()
+    runner.responses["Lesson review"] = {"summary": "ok", "issues": []}
+    lesson.open_lesson(db, jobs, CID)
+    review = [c for r, c in runner.calls if r == "Lesson review"][0].prompt
+    assert "How the learner reasons" in review and "only if parallel" in review

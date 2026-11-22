@@ -581,11 +581,17 @@ def ensure_written(db: DB, jobs: Jobs, cid: str) -> bool:
 
 
 def open_lesson(db: DB, jobs: Jobs, cid: str) -> None:
-    """Make the lesson's book goal the active goal (the lesson page reads the active goal) and mark the book as used now."""
+    """Make the lesson's goal the active goal (the lesson page reads the active goal); for a book lesson, its hidden book
+    goal, and the book is marked as used now. Works for any lesson, so a goal lesson opens while a book goal is active."""
     p = db.one("SELECT book_id FROM book_parts WHERE concept_id=?", (cid,))
     b = get(db, p["book_id"]) if p else None
-    if not b or not b["goal_id"]:
-        raise BookError("this lesson belongs to no book")
+    if not b or not b["goal_id"]:  # a goal's lesson: make its goal active (a book goal may be active now)
+        g = db.one("""SELECT t.goal_id FROM concepts c JOIN modules m ON m.id = c.module_id JOIN tracks t ON t.id = m.track_id
+                      WHERE c.id=?""", (cid,))
+        if not g:
+            raise BookError("unknown lesson")
+        db.set_meta("active_goal", g["goal_id"])
+        return
     db.set_meta("active_goal", b["goal_id"])
     db.set_meta("last_book", b["id"])
     db.x("UPDATE books SET updated_at=? WHERE id=?", (now(), b["id"]))

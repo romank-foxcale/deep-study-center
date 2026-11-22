@@ -107,7 +107,7 @@ function StudyBookCard() {
       <h2>Study a book</h2>
       <div className="card">
         <p className="small muted">Pick one of your PDFs. DSC reads it chapter by chapter, maps its ideas into your knowledge graph
-          (joined to what you already know), and then teaches it one part at a time, with the book's own pages.</p>
+          (joined to what you already know), and cuts it into lessons by topic that follow the book's own pages.</p>
         {ready.length === 0
           ? <p className="small">Add a PDF in the <Link to="/library">Source library</Link> first.</p>
           : <div className="row">

@@ -104,18 +104,24 @@ Done as described below; "Learn" opens `/goal/book` with the source in the baske
 - **Done when:** no "Use for this goal" column remains, and the goal page controls which sources a goal uses.
 
 ### A4. Smaller items
+Done 2026-11-22 (branch `claude/small-items`):
+- "With your values" in the formula widget: a part that shows a parameter now gets its value through the part, so a
+  name that differs from the symbol (`na` vs `N_A`) is filled in, also inside one function (`\cos\theta` with a
+  slider `t` gives `\cos(1.0)`) (`byPart` in `viz/Formula.tsx`).
+- Opening a goal lesson while a book goal is active failed ("Lesson not found"); `bookOpenLesson` now makes any
+  lesson's goal active.
+- Misconceptions in the remedial offer: a wrong answer given at 75 % or more counts 2, the offer names it ("given
+  while sure: a likely misconception"), and the extra lesson's brief gives the confidence and the learner's thinking.
+- The lesson reviewer gets the reasoning log and reports text that does not take on a misconception about its idea.
+- Backups: two backups in one second no longer overwrite each other (`_2` suffix); this was why the backup test
+  was flaky.
+- Found on the way: an extra lesson in a book chapter was never written (book research skipped it); it now goes
+  through normal research.
+
+Still open:
 - **Fix round with a real model:** `writer.check_viz` sends a broken formula widget back to an agent once
   (`fix_widget.md`). It was never run with a real model. Make a lesson with a broken widget and check that the fix is
   used.
-- **"With your values" in the formula widget:** param names that do not match the TeX symbols (`na` vs `N_A`) are not
-  filled in (`fillValues` in `web/src/components/viz/Formula.tsx`). Map params to symbols through the part that
-  shows them.
-- **Misconceptions in the remedial offer:** `remedial.signals` counts wrong answers equally. A wrong answer at
-  confidence ≥ 75 % is a likely misconception; count it as 2 and name it in the offer.
-- **Reasoning in the lesson reviewer:** `state.reasoning_log` goes to the planner, the prose writer and the tutor,
-  not to `review_lesson.md`. Add it if the reviewer should check that the lesson fixes the learner's misconceptions.
-- **Flaky backup test:** a backup test can fail when two backups get the same one-second name. Add a counter suffix
-  in `backup.py`.
 
 ---
 

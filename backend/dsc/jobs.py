@@ -311,7 +311,8 @@ def run_research_module(jobs: Jobs, jid: int, d: dict) -> dict:
     m = db.one("SELECT * FROM modules WHERE id=?", (d["module_id"],))
     t = db.one("SELECT * FROM tracks WHERE id=?", (m["track_id"],))
     g = db.one("SELECT * FROM goals WHERE id=?", (t["goal_id"],))
-    if g["kind"] == "bookstudy":  # a book's chapter: its lessons are written from the book's pages (SPEC §31)
+    if g["kind"] == "bookstudy" and not d.get("concept"):  # a book chapter: written from the book's pages (SPEC §31);
+        # an extra lesson inserted into a book chapter is researched the normal way below
         return bookstudy.write_cards(jobs, jid, d)
     earlier = db.q("""SELECT m.title FROM modules m JOIN tracks t ON t.id=m.track_id WHERE t.goal_id=?
                       AND (m.seq, t.ord, m.ord) < (?, ?, ?) ORDER BY m.seq, t.ord, m.ord""", (g["id"], m["seq"], t["ord"], m["ord"]))
