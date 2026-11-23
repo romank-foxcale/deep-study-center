@@ -174,7 +174,7 @@ def init_empty(db: DB) -> None:
 
 PER_CONCEPT_TABLES = ("cards", "prose", "renditions", "evidence", "feedback", "notes", "chats", "reviews", "gradings",
                       "card_proposals", "runner_approvals", "activity", "lesson_versions", "lesson_heads", "lesson_reverts",
-                      "lesson_plans", "lesson_graphs", "lesson_graph_notes", "concept_nodes")
+                      "lesson_plans", "lesson_graphs", "lesson_graph_notes", "step_predictions", "concept_nodes")
 
 
 def delete_goal(db: DB, goal_id: str) -> None:

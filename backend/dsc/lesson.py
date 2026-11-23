@@ -78,7 +78,12 @@ def open_lesson(db: DB, jobs: Jobs, cid: str, plan: bool = True) -> dict:
 
 
 def ensure_prose(db: DB, jobs: Jobs, cid: str, rewrite: bool = False) -> None:
-    """Queue one render job for every section whose exact prose isn't cached yet (``rewrite``: every section)."""
+    """Queue one render job for every section whose exact prose isn't cached yet (``rewrite``: every section).
+    A step lesson (SPEC §43) is written one step at a time instead."""
+    from . import lesson_steps
+    if lesson_steps.is_steps(state.latest_card(db, cid)):
+        lesson_steps.ensure(db, jobs, cid)
+        return
     r = state.rendition_row(db, cid)
     if not r:
         return
@@ -169,6 +174,9 @@ def view(db: DB, cid: str) -> dict:
             "vizMine": s["vizMine"], "checkMine": s["checkMine"],
             "vizNotes": _viz_notes(s),
             "book": s.get("book"),  # book lessons: a close summary of what the book says here, and its pages
+            # step lessons (SPEC §43): the prediction before the step (its key only once predicted) and the repair
+            "predict": state.strip_check(s["predict"]) if s.get("predict") else None, "repair": s.get("repair"),
+            "kind": s.get("kind"), "form": s.get("form"),
         })
     p = writer.current_plan(db, cid, card["version"]) if card else None
     from . import bookstudy, formula_lessons, formulas
@@ -179,6 +187,7 @@ def view(db: DB, cid: str) -> dict:
     return {
         "book": book, "writingCards": writing_cards, "writing": writing(db, cid),
         "lessonPlan": _plan_brief(db, cid) if book else None,
+        "steps": _steps(db, cid, card),
         "formulas": formulas.notes(db, cid),
         "formulaLesson": formula_lessons.info(db, cid),
         "blockVersions": bookstudy.versions_of(db, cid),
@@ -206,3 +215,9 @@ def _plan_brief(db: DB, cid: str) -> dict | None:
     from . import lesson_graph
     p = lesson_graph.latest(db, cid)
     return {"version": p["version"], "status": p["status"]} if p else None
+
+
+def _steps(db: DB, cid: str, card: dict | None) -> dict | None:
+    """A step lesson's progress (SPEC §43), or None for any other lesson."""
+    from . import lesson_steps
+    return lesson_steps.view(db, cid, card) if lesson_steps.is_steps(card) else None

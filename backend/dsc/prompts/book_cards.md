@@ -12,10 +12,6 @@ Write a card for each of these lessons (id, title, pages, what it covers, key id
 Other lessons of this chapter (already written; do not repeat them):
 {others}
 
-Plans the learner approved for some of these lessons (follow them):
-{plans}
-For a lesson with a plan, the plan decides the lesson: one section for each step, foundation and formula of the plan, in the plan's order (more than 5 sections when the plan has more). Do not teach what the plan says the learner holds; build on it. Use each node's form: `example` → a worked example with real numbers in the section's purpose; `interactive` → a `viz` for that section; `figure` → a `viz` if a widget shows it, else say exactly what to draw in the purpose; `text` → a short section; `derivation` → each line with its reason. Every section text stays short: no wall of text.
-
 The chapter's text, page by page (extracted from the PDF; may contain headers, page numbers and broken lines):
 <book>
 {text}

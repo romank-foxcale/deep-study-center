@@ -3,8 +3,12 @@
 The history of Deep Study Center, newest first. The full design and the decisions are in [SPEC.md](SPEC.md); the
 work still open is in [TODO.md](TODO.md).
 
-## Unreleased: formulas on the map, lesson plans (SPEC §41, §42)
+## Unreleased: formulas on the map, lesson plans, step lessons (SPEC §41-§43)
 
+- **Step lessons** (SPEC §43): an approved plan is taught one step at a time. Each step: a prediction first, the step in
+  its form (at most about 80 words, an example, a widget, a derivation), then "Check your understanding". A wrong check
+  shows a short repair. The next step is written while you read this one. "Explain differently" writes one step again
+  with your note.
 - **Plan a lesson before it is written** (SPEC §42): opening a book lesson that is not written yet first makes its plan,
   a small graph from what you hold to the lesson's idea, with the form of each step (example, interactive, figure,
   short text, derivation). Watch it being made and send notes; cut what you know, ask for another form, add notes,

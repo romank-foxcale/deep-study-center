@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import bookstudy, dictation, formula_fields, formula_lessons, formulas, lesson_graph, reasoning, engine, graph, guidelines, library, mcq, ohtani, practice, probe, progress, providers, runner, session, sources, state, versions, viz, writer
+from . import bookstudy, dictation, formula_fields, formula_lessons, formulas, lesson_graph, lesson_steps, reasoning, engine, graph, guidelines, library, mcq, ohtani, practice, probe, progress, providers, runner, session, sources, state, versions, viz, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
@@ -86,6 +86,9 @@ class Jobs:
             self.db.x("UPDATE jobs SET status='done', output=?, updated_at=? WHERE id=?", (dumps(out), now(), jid))
             if job["kind"] == "research_module":
                 progress.research_ahead(self.db, self)  # keep going until research is one module ahead
+            if job["kind"] == "lesson_step":
+                lesson_steps.ensure(self.db, self, data["concept_id"])  # the next step, if the learner moved on meanwhile
+                formulas.ensure(self.db, self, data["concept_id"])  # hover notes for the step's formulas
             if job["kind"] in ("formula_notes", "formula_lesson"):
                 formula_fields.ensure(self.db, self)  # new formulas get their fields for the map
             if job["kind"] in ("render", "apply_feedback") and data.get("concept_id"):
@@ -827,6 +830,7 @@ HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "formula_notes": (formulas.run, None),
     "formula_fields": (formula_fields.run, None),
     "lesson_graph": (lesson_graph.run, None),
+    "lesson_step": (lesson_steps.run, None),
     "formula_lesson": (formula_lessons.run, None),
     "formula_open": (lambda jobs, jid, d: {"parts": formula_lessons.open_node(jobs, jid, d["node"])}, None),
     "render": (run_render, None),

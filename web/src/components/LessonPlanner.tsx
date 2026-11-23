@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { getLessonPlan, useStore } from '../store'
 import Markdown from './Markdown'
-import type { LessonPlan, LessonPlanNode, LessonPlanView } from '../types'
+import type { LessonPlanGraph, LessonPlanNode, LessonPlanView } from '../types'
 
 // The lesson plan graph (SPEC §42). A book lesson is planned before it is written: what you hold (green), the
 // foundations to lay (orange), the reasoning steps (blue), the formulas (lime) and the goal (gold), each with the form it
@@ -16,7 +16,7 @@ const FORM: Record<string, string> = {
 
 /** Levels from the bottom: a node with nothing it needs is level 0; else one above the highest node it needs. The goal is
  *  drawn at the top, what you hold at the bottom. */
-function layout(plan: LessonPlan) {
+function layout(plan: LessonPlanGraph) {
   const need = new Map(plan.nodes.map(n => [n.key, plan.edges.filter(e => e[1] === n.key).map(e => e[0])]))
   const level = new Map<string, number>()
   const lv = (k: string, seen: Set<string>): number => {

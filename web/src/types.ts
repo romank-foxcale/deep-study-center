@@ -370,6 +370,20 @@ export interface LessonSectionView {
   checkMine: boolean
   /** Book lessons: a close summary of what the book says in this section, and its pages. */
   book?: { summary: string; pages: string } | null
+  /** Step lessons (SPEC §43): the question before the step (its key arrives in the steps' predictions once answered),
+   *  the repair shown after a wrong check, and the plan node's kind and form. */
+  predict?: McqCheck | null
+  repair?: string | null
+  kind?: string | null
+  form?: string | null
+}
+
+/** A step lesson's progress (SPEC §43). */
+export interface StepsView {
+  /** The index of the step the learner is on (``total`` when all are done). */
+  current: number; total: number; held: string[]; planVersion: number | null
+  nodes: { id: string; title: string; kind: string; form: string; done: boolean; written: boolean; writing: boolean }[]
+  predictions: Record<string, { choice: number; correct: boolean; thinking: string; answer?: number; explanation?: string }>
 }
 
 /** How the lesson was written for this learner: the planner's summary and briefs, and the reviewer's findings. */
@@ -394,17 +408,17 @@ export interface LessonPlanNode {
   /** Compared with the version before: "new", "changed" or "". */
   change?: string
 }
-export interface LessonPlan {
+export interface LessonPlanGraph {
   conceptId: string; version: number; status: LessonPlanStatus; approach: string; goal: string
   nodes: LessonPlanNode[]; edges: [string, string][]; error: string; createdAt: string; approvedAt: string | null
   /** Titles of nodes the version before had and this one has not. */
   removed?: string[]
   /** While a new version is made, or when it failed: the last finished version, shown dimmed. */
-  shown?: LessonPlan
+  shown?: LessonPlanGraph
 }
 export interface LessonPlanNote { id: number; version: number; node: string; kind: 'cut' | 'other' | 'note' | 'plan' | 'steer'; text: string; at: string; used: number | null }
 export interface LessonPlanView {
-  plan: LessonPlan | null; versions: number[]; notes: LessonPlanNote[]; pending: number
+  plan: LessonPlanGraph | null; versions: number[]; notes: LessonPlanNote[]; pending: number
   job: { id: number; status: string; progress: string[] } | null
 }
 
@@ -412,6 +426,8 @@ export interface LessonView {
   conceptId: string
   /** Book lessons: the plan's version and status (SPEC §42). */
   lessonPlan: { version: number; status: LessonPlanStatus } | null
+  /** A step lesson's progress (SPEC §43), or null. */
+  steps: StepsView | null
   /** Book lessons (SPEC §31): the book, chapter and pages, and the lessons before and after. */
   book: LessonBook | null
   /** The chapter's lessons are being written from the book's pages. */

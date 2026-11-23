@@ -1123,3 +1123,31 @@ being made. Phase 1 of the lessons rework (the study of LearnHarness and the moc
 - API: `GET /api/lesson/{cid}/plan`; actions `planLesson`, `lessonPlanNote`, `approveLessonPlan`.
 - Next phases: steps written one at a time (predict, step, check, repair) with the plan beside the lesson; practice
   from a lesson, chapter, field or the weakest items; later, generated interactive demos.
+
+## 43. Step lessons: one step at a time, written just ahead (2026-11-24)
+
+What it is for: an approved plan is taught one reasoning step at a time, so the learner never waits for a whole lesson
+and every step is checked before the next one builds on it. Phase 2 of the lessons rework.
+
+- **On approval** (§42) the lesson gets a card with `steps: true` and one section per plan node that is not held, in the
+  plan's order (each with `node`, `kind`, `form`, and an angle from the form). The card lists the held nodes. No
+  chapter batch, no full-lesson writer: `lesson.ensure_prose` hands a step lesson to `lesson_steps.ensure`.
+- **Written just ahead.** Job `lesson_step` (prompt `lesson_step.md`) writes one section: the step it is on and the next
+  one are written; the rest waits. After each answer, and after each written step, the next ones are queued.
+- **A step:**
+  - `predict` (optional): a question before the step, about what it will show. Answered with `predictStep` into
+    `step_predictions`; not graded evidence (guessing is the point). The step's text stays veiled until the learner
+    predicts or skips. The key is shown once predicted.
+  - the text: one new fact, at most about 80 words, in the plan's form (example, interactive with a widget, figure,
+    text, derivation), in STE; it builds on the learner's prediction and last check. Stored as the section's prose.
+  - `check`: closed behind "Check your understanding" until the learner opens it; answered like any check (evidence on
+    the map, the tutor reads the thinking).
+  - `repair`: shown only after a wrong check: the wrong idea named, then the right one with a new small example.
+  - the goal step also has an explain-back.
+- **Progress.** A step is done when its check (for a goal with no check, its explain-back) has an answer; the step
+  after it then opens. The writer of a step sees each earlier step's text and how the learner did on its prediction
+  and check, with their thinking.
+- **Explain differently** on a step writes it again with the learner's note (`rewriteStep`); its answers stay.
+- **Screen.** A sticky bar with the plan's steps (done, current, to come) and what the lesson builds on; the steps so far,
+  each a card; "You finished the lesson" at the end.
+- Next: plan nodes as ideas and formulas in the knowledge map; practice (Phase 3).

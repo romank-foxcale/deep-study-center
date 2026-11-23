@@ -67,6 +67,8 @@ export type Action =
   | { type: 'planLesson'; conceptId: string }
   | { type: 'lessonPlanNote'; conceptId: string; kind: 'cut' | 'other' | 'note' | 'plan' | 'steer'; text?: string; node?: string }
   | { type: 'approveLessonPlan'; conceptId: string }
+  | { type: 'predictStep'; conceptId: string; sectionId: string; choice: number; thinking?: string; confidence?: number | null }
+  | { type: 'rewriteStep'; conceptId: string; sectionId: string; note?: string }
   | { type: 'makeFormulaPage'; node: string }
   | { type: 'setMapView'; view: import('./types').MapViewId }
   | { type: 'setDictation'; mode?: 'browser' | 'local'; model?: string }

@@ -41,6 +41,13 @@ def _card_item(db: DB, cid: str, item_id: str) -> dict | None:
 
 # ---------------------------------------------------------------- answers & reviews
 
+def _steps_on(db: DB, jobs: Jobs, cid: str) -> None:
+    """After an answer in a step lesson (SPEC §43): write the next steps."""
+    from . import lesson_steps
+    if lesson_steps.is_steps(state.latest_card(db, cid)):
+        lesson_steps.ensure(db, jobs, cid)
+
+
 def answer(db: DB, jobs: Jobs, a: dict) -> None:
     cid, item_id = a["conceptId"], a["checkId"]
     item = _card_item(db, cid, item_id)
@@ -59,6 +66,7 @@ def answer(db: DB, jobs: Jobs, a: dict) -> None:
     reasoning.queue(db, jobs, cid, {**item, "id": item_id}, eid, thinking)  # the tutor reads how you thought (SPEC §32)
     if finished:
         progress.on_finished(db, jobs, cid)
+    _steps_on(db, jobs, cid)
     progress.research_ahead(db, jobs)
 
 
@@ -121,6 +129,7 @@ def explain(db: DB, jobs: Jobs, a: dict) -> None:
     gid = db.x("INSERT INTO gradings(ts, concept_id, item_id, answer, status, confidence, drawing) VALUES(?,?,?,?,?,?,?)",
                (now(), cid, item_id, text[:4000], "pending", conf, drawing))
     jobs.enqueue("grade", "Grade explanation", {"grading_id": gid, "concept_id": cid, "angle": a.get("angle")})
+    _steps_on(db, jobs, cid)
 
 
 def _save_drawing(data: object) -> str | None:
@@ -318,6 +327,9 @@ def explain_differently(db: DB, jobs: Jobs, a: dict) -> None:
     cid, sid = a["conceptId"], a["sectionId"]
     r = state.rendition_row(db, cid)
     card = state.latest_card(db, cid)
+    from . import lesson_steps
+    if lesson_steps.is_steps(card):  # a step lesson: write the step again, another way (SPEC §43)
+        return rewrite_step(db, jobs, {**a, "note": a.get("note") or "Explain it another way: a different example or picture."})
     sec = next((s for s in card["sections"] if s["id"] == sid), None) if card else None
     if not r or not sec:
         raise ActionError("no such section")
@@ -567,6 +579,30 @@ def _plan(fn):
         except lesson_graph.PlanError as e:
             raise ActionError(str(e)) from e
     return wrapped
+
+
+def _step(fn):
+    """Step lesson actions (SPEC §43): a StepError is a 400 for the learner."""
+    def wrapped(db: DB, jobs: Jobs, a: dict) -> None:
+        from . import lesson_steps
+        try:
+            fn(db, jobs, a)
+        except lesson_steps.StepError as e:
+            raise ActionError(str(e)) from e
+    return wrapped
+
+
+@_step
+def predict_step(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import lesson_steps
+    thinking, _ = progress.reasoning(a)
+    lesson_steps.predict(db, str(a.get("conceptId") or ""), str(a.get("sectionId") or ""), a.get("choice"), thinking)
+
+
+@_step
+def rewrite_step(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import lesson_steps
+    lesson_steps.rewrite(db, jobs, str(a.get("conceptId") or ""), str(a.get("sectionId") or ""), str(a.get("note") or ""))
 
 
 @_plan
@@ -991,7 +1027,7 @@ ACTIONS = {
     "learnBlocksFirst": learn_blocks_first, "bookRemapChapter": book_remap_chapter, "bookReplan": book_replan,
     "openFormula": open_formula, "makeFormulaPage": make_formula_page, "bookHomework": book_homework,
     "deleteBook": delete_book, "setMapView": set_map_view,
-    "planLesson": plan_lesson, "lessonPlanNote": lesson_plan_note, "approveLessonPlan": approve_lesson_plan,
+    "planLesson": plan_lesson, "predictStep": predict_step, "rewriteStep": rewrite_step, "lessonPlanNote": lesson_plan_note, "approveLessonPlan": approve_lesson_plan,
     "setDictation": set_dictation, "downloadDictationModel": download_dictation_model,
     "removeDictationModel": remove_dictation_model,
 }
