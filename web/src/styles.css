@@ -1181,3 +1181,20 @@ a.shelf-card:hover { text-decoration: none; border-color: var(--border-2); }
   .main:has(> .km) > .back-btn { align-self: flex-start; flex: none; }
   .main:has(> .km) > .km { flex: 1; min-height: 0; height: auto; }
 }
+
+/* practice: the picker and the run (SPEC §44) */
+.practice-picker { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.practice-picker .tabs { margin: -4px -4px 4px; }
+.pk-tree, .pk-tree ul { list-style: none; margin: 0; padding: 0; }
+.pk-tree ul { padding-left: 22px; }
+.pk-tree summary { cursor: pointer; padding: 3px 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pk-tree summary .md-inline, .pk-tree summary .md-inline p, .pk-parts .md-inline, .pk-parts .md-inline p { display: inline; margin: 0; }
+.pk-parts { list-style: none; margin: 2px 0 6px; padding-left: 26px; display: flex; flex-direction: column; gap: 2px; font-size: 0.88rem; }
+.pk-parts label { display: flex; align-items: baseline; gap: 6px; cursor: pointer; }
+.pk-tex { color: var(--muted); overflow: hidden; max-width: 100%; }
+.pk-own { display: flex; flex-direction: column; gap: 8px; }
+.practice-session { display: flex; flex-direction: column; gap: 8px; }
+.practice-next { margin: 4px 0 14px; align-items: center; }
+.hint-ladder { display: flex; gap: 4px; margin-top: 6px; }
+.hint-ladder span { flex: 1; height: 5px; border-radius: 3px; background: var(--border-2); }
+.hint-ladder span.used { background: var(--warn); }

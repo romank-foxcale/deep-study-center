@@ -155,7 +155,7 @@ export default function Book() {
                     <LessonList lessons={ch.lessons} next={v.next} />
                     <div className="row small">
                       <Link className="btn btn-small" to={`/book/${v.id}/chapter/${ch.chapter}`}>Open the chapter</Link>
-                      {k > 0 && <button className="btn btn-small" onClick={() => homework(ch)} title="Recall practice on this chapter's lessons">Homework</button>}
+                      {k > 0 && <button className="btn btn-small" onClick={() => homework(ch)} title="Recall practice on this chapter's lessons">Practise this chapter</button>}
                       {ch.writing && <span className="muted">Writing this chapter's lessons from the book…</span>}
                       <span className="muted">pp. {pageRange(ch.pages)}</span>
                       <span className="spacer" />

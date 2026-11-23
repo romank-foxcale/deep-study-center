@@ -35,6 +35,9 @@ def view(db):
 
 
 def open_item(db):
+    """The open problem; after a solve the next one waits for "Next problem" (SPEC §44), so press it."""
+    if not any(i["status"] == "open" for i in view(db)["items"]) and view(db)["status"] == "active":
+        practice.advance(db, db.meta("last_practice"))
     return next(i for i in view(db)["items"] if i["status"] == "open")
 
 
@@ -65,6 +68,10 @@ def test_due_ideas_and_a_full_problem_with_a_hint(env):
     done = v["items"][0]
     assert done["status"] == "solved" and done["score"] == 0.7 and done["solution"].startswith("5 m")
     assert len(v["items"]) == 2 and v["level"] == 1  # one hint: same level; the next problem is written
+    nxt = v["items"][1]
+    assert nxt["status"] == "waiting" and nxt["prompt"] == "" and nxt["title"] == ""  # hidden until "Next problem"
+    act(db, jobs, type="practiceNext", practiceId=v["id"])
+    assert view(db)["items"][1]["status"] == "open" and view(db)["items"][1]["prompt"]
     ev = db.one("SELECT * FROM evidence WHERE item_id=?", (f"{v['id']}-{done['id']}",))
     assert ev["concept_id"] == "c-vectors" and ev["kind"] == "practice" and ev["score"] == 0.7
     assert db.one("SELECT due FROM node_reviews WHERE node_id='c-vectors'")
@@ -111,3 +118,57 @@ def test_own_problem_and_errors(env):
     act(db, jobs, type="practiceRetry", practiceId=v["id"])
     assert len(view(db)["items"]) == 1 and not view(db)["error"]
     assert state.snapshot(db)["practiceDue"] == 0
+
+
+def test_pick_by_lesson_focus_and_formula_switch_ideas_hint_ladder_and_retests(env):
+    """SPEC §44: practise from a picked lesson, its parts and a formula; ideas switch; hints climb a ladder; the end
+    retests what was missed."""
+    db, jobs, runner = env
+    setup(db, jobs, runner)
+    from dsc import formulas
+    db.x("""INSERT INTO formula_notes(concept_id, key, tex, body, created_at, kind, formula_id, matched_at) VALUES(?,?,?,?,?,?,?,?)""",
+         ("c-lincomb", formulas.key("w = c_1 v_1"), "w = c_1 v_1", '{"name": "Linear combination"}', "2026-01-01", "idea", None,
+          "2026-01-01"))
+    db.x("INSERT INTO formula_fields(key, fields, at) VALUES(?,?,?)", (formulas.key("w = c_1 v_1"), '["linalg"]', "2026-01-01"))
+    t = practice.targets(db)
+    lin = next(f for f in t["fields"] if f["id"] == "linalg")
+    assert lin["formulas"][0]["name"] == "Linear combination"
+    assert t["weakest"] and t["weakest"][0]["nodeId"] == "c-vectors"  # the idea being learned is the weakest
+    act(db, jobs, type="startPractice", nodeIds=["c-vectors"], focus={"c-vectors": ["Adding arrows"], "c-nope": ["x"]},
+        formulas=[lin["formulas"][0]["key"]], count=2, surface="applied", title="My pick")
+    v = view(db)
+    assert v["title"] == "My pick" and v["count"] == 2 and v["surface"] == "applied"
+    assert v["focus"] == {"c-vectors": ["Adding arrows"]} and v["formulas"] == [{"name": "Linear combination", "tex": "w = c_1 v_1"}]
+    assert {i["id"] for i in v["ideas"]} == {"c-vectors", "c-lincomb"}  # the formula brings its lesson's idea
+    p = problem.prompt
+    assert "Vectors (c-vectors): Adding arrows" in p and "Linear combination: $w = c_1 v_1$" in p and "prefers applied" in p
+    assert "Never the same idea as the last problem" in p and "The idea(s) of the last problem: (none)" in p
+
+    # the hint ladder: the judge is told which rung comes next, and the rung is kept
+    VERDICTS[:] = [{"verdict": "stuck", "feedback": "Stuck.", "hint": "Re-read the second given.", "rung": 0},
+                   {"verdict": "stuck", "feedback": "Still.", "hint": "It is a sum of moves.", "rung": 1}]
+    it = open_item(db)
+    act(db, jobs, type="practiceSubmit", itemId=it["id"], text="", hint=True)
+    assert 'rung 0 ("look again at a given")' in judge.prompt
+    act(db, jobs, type="practiceSubmit", itemId=it["id"], text="", hint=True)
+    assert 'rung 1 ("name the kind of pattern")' in judge.prompt and [c["rung"] for c in open_item(db)["chunks"]] == [0, 1]
+    act(db, jobs, type="practiceGiveUp", itemId=it["id"])
+
+    # "Next problem" pressed before the next one is written: it opens as soon as it is written
+    db.x("DELETE FROM practice_items WHERE status='waiting'")
+    practice.advance(db, v["id"])
+    assert practice.view(db, v["id"])["wantNext"]
+    practice.next_problem(db, jobs, v["id"])
+    v2 = practice.view(db, v["id"])
+    assert v2["items"][-1]["status"] == "open" and not v2["wantNext"]
+    assert "The idea(s) of the last problem: c-vectors" in problem.prompt
+    VERDICTS[:] = [{"verdict": "solved", "feedback": "Clean."}]
+    act(db, jobs, type="practiceSubmit", itemId=open_item(db)["id"], text="5 m")
+    # both problems are done: the given-up one comes back once as a retest, in a new setting
+    assert "This is a RETEST of a problem the learner gave up on" in problem.prompt
+    act(db, jobs, type="practiceNext", practiceId=v["id"])
+    v3 = view(db)
+    assert v3["retests"] == 1 and v3["count"] == 3 and v3["items"][-1]["retest"] and v3["items"][-1]["status"] == "open"
+    VERDICTS[:] = [{"verdict": "solved", "feedback": "Yes."}]
+    act(db, jobs, type="practiceSubmit", itemId=v3["items"][-1]["id"], text="done")
+    assert view(db)["status"] == "done"  # one retest each: then the run ends

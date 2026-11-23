@@ -1151,3 +1151,34 @@ and every step is checked before the next one builds on it. Phase 2 of the lesso
 - **Screen.** A sticky bar with the plan's steps (done, current, to come) and what the lesson builds on; the steps so far,
   each a card; "You finished the lesson" at the end.
 - Next: plan nodes as ideas and formulas in the knowledge map; practice (Phase 3).
+
+## 44. Practice, back from hold: pick what to practise, a hint ladder, a pause, retests (2026-11-24)
+
+What it is for: make held knowledge come to mind in new situations, on exactly what the learner chooses. Phase 3 of
+the lessons rework; it builds on recall practice (§24), which already sends every result to the map (evidence per idea
+and its own spaced review).
+
+- **Practice is back in the main menu** (Today, Books, Learn, Practice, Map), with the number of ideas due.
+- **The picker** (`GET /api/practice-targets`, `practice.targets`):
+  - By book: books → chapters → lessons (each an idea of the map, with its state; "not studied yet" is shown) → the
+    lesson's steps or sections. Ticking parts makes them the run's focus for that idea.
+  - By field: the provinces of the Formulas country with their formulas (§41). A picked formula brings in the lessons
+    it comes from and becomes part of the focus.
+  - My weakest: worked-on ideas that hold least (low mastery, recent misses, rusty).
+  - My own problem: text or a page of a source, as before.
+  - The session: 5, 10 or 20 problems; style applied, formal or mixed. The selection from all tabs is one run.
+  - Entry points: "Practise this chapter" on the book page; "Practise this lesson" at the end of a step lesson; "Practise"
+    on a map idea; "practise them" for what is due. A lesson id stands for its idea.
+- **The problem writer** (prompt `practice_next.md`): the weakest idea first; never the same idea as the last problem
+  (switching is what makes recall happen); a mode per problem: `recall` first, then `tell_apart` (one detail decides),
+  then `combine`; a miss goes back to recall; the idea is never named; it solves the problem first and changes it if a
+  shortcut skips the idea; it follows the focus, the formulas and the style.
+- **The hint ladder** (prompt `practice_judge.md`): look again at a given → name the kind of pattern → name the area →
+  name the idea → outline the first move → show the worked step. One rung per request, for the first wrong or missing
+  point; a wrong direction gets "check the assumption", not the correction; explaining what the problem asks is free.
+  The rung is kept with each hint and shown as a bar.
+- **The pause.** After a solve or "give up", the learner reads the verdict and the worked solution. The next problem is
+  written meanwhile (status `waiting`, hidden) and opens with "Next problem" (`practiceNext`); pressed early, it opens
+  as soon as it is written.
+- **Retests.** When the run's problems are done, each given-up or hint-heavy problem (score below 0.7) comes back once in
+  a new setting, at most 3; then the run ends.

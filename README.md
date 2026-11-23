@@ -17,8 +17,9 @@ with your subscription, or an Anthropic API key. There is no account, no server 
   each idea is taught as predict → explain → check, fitted to your answers and to the thinking you type or dictate.
 - **Knowledge map.** Everything you learn becomes a node in one graph, with the reasoning links between ideas. Choose
   how to see it: a tree, a skill wheel, nested cells or a hex map. Each book has one color, on its card and on the map.
-- **Recall practice.** Problems that need the right idea without naming it. Hints, never answers. Each idea gets its
-  own review schedule (FSRS).
+- **Recall practice.** Pick what to practise: a book, a chapter, a lesson and its steps, a field of formulas, or your
+  weakest ideas. Problems need the right idea without naming it. Hints one step at a time, never the answer at once.
+  Missed problems come back at the end. Each idea gets its own review schedule (FSRS).
 - **Goals and roadmaps.** A big goal becomes a roadmap (an Ohtani 9x9 table or classic tracks) of researched,
   fact-checked lessons (on hold for now).
 - **Lessons that adapt to you.** Give feedback on any part of a lesson; later lessons follow it. Interactive graphs,

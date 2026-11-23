@@ -713,7 +713,10 @@ def remove_dictation_model(db: DB, jobs: Jobs, a: dict) -> None:
 
 @_session
 def start_practice(db: DB, jobs: Jobs, a: dict) -> None:
-    pid = practice.start(db, jobs, list(a.get("nodeIds") or []), str(a.get("own") or ""), a.get("source"))
+    pid = practice.start(db, jobs, list(a.get("nodeIds") or []), str(a.get("own") or ""), a.get("source"),
+                         focus=a.get("focus") if isinstance(a.get("focus"), dict) else None,
+                         formulas=[str(k) for k in a.get("formulas") or []], count=a.get("count"),
+                         surface=str(a.get("surface") or "mixed"), title=str(a.get("title") or ""))
     db.set_meta("last_practice", pid)
 
 
@@ -730,6 +733,14 @@ def practice_give_up(db: DB, jobs: Jobs, a: dict) -> None:
 @_session
 def practice_retry(db: DB, jobs: Jobs, a: dict) -> None:
     practice.retry(db, jobs, a["practiceId"])
+
+
+def practice_next(db: DB, jobs: Jobs, a: dict) -> None:
+    """"Next problem" (SPEC §44): show the problem written while the learner read the last one."""
+    try:
+        practice.advance(db, str(a.get("practiceId") or ""))
+    except ValueError as e:
+        raise ActionError(str(e)) from e
 
 
 @_session
@@ -1009,7 +1020,7 @@ ACTIONS = {
     "startSession": start_session, "sessionAnswer": session_answer, "sessionKnown": session_known, "sessionTeach": session_teach,
     "sessionAssessNow": session_assess_now, "sessionRetry": session_retry, "deleteSession": delete_session,
     "startPractice": start_practice, "practiceSubmit": practice_submit, "practiceGiveUp": practice_give_up,
-    "practiceRetry": practice_retry, "practiceStop": practice_stop,
+    "practiceRetry": practice_retry, "practiceStop": practice_stop, "practiceNext": practice_next,
     "reflect": reflect, "decideProposal": decide_proposal, "setSetting": set_setting,
     "setupRunner": setup_runner,
     "refreshCard": refresh_card, "decideCardProposal": decide_card_proposal, "setPlanSettings": set_plan_settings,

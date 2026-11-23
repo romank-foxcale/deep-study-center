@@ -36,11 +36,12 @@ const Icon = ({ name }: { name: string }) => (
     <path d={ICON[name]} />
   </svg>
 )
-/** The main flow (SPEC §30): four entries. Big goals and Practice are on hold, in their own group (SPEC §40). */
+/** The main flow (SPEC §30): Today, Books, Learn, Practice, Map. Big goals are on hold, in their own group (SPEC §40, §44). */
 const NAV = [
   { to: '/', label: 'Today', icon: 'today', end: true },
   { to: '/books', label: 'Books', icon: 'books' },
   { to: '/study', label: 'Learn', icon: 'learn' },
+  { to: '/practice', label: 'Practice', icon: 'practice' },
   { to: '/map', label: 'Map', icon: 'map' },
 ]
 const GOALS = [
@@ -50,7 +51,7 @@ const GOALS = [
   { to: '/review', label: 'Reviews' },
   { to: '/goal/new', label: '+ New goal' },
 ]
-const GOAL_PATHS = ['/goal', '/roadmap', '/week', '/review', '/probe', '/placement', '/practice']
+const GOAL_PATHS = ['/goal', '/roadmap', '/week', '/review', '/probe', '/placement']
 
 /** Where "Back" goes when there is no earlier page in this tab (a page opened from a link or after a reload). */
 function parentOf(path: string): string | null {
@@ -102,11 +103,12 @@ export default function App() {
           {NAV.map(n => (
             <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `nav-link${isActive || (n.to === '/books' && pathname.startsWith('/book')) ? ' active' : ''}`}>
               <Icon name={n.icon} /><span>{n.label}</span>
+              {n.to === '/practice' && s.practiceDue > 0 && <span className="nav-badge">{s.practiceDue}</span>}
             </NavLink>
           ))}
         </div>
         <details className="nav-group" open={GOAL_PATHS.some(p => pathname.startsWith(p)) || undefined}>
-          <summary>On hold: goals, practice</summary>
+          <summary>On hold: goals</summary>
           {s.goals.length > 1 && (
             <select className="input input-small sidebar-goal-select" value={s.goal?.id ?? ''} aria-label="Active goal"
               onChange={e => dispatch({ type: 'setGoal', id: e.target.value })}>
@@ -120,8 +122,6 @@ export default function App() {
               {n.to === '/review' && due > 0 && <span className="nav-badge">{due}</span>}
             </NavLink>
           ))}
-          <NavLink to="/practice" className="nav-link nav-sub"><span>Practice</span>
-            {s.practiceDue > 0 && <span className="nav-badge">{s.practiceDue}</span>}</NavLink>
         </details>
         <div className="sidebar-foot">
           {running > 0 && <span className="muted small">{running} agent job{running > 1 ? 's' : ''} running…</span>}
