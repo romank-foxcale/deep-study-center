@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import bookstudy, dictation, formula_fields, formula_lessons, formulas, lesson_graph, lesson_steps, reasoning, engine, graph, guidelines, library, mcq, ohtani, practice, probe, progress, providers, runner, session, sources, state, versions, viz, writer
+from . import bookstudy, demos, dictation, formula_fields, formula_lessons, formulas, lesson_graph, lesson_steps, reasoning, engine, graph, guidelines, library, mcq, ohtani, practice, probe, progress, providers, runner, session, sources, state, versions, viz, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
@@ -831,6 +831,7 @@ HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "formula_fields": (formula_fields.run, None),
     "lesson_graph": (lesson_graph.run, None),
     "lesson_step": (lesson_steps.run, None),
+    "lesson_demo": (demos.run, None),
     "formula_lesson": (formula_lessons.run, None),
     "formula_open": (lambda jobs, jid, d: {"parts": formula_lessons.open_node(jobs, jid, d["node"])}, None),
     "render": (run_render, None),

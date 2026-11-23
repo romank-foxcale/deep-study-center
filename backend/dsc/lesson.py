@@ -177,6 +177,7 @@ def view(db: DB, cid: str) -> dict:
             # step lessons (SPEC §43): the prediction before the step (its key only once predicted) and the repair
             "predict": state.strip_check(s["predict"]) if s.get("predict") else None, "repair": s.get("repair"),
             "kind": s.get("kind"), "form": s.get("form"),
+            "demo": _demo(s.get("demo")),  # a generated demo (SPEC §45)
         })
     p = writer.current_plan(db, cid, card["version"]) if card else None
     from . import bookstudy, formula_lessons, formulas
@@ -221,3 +222,8 @@ def _steps(db: DB, cid: str, card: dict | None) -> dict | None:
     """A step lesson's progress (SPEC §43), or None for any other lesson."""
     from . import lesson_steps
     return lesson_steps.view(db, cid, card) if lesson_steps.is_steps(card) else None
+
+
+def _demo(d: dict | None) -> dict | None:
+    from . import demos
+    return demos.public(d)

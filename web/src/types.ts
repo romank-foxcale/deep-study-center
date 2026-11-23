@@ -391,6 +391,13 @@ export interface LessonSectionView {
   repair?: string | null
   kind?: string | null
   form?: string | null
+  /** A generated interactive demo (SPEC §45). */
+  demo?: StepDemo | null
+}
+
+/** A generated interactive demo (SPEC §45): building, ready (with its HTML), or failed (left out). */
+export interface StepDemo {
+  status: 'building' | 'ready' | 'failed'; title: string; watch: string; version: number; tested: boolean; html?: string
 }
 
 /** A step lesson's progress (SPEC §43). */

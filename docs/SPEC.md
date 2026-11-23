@@ -1182,3 +1182,23 @@ and its own spaced review).
   as soon as it is written.
 - **Retests.** When the run's problems are done, each given-up or hint-heavy problem (score below 0.7) comes back once in
   a new setting, at most 3; then the run ends.
+
+## 45. Generated interactive demos, sandboxed and tested (2026-11-24)
+
+What it is for: when a step should be operated (a process over time, linked views, draggable geometry, a simulation)
+and no built-in widget can show it, the learner still gets something to move. Phase 4 of the lessons rework.
+
+- **When.** The step writer (§43) gives `demo_brief` instead of a widget, only for an interactive or figure step and
+  only when no built-in widget fits: a precise specification (what it shows, each control with its range and start,
+  what to watch, the formulas and numbers in the book's notation). The step's text is shown at once; the demo follows.
+- **Build** (job `lesson_demo`, prompt `demo_build.md`, role "Lesson assets"): one self-contained HTML file. Code checks
+  it (`demos.check`): inline script and style only; no outside files or addresses (the SVG namespace is allowed); no
+  network, storage, eval, dialogs, iframes or access to the page around it; at least one control; at most 200 kB. A
+  demo with problems goes back once with the exact problems.
+- **Sandbox.** The page runs it in an iframe with `sandbox="allow-scripts"` (no same origin: no cookies, no app API)
+  and a Content-Security-Policy that blocks every request. A small bridge reports errors and the demo's height.
+- **Test before the learner sees it.** A new demo is loaded hidden and operated: every slider and number input to its
+  minimum, maximum and start; every select option; up to 8 buttons. No error: the demo shows and is marked tested
+  (`demoResult`), and shows at once from then on. Errors: the server fixes it once with those errors (at most 2 builds
+  in all); if it fails again it is left out, and the step's text stands alone. A result for an old version is ignored.
+- Stored in the step's section: `demo = {status, brief, html, title, watch, version, tries, errors, tested}`.

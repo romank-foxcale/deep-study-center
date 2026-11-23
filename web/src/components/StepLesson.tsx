@@ -5,6 +5,7 @@ import Markdown from './Markdown'
 import InlineCheck from './InlineCheck'
 import ExplainBack from './ExplainBack'
 import Viz from './viz/Viz'
+import DemoFrame from './DemoFrame'
 import type { LessonSectionView, StepsView } from '../types'
 
 // A step lesson (SPEC §43): the approved plan taught one step at a time. Each step: a prediction first (open), the step
@@ -109,6 +110,7 @@ function Step({ conceptId, sec, index, steps, current, onFeedback }: {
             : <>
               <div className={writing ? 'rendering' : ''}><Markdown runnable={conceptId}>{sec.body}</Markdown></div>
               {sec.viz && <div className="viz-block"><Viz key={`${sec.id}-viz`} spec={sec.viz} /></div>}
+              {sec.demo && <DemoFrame conceptId={conceptId} sectionId={sec.id} demo={sec.demo} />}
               {sec.check && (answered || checkOpen
                 ? <InlineCheck key={sec.check.id} check={sec.check} previous={answered} label="Check your understanding"
                     onAnswer={(choice, r) => dispatch({ type: 'answer', conceptId, checkId: sec.check!.id, angle: sec.angle, choice, ...r })}

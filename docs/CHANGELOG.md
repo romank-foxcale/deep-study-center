@@ -3,8 +3,11 @@
 The history of Deep Study Center, newest first. The full design and the decisions are in [SPEC.md](SPEC.md); the
 work still open is in [TODO.md](TODO.md).
 
-## Unreleased: formulas on the map, lesson plans, step lessons, practice (SPEC §41-§44)
+## Unreleased: formulas on the map, lesson plans, step lessons, practice, demos (SPEC §41-§45)
 
+- **Interactive demos** (SPEC §45): when no built-in widget can show a step, a small demo is built for it, checked, run
+  in a locked sandbox (no network, no access to the app) and operated once before you see it. A demo that fails is
+  fixed once or left out.
 - **Practice is back** (SPEC §44): pick what to practise by book, chapter, lesson and its steps, by field of formulas,
   or your weakest ideas. Problems switch ideas and go from recall to telling cases apart to combining them. Hints come
   one step at a time. After each problem you read the solution and press "Next problem". Missed problems come back at
