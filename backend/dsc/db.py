@@ -237,6 +237,10 @@ CREATE TABLE IF NOT EXISTS lesson_graphs (
   concept_id TEXT NOT NULL, version INTEGER NOT NULL, status TEXT NOT NULL, approach TEXT NOT NULL DEFAULT '',
   goal TEXT NOT NULL DEFAULT '', nodes TEXT NOT NULL DEFAULT '[]', edges TEXT NOT NULL DEFAULT '[]',
   error TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, approved_at TEXT, PRIMARY KEY (concept_id, version));
+-- Step lessons (SPEC §43): the learner's prediction before a step (not graded evidence: guessing is the point).
+CREATE TABLE IF NOT EXISTS step_predictions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, concept_id TEXT NOT NULL, section_id TEXT NOT NULL, choice INTEGER NOT NULL,
+  correct INTEGER NOT NULL, thinking TEXT NOT NULL DEFAULT '', at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS lesson_graph_notes (
   id INTEGER PRIMARY KEY AUTOINCREMENT, concept_id TEXT NOT NULL, version INTEGER NOT NULL, node TEXT NOT NULL DEFAULT '',
   kind TEXT NOT NULL, text TEXT NOT NULL DEFAULT '', at TEXT NOT NULL, used_in INTEGER);

@@ -64,7 +64,7 @@ def test_opening_an_unwritten_book_lesson_plans_it_first(planned):
     assert lesson_graph.view(db, cid)["versions"] == [1]  # opening again does not plan again
 
 
-def test_notes_and_a_new_version_then_approve_writes_only_this_lesson_from_the_plan(planned):
+def test_notes_and_a_new_version_then_approve_makes_only_this_lesson(planned):
     db, jobs, runner, bid, cid, prompts, _ = planned
     lesson.open_lesson(db, jobs, cid)
     act = lambda **a: actions.dispatch(db, jobs, a)  # noqa: E731
@@ -94,11 +94,9 @@ def test_notes_and_a_new_version_then_approve_writes_only_this_lesson_from_the_p
     assert lesson_graph.latest(db, cid)["status"] == "approved"
     ls = lessons(db, bid)
     assert ls["Attention"]["carded"] and not ls["Softmax"]["carded"] and not ls["KV cache"]["carded"]
-    cards = cards_reply.prompts[-1]
-    assert f"Lesson {cid}:" in cards and "Approach: You hold softmax." in cards and "[formula, derivation] The weighted sum" in cards
-    assert "already holds (do not teach again): Softmax" in cards
+    assert not cards_reply.prompts  # no batch writing: the plan becomes a step lesson (SPEC §43, test_lesson_steps)
     v = lesson.view(db, cid)
-    assert v["card"] and v["lessonPlan"]["status"] == "approved"
+    assert v["card"] and v["lessonPlan"]["status"] == "approved" and v["steps"]["total"] == 4
 
 
 def test_a_note_sent_while_planning_starts_the_next_version(planned):

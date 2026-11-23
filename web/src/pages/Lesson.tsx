@@ -4,6 +4,7 @@ import { getLesson, jobActive, openLesson, postActivity, useStore } from '../sto
 import type { Angle, LessonSectionView, LessonView } from '../types'
 import Markdown from '../components/Markdown'
 import LessonPlanner from '../components/LessonPlanner'
+import StepLesson from '../components/StepLesson'
 import InlineCheck from '../components/InlineCheck'
 import CodeExercise from '../components/CodeExercise'
 import ExplainBack from '../components/ExplainBack'
@@ -139,7 +140,8 @@ export default function Lesson() {
   const nextConcept = book ? (book.next ?? undefined) : siblings[siblings.findIndex(c => c.id === id) + 1]
   // A formula or notation page has no multiple-choice quiz (SPEC §40): its widget and its "work it out" task are the practice.
   const formulaPage = !!view?.formulaLesson
-  const quiz = book ? sections.filter(x => (x.check && !formulaPage) || x.explain || x.code) : []
+  const stepMode = !!view?.steps  // a step lesson (SPEC §43): its own view, checks inline
+  const quiz = book && !stepMode ? sections.filter(x => (x.check && !formulaPage) || x.explain || x.code) : []
 
   /** A section's check, exercise and explain-back. In a book lesson they are gathered into the quiz at the end. */
   const items = (sec: LessonSectionView) => <>
@@ -344,7 +346,11 @@ export default function Lesson() {
         )}
         {view?.card && sections.length === 0 && <SourceCardView card={view.card} />}
 
-        {sections.map(sec => {
+        {view?.steps && (
+          <StepLesson conceptId={id} sections={sections} steps={view.steps}
+            onFeedback={sec => setFeedbackFor({ sectionId: sec.id, label: `“${sec.heading}”`, angle: sec.angle, available: sec.angles })} />
+        )}
+        {(stepMode ? [] : sections).map(sec => {
           const multi = sec.angles.length > 1
           const shut = book && closed[sec.id]
           return (

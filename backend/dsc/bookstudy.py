@@ -392,7 +392,7 @@ def _reset_chapter(db: DB, bid: str, ch: dict, as_lessons: bool) -> None:
                                          WHERE bn.book_id=? AND p.chapter=? AND bn.created=1""", (bid, chapter))]
     with db.tx():
         for cid in cids:
-            for t in ("cards", "prose", "renditions", "lesson_versions", "lesson_heads", "lesson_plans", "lesson_graphs", "lesson_graph_notes", "card_proposals",
+            for t in ("cards", "prose", "renditions", "lesson_versions", "lesson_heads", "lesson_plans", "lesson_graphs", "lesson_graph_notes", "step_predictions", "card_proposals",
                       "concept_nodes"):
                 db.conn.execute(f"DELETE FROM {t} WHERE concept_id=?", (cid,))
             db.conn.execute("DELETE FROM concepts WHERE id=?", (cid,))
@@ -596,13 +596,9 @@ def write_cards(jobs: Jobs, jid: int, d: dict) -> dict:
     shared = {x["concept_id"] for x in lessons
               if any(o != x["concept_id"] and o in have for o in by_node.get(nodes.get(x["concept_id"], x["concept_id"]), []))}
     todo = [x for x in lessons if x["concept_id"] not in have and (x["concept_id"] not in shared or x["concept_id"] == d.get("open"))]
-    from . import lesson_graph
-    if d.get("only"):  # one lesson, from its approved plan
-        todo = [x for x in lessons if x["concept_id"] == d["only"]]
-    else:  # a lesson that has a plan waits for it to be approved
-        planned = {r["concept_id"] for r in db.q("SELECT DISTINCT concept_id FROM lesson_graphs")}
-        todo = [x for x in todo if x["concept_id"] not in planned or x["concept_id"] == d.get("open")]
-    plans = {x["concept_id"]: p for x in todo for p in [lesson_graph.approved(db, x["concept_id"])] if p}
+    # a lesson that has a plan is taught from it, step by step (SPEC §42, §43): not written in this batch
+    planned = {r["concept_id"] for r in db.q("SELECT DISTINCT concept_id FROM lesson_graphs")}
+    todo = [x for x in todo if x["concept_id"] not in planned or x["concept_id"] == d.get("open")]
     if not todo:
         db.x("UPDATE modules SET research='ready' WHERE id=?", (ch["module_id"],))
         return {"cards": 0}
@@ -614,7 +610,6 @@ def write_cards(jobs: Jobs, jid: int, d: dict) -> dict:
     out = jobs.call(jid, "Research", Call(
         prompt=prompt("book_cards", book=b["title"], chapter=ch["title"], summary=ch["summary"] or "(none)",
                       lessons=listing_text, others=others, source=b["source_id"],
-                      plans="\n\n".join(f'Lesson {c}:\n{lesson_graph.as_text(p)}' for c, p in plans.items()) or "(none)",
                       text=_chapter_text(db, b["source_id"], ch["page_from"], ch["page_to"]) or "(no text)"),
         schema=CARDS_SCHEMA, model="opus", timeout=1800))
     by_id = {x["concept_id"]: x for x in todo}
@@ -685,15 +680,14 @@ def ensure_written(db: DB, jobs: Jobs, cid: str, plan: bool = True) -> bool:
 
 
 def write_planned(db: DB, jobs: Jobs, cid: str) -> None:
-    """Write one lesson from its approved plan (SPEC §42): its card only, then its text."""
-    row = db.one("SELECT c.module_id FROM concepts c WHERE c.id=?", (cid,))
-    if not row:
+    """Teach one lesson from its approved plan (SPEC §42, §43): a step lesson, written one step at a time."""
+    from . import lesson_graph, lesson_steps
+    if not db.one("SELECT 1 FROM concepts WHERE id=?", (cid,)):
         raise BookError("unknown lesson")
-    db.x("DELETE FROM cards WHERE concept_id=?", (cid,))  # a lesson planned again is written again
-    db.x("DELETE FROM prose WHERE concept_id=?", (cid,))
-    db.x("DELETE FROM renditions WHERE concept_id=?", (cid,))
-    db.x("UPDATE modules SET research='researching' WHERE id=?", (row["module_id"],))
-    jobs.enqueue("research_module", "Write this lesson from its plan", {"module_id": row["module_id"], "open": cid, "only": cid})
+    plan = lesson_graph.approved(db, cid)
+    if not plan:
+        raise BookError("the plan is not approved")
+    lesson_steps.start(db, jobs, cid, plan)
 
 
 def open_lesson(db: DB, jobs: Jobs, cid: str) -> None:
