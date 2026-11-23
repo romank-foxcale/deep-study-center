@@ -222,6 +222,12 @@ CREATE TABLE IF NOT EXISTS formula_blocks (
   id INTEGER PRIMARY KEY AUTOINCREMENT, formula_id TEXT NOT NULL, ord INTEGER NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL,
   tex TEXT NOT NULL DEFAULT '', meaning TEXT NOT NULL DEFAULT '', ref_kind TEXT, ref TEXT, basic INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL);
+-- The derivation graph (SPEC §40): what a formula with no lesson is built from, one level down, found when the learner
+-- opens it ("block:<name>" node). Formula lessons keep their blocks in formula_blocks.
+CREATE TABLE IF NOT EXISTS formula_parts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, node TEXT NOT NULL, ord INTEGER NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL,
+  tex TEXT NOT NULL DEFAULT '', meaning TEXT NOT NULL DEFAULT '', basic INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS formula_opened (node TEXT PRIMARY KEY, at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS book_cuts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL, ord INTEGER NOT NULL, source_id TEXT NOT NULL,
   chapter TEXT NOT NULL, pages TEXT NOT NULL DEFAULT '', rank TEXT NOT NULL, why TEXT NOT NULL DEFAULT '',
@@ -274,7 +280,10 @@ MIGRATIONS = [
     ("formula_lessons", "blocks_at", "TEXT"),              # when its building blocks were found
     ("formula_notes", "kind", "TEXT NOT NULL DEFAULT 'idea'"),  # idea | step (a step of a derivation: neutral frame)
     ("formula_notes", "formula_id", "TEXT"),               # the formula lesson this formula is (any form)
-    ("formula_notes", "matched_at", "TEXT"),               # last match against the formula lessons  # chapter | reference (glossary, reading list: no lessons)
+    ("formula_notes", "matched_at", "TEXT"),
+    ("sources", "sha256", "TEXT NOT NULL DEFAULT ''"),        # the file's hash, to find a duplicate upload
+    ("sources", "url", "TEXT NOT NULL DEFAULT ''"),           # a link source (web page, video): no file
+    ("books", "plan", "INTEGER NOT NULL DEFAULT 1"),         # the lesson plan rule the book was mapped with (2: one idea per lesson)               # last match against the formula lessons  # chapter | reference (glossary, reading list: no lessons)
 ]
 
 

@@ -435,6 +435,17 @@ Seven map views to choose from (Tree, Graph, Nebula, Skill wheel, Cells, Territo
 
 ---
 
+## E. The review of 0.4 (2026-11-23)
+
+### E1. ✅ DONE (2026-11-23, branch `claude/issues`, SPEC §40): the learner's issue list
+Back button; Sources (types, status, add dialog, duplicates, links, search); Books (delete, filters, one color per
+book); Practice on hold; map views and tree zoom; Python edits kept; formula hover; clear board tasks; one idea per
+book lesson with "Re-plan lessons"; the formula derivation graph; formula pages without a quiz.
+Open, later:
+- Teach from a link: read a web page's text or a video's transcript, then "Teach me this".
+- Re-think Practice (on hold) and goals (on hold).
+- Check "Re-plan lessons" on a real book with the real model (it maps every chapter again: about 10 minutes).
+
 ## Suggested order
 
 1. A1 (merge and test the probe), A3 (sources on the goal page), A2 (dictation check).

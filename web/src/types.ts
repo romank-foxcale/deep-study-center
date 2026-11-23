@@ -96,19 +96,19 @@ export interface CardProposal {
   diff: { field: string; before: string; after: string }[]
 }
 
-export interface LibraryCard { key: string; title: string; objective: string; version: number; sourceConcept: string; promotedAt: string; uses: number }
+/** The type of a source (SPEC §40). custom: made by the learner (a roadmap, or a "teach me" topic with no document). */
+export type SourceKind = 'book' | 'article' | 'web' | 'video' | 'custom'
 
-/** A book, article or post the learner uploaded as a PDF (SPEC §17). */
-/** One ranked chapter of a book goal's sources. core and supporting are kept; skip is left out until brought back. */
-export interface BookCut {
-  id: number; sourceId: string; sourceTitle: string; chapter: string; pages: string
-  rank: 'core' | 'supporting' | 'skip'; why: string; moduleId: string | null
-  status: 'kept' | 'cut' | 'restored'; conceptId: string | null
-}
-
+/** A source of the learner (SPEC §17, §40): a PDF file, or a link (a web page or a video) that is kept and opened. */
 export interface SourceDoc {
-  id: string; title: string; author: string; kind: 'book' | 'article' | 'post' | 'other'; filename: string
+  id: string; title: string; author: string; kind: SourceKind; filename: string
   pages: number; status: 'reading' | 'ready' | 'no_text' | 'error'; addedAt: string; goalIds: string[]; outline: number
+  /** A link source: its address (no file). */
+  url: string
+  /** The file's SHA-256 (to find a duplicate before the upload). */
+  sha256: string
+  /** "Teach me this book" made its lessons. */
+  mapped: boolean
 }
 
 export interface SearchHit { kind: 'note' | 'lesson' | 'card'; ref: string; conceptId: string; title: string; snippet: string }
@@ -160,8 +160,9 @@ export interface GraphNode {
    *  goals it is in, its chapter there and its reading order (0..1). */
   cluster: string; also: string[]; chapter: number; chapterTitle: string; order: number
 }
-export type MapViewId = 'tree' | 'graph' | 'nebula' | 'wheel' | 'cells' | 'territory' | 'globe'
-export interface MapCluster { id: string; kind: 'book' | 'goal' | 'session' | 'loose'; title: string; size: number }
+export type MapViewId = 'tree' | 'wheel' | 'cells' | 'territory'
+/** ``color``: the area's fixed color number (see areaColors.ts); -1 for "Other ideas". */
+export interface MapCluster { id: string; kind: 'book' | 'goal' | 'session' | 'loose'; title: string; size: number; color: number }
 /** The knowledge graph (SPEC §21, §23). */
 export interface GraphView {
   nodes: GraphNode[]; links: { src: string; dst: string; origin: string }[]
@@ -173,6 +174,8 @@ export interface GraphView {
 export interface StudyBookSummary {
   id: string; sourceId: string; title: string; author: string; status: 'mapping' | 'ready' | 'failed'
   chapters: number; chaptersDone: number; parts: number; partsDone: number; updatedAt: string; goalId: string | null
+  /** The source's type, and the book's area color on the map (areaColors.ts). */
+  kind: SourceKind; color: number
   /** The book's ideas: how many, how many known (learned, strong or due) and how many strong. */
   ideas: number; known: number; strong: number
 }
@@ -212,6 +215,8 @@ export interface BookView {
   chapters: BookChapter[]; chapterCount: number; chaptersDone: number
   /** The concept id of the lesson to continue with. */
   next: string | null; error: string | null; progress: string; busy: boolean
+  /** Its lessons were planned by topic (before 0.5); "Re-plan lessons" plans them with one idea per lesson (SPEC §40). */
+  oldPlan: boolean
 }
 /** A formula's hover note: its name, what it says, its symbols and the graph ideas it belongs to. */
 export interface FormulaNote {
@@ -605,7 +610,6 @@ export interface State {
   reflections: Reflection[]
   settings: { autoResearch: boolean; autoRefresh: boolean; lessonWriting: 'steps' | 'single'; writingStyle: 'ste' | 'plain'; weeklyHours: number; studyDays: number[]; startTime: string }
   cardProposals: CardProposal[]
-  library: LibraryCard[]
   sources: SourceDoc[]
   sessions: { id: string; title: string; topic: string; status: string; createdAt: string }[]
   lastSession: string | null
@@ -621,9 +625,6 @@ export interface State {
   runner: { setUp: boolean; packages: string[]; mode: 'local' | 'docker'; dockerReady: boolean }
   backups: { folder: string; last: string | null; items: { name: string; size: number; at: string }[] }
   firstRun: boolean
-  shareSuggestions: string[]
-  ankiExport: string | null
-  bookCuts: BookCut[]
 }
 
 /** The whole formula tree (SPEC §38). A link goes from a block to the formula built from it. */
@@ -636,5 +637,7 @@ export interface FormulaTreeNode {
   source: { id: string; title: string } | null
   /** Other block names that this idea teaches here. */
   covers: string[]
+  /** The derivation graph (SPEC §40): its parts can be found one level down (``openable``); they are being found now. */
+  openable: boolean; opening: boolean
 }
 export interface FormulaTreeView { nodes: FormulaTreeNode[]; links: { src: string; dst: string }[] }

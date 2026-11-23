@@ -141,3 +141,32 @@ def test_read_again_after_an_error(env):
     db.x("UPDATE sources SET status='error' WHERE id=?", (sid,))
     s = act(db, jobs, type="rereadSource", id=sid)
     assert next(x for x in s["sources"] if x["id"] == sid)["status"] == "ready"
+
+
+def test_the_same_file_or_link_twice_is_refused(env):
+    """SPEC §40: a duplicate is found by the file's SHA-256 (any name) or by the link."""
+    db, jobs, _ = env
+    client = TestClient(create_app(db=db, jobs=jobs))
+    r = client.post("/api/sources?filename=a.pdf&kind=article&title=My%20paper", content=PDF)
+    src = r.json()["sources"][0]
+    assert src["title"] == "My paper" and src["kind"] == "article" and len(src["sha256"]) == 64
+    r = client.post("/api/sources?filename=other-name.pdf", content=PDF)
+    assert r.status_code == 409 and "My paper" in r.json()["detail"]
+    r = client.post("/api/sources/link", json={"url": "https://www.youtube.com/watch?v=abc", "title": ""})
+    link = next(x for x in r.json()["sources"] if x["url"])
+    assert link["kind"] == "video" and link["status"] == "ready" and not link["mapped"] and link["title"].startswith("www.youtube.com")
+    assert client.post("/api/sources/link", json={"url": "https://www.youtube.com/watch?v=abc"}).status_code == 409
+    assert client.post("/api/sources/link", json={"url": "ftp://x"}).status_code == 400
+    s = act(db, jobs, type="editSource", id=link["id"], kind="web")
+    assert next(x for x in s["sources"] if x["id"] == link["id"])["kind"] == "web"
+    act(db, jobs, type="deleteSource", id=link["id"])
+    assert all(x["id"] != link["id"] for x in state.snapshot(db)["sources"])
+
+
+def test_old_kinds_and_files_get_the_new_types_and_a_hash(env):
+    db, jobs, _ = env
+    sid = sources.add(db, PDF, "x.pdf", "book")
+    db.x("UPDATE sources SET kind='post', sha256='' WHERE id=?", (sid,))
+    sources.upgrade(db)
+    row = db.one("SELECT kind, sha256 FROM sources WHERE id=?", (sid,))
+    assert row["kind"] == "web" and len(row["sha256"]) == 64

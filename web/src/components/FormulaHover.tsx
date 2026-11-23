@@ -11,10 +11,13 @@ const STATE: Record<string, string> = {
 /** The same key the backend uses: the formula's TeX without any white space. */
 const keyOf = (tex: string) => tex.replace(/\s+/g, '').slice(0, 600)
 const texOf = (math: Element) => math.querySelector('annotation[encoding="application/x-tex"]')?.textContent ?? ''
+/** The frame: a formula with no lesson that you met in other lessons is orange, not gray (SPEC §40). */
+const frameOf = (n: FormulaNote) => (n.status === 'gray' && n.ideas.some(i => !i.here) ? 'orange' : n.status)
 
-/** Hover a formula in the lesson (SPEC §33, §34): its name, what it says, its symbols, where you met it, and its formula
- * lesson. Display formulas get a frame: green (you learned its formula lesson, in this form), orange (a formula lesson
- * exists, this form is new to it), gray (no formula lesson yet), faint (a step of a derivation). */
+/** Hover a formula in the lesson (SPEC §33, §34): its name, what it says, its symbols, where else you met it, and its
+ * formula lesson. Display formulas get a frame: green (you learned its formula lesson, in this form), orange (you met it
+ * in other lessons, or know another form), gray (new to you). A step of a derivation (a formula on the way to the final
+ * form) gets no frame and no hover card (SPEC §40). */
 export default function FormulaHover({ root, notes, pending, conceptId }: {
   root: RefObject<HTMLElement | null>; notes: Record<string, FormulaNote>; pending: boolean; conceptId: string
 }) {
@@ -32,14 +35,14 @@ export default function FormulaHover({ root, notes, pending, conceptId }: {
       el.querySelectorAll('.katex-display').forEach(m => {
         if (m.closest('.viz')) return
         const n = notes[keyOf(texOf(m))]
-        const fx = n ? n.status : 'none'
+        const fx = n && n.status !== 'step' ? frameOf(n) : 'plain'
         if (m.getAttribute('data-fx') !== fx) m.setAttribute('data-fx', fx)
       })
-      // formulas inside a sentence: a light frame only when they have a note and are an idea (not a step, not a symbol)
+      // a step of a derivation, or a formula with no note: no frame
       el.querySelectorAll('.katex').forEach(m => {
         if (m.closest('.katex-display') || m.closest('.viz')) return
         const n = notes[keyOf(texOf(m))]
-        if (n && n.status !== 'step' && m.getAttribute('data-fx') !== n.status) m.setAttribute('data-fx', n.status)
+        if (n && n.status !== 'step' && m.getAttribute('data-fx') !== frameOf(n)) m.setAttribute('data-fx', frameOf(n))
       })
     }
     paint()
@@ -58,6 +61,7 @@ export default function FormulaHover({ root, notes, pending, conceptId }: {
       if (!math) return
       const k = keyOf(texOf(math))
       if (!notes[k] && !pending) return
+      if (notes[k]?.status === 'step') return  // a step on the way to the final form: nothing to hover
       window.clearTimeout(hide.current)
       const r = math.getBoundingClientRect()
       const inner = math.querySelector('.katex-html')?.getBoundingClientRect() ?? r
@@ -85,7 +89,7 @@ export default function FormulaHover({ root, notes, pending, conceptId }: {
   const f = n?.formula ?? null
   const writing = !!f && jobActive(s, 'formula_lesson', { concept_id: f.id })
   return (
-    <div ref={card} className={`formula-card${at.below ? '' : ' above'} fx-card-${n?.status ?? 'none'}`} style={{ top: at.top, left: at.left }}
+    <div ref={card} className={`formula-card${at.below ? '' : ' above'} fx-card-${n ? frameOf(n) : 'none'}`} style={{ top: at.top, left: at.left }}
       role="tooltip" onMouseEnter={() => window.clearTimeout(hide.current)} onMouseLeave={() => { hide.current = window.setTimeout(() => setAt(null), 200) }}>
       {!n && <span className="muted small">Explaining the formulas of this lesson…</span>}
       {n && <>
@@ -111,21 +115,20 @@ export default function FormulaHover({ root, notes, pending, conceptId }: {
               ? <span className="muted">This is the formula of this lesson.</span>
               : <span>{writing ? 'Writing its lesson… ' : 'Its lesson is not learned yet: '}<Link to={`/lesson/${f.id}`}>{f.title}</Link></span>)}
             {n.status === 'gray' && !f && <>
-              <span className="muted">New to you.</span>
+              <span className="muted">{n.ideas.some(i => !i.here) ? 'You met it in the lessons below.' : 'New to you.'}</span>
               <button className="btn btn-small" onClick={() => dispatch({ type: 'makeFormulaLesson', conceptId, key: at.key })}>
                 Make a lesson about this formula</button>
             </>}
           </div>
         )}
-        {n.ideas.length > 0 && (
+        {n.ideas.some(i => !i.here) && (
           <div className="formula-ideas small">
             <div className="eyebrow">Where you met it</div>
-            {n.ideas.map(i => (
+            {n.ideas.filter(i => !i.here).map(i => (
               <div key={i.id} className="row">
                 <i className={`state-dot state-${i.state}`} />
-                {i.here ? <span>{i.title} <span className="muted">(this lesson)</span></span>
-                  : i.lesson ? <Link to={`/lesson/${i.lesson}`}>{i.title}</Link>
-                    : <button className="link" onClick={() => navigate('/map', { state: { focus: 'all', select: i.id } })}>{i.title}</button>}
+                {i.lesson ? <Link to={`/lesson/${i.lesson}`}>{i.title}</Link>
+                  : <button className="link" onClick={() => navigate('/map', { state: { focus: 'all', select: i.id } })}>{i.title}</button>}
                 <span className="muted">· {STATE[i.state] ?? i.state}</span>
               </div>
             ))}

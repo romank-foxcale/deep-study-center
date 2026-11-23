@@ -200,3 +200,33 @@ def test_the_whole_formula_tree_has_every_formula_and_block(fx):
     block = db.one("SELECT id FROM formula_lessons WHERE name='Scaling a vector'")["id"]
     assert {"src": block, "dst": fid} in t["links"]  # the block's own lesson is now the node under the formula
     assert not any(n["id"].startswith("block:") and n["name"] == "Scaling a vector" for n in t["nodes"])
+
+
+def test_the_derivation_graph_opens_a_node_one_level_down_and_makes_a_page(fx):
+    """SPEC §40: a formula with no page can be opened (what is it built from?) and given its own page."""
+    from dsc import formula_lessons
+    db, jobs, runner = fx
+    actions.dispatch(db, jobs, {"type": "makeFormulaLesson", "conceptId": CID, "key": formulas.key(FORM_A)})
+    fid = db.one("SELECT id FROM formula_lessons")["id"]
+    node = "block:scaling a vector"
+    t = formula_lessons.tree(db)
+    by = {n["id"]: n for n in t["nodes"]}
+    assert by[node]["openable"] and not by[fid]["openable"]  # the formula lesson already has its blocks
+    runner.responses["Formula notes"] = lambda call: {"blocks": [
+        {"name": "Vector components", "kind": "notation", "tex": "v = (v_1, v_2)", "meaning": "A vector is a list of numbers.",
+         "ref": "", "basic": False},
+        {"name": "Multiplying numbers", "kind": "formula", "tex": "a b", "meaning": "Multiply two numbers.", "ref": "", "basic": True}]}
+    actions.dispatch(db, jobs, {"type": "openFormula", "node": node})
+    t = formula_lessons.tree(db)
+    by = {n["id"]: n for n in t["nodes"]}
+    assert {"src": "block:vector components", "dst": node} in t["links"]
+    assert {"src": "block:multiplying numbers", "dst": node} in t["links"]  # the same basic block is one node, used twice
+    assert not by[node]["openable"] and by["block:vector components"]["openable"]
+    actions.dispatch(db, jobs, {"type": "makeFormulaPage", "node": node})
+    page = db.one("SELECT * FROM formula_lessons WHERE name='Scaling a vector'")
+    assert page and page["source_concept"] == fid and page["blocks_at"]  # placed before the formula above it, parts kept
+    t = formula_lessons.tree(db)
+    ids = {n["id"] for n in t["nodes"]}
+    assert page["id"] in ids and node not in ids and {"src": page["id"], "dst": fid} in t["links"]
+    with pytest.raises(actions.ActionError):
+        actions.dispatch(db, jobs, {"type": "makeFormulaPage", "node": page["id"]})  # it has a page now

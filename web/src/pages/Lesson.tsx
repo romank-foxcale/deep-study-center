@@ -136,12 +136,14 @@ export default function Lesson() {
   const siblings = s.concepts.filter(c => c.moduleId === concept.moduleId)
   const book = view?.book ?? null
   const nextConcept = book ? (book.next ?? undefined) : siblings[siblings.findIndex(c => c.id === id) + 1]
-  const quiz = book ? sections.filter(x => x.check || x.explain || x.code) : []
+  // A formula or notation page has no multiple-choice quiz (SPEC §40): its widget and its "work it out" task are the practice.
+  const formulaPage = !!view?.formulaLesson
+  const quiz = book ? sections.filter(x => (x.check && !formulaPage) || x.explain || x.code) : []
 
   /** A section's check, exercise and explain-back. In a book lesson they are gathered into the quiz at the end. */
   const items = (sec: LessonSectionView) => <>
-    {sec.check && sec.checkMine && <div className="mine-note"><span className="pill pill-accent small" title="This question was written for you from the source card">question made for you</span></div>}
-    {sec.check && (
+    {sec.check && !formulaPage && sec.checkMine && <div className="mine-note"><span className="pill pill-accent small" title="This question was written for you from the source card">question made for you</span></div>}
+    {sec.check && !formulaPage && (
       <InlineCheck key={sec.check.id} check={sec.check} previous={s.answers[`${id}:${sec.check.id}`]}
         onAnswer={(choice, r) => dispatch({ type: 'answer', conceptId: id, checkId: sec.check!.id, angle: sec.angle, choice, ...r })}
         onUndo={() => dispatch({ type: 'undoAnswer', conceptId: id, itemId: sec.check!.id })}
@@ -165,7 +167,7 @@ export default function Lesson() {
 
   return (
     <div className="lesson-layout">
-      <article className="lesson" ref={article} onMouseUp={onMouseUp}>
+      <article className={`lesson${formulaPage ? ' lesson-formula' : ''}`} ref={article} onMouseUp={onMouseUp}>
         {book
           ? <div className="crumbs"><Link to={`/book/${book.bookId}`}>{book.bookTitle}</Link> › <Link to={`/book/${book.bookId}/chapter/${book.chapter}`}>
               {book.chapterTitle}</Link> › lesson {book.index} of {book.count} · pp. {book.pages[0]}{book.pages[1] !== book.pages[0] ? `–${book.pages[1]}` : ''}</div>

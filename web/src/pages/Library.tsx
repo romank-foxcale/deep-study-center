@@ -1,43 +1,24 @@
-import { Link, useSearchParams } from 'react-router-dom'
-import { sourceHref, useStore } from '../store'
-import { AddSources, SourcesTable } from '../components/Sources'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useStore } from '../store'
+import { AddSources, EMPTY_QUERY, SourceFilter, SourcesTable, type SourceQuery } from '../components/Sources'
+import type { SourceKind } from '../types'
 
+/** Sources (SPEC §40): every PDF and link of the learner, with its type and status. */
 export default function Library() {
   const { s, dispatch } = useStore()
-  // The tab lives in the URL (?tab=mine), so links can open a tab and the tab survives a reload.
-  const [params, setParams] = useSearchParams()
-  const tab = (['shared', 'goal'] as const).find(t => t === params.get('tab')) ?? 'mine'  // your PDFs first (SPEC §30)
-  const setTab = (t: 'goal' | 'shared' | 'mine') => setParams(t === 'mine' ? {} : { tab: t }, { replace: true })
-  const shared = new Set(s.library.map(l => l.sourceConcept))
-  const refreshing = new Set(s.jobs.filter(j => j.kind === 'refresh_card' && (j.status === 'queued' || j.status === 'running'))
-    .map(j => j.input.concept_id ?? ''))
-  const exported = s.ankiExport?.split('|')
-  const suggested = new Set(s.shareSuggestions)
+  const [q, setQ] = useState<SourceQuery>(EMPTY_QUERY)
+  const counts: Partial<Record<SourceKind, number>> = {}
+  for (const x of s.sources) counts[x.kind] = (counts[x.kind] ?? 0) + 1
   return (
     <div className="page page-wide">
-      <div><div className="eyebrow">Library</div><h1>Source library</h1></div>
-      <p className="lead">Your PDFs, and the fact-checked concept cards that goal lessons are written from. To study a book, use
-        <Link to="/books"> Books</Link>.</p>
-      <div className="row">
-        <div className="tabs tabs-inline" role="tablist">
-          <button role="tab" aria-selected={tab === 'mine'} className={`tab ${tab === 'mine' ? 'on' : ''}`} onClick={() => setTab('mine')}>My PDFs ({s.sources.length})</button>
-          <button role="tab" aria-selected={tab === 'goal'} className={`tab ${tab === 'goal' ? 'on' : ''}`} onClick={() => setTab('goal')}>This goal's cards ({s.cards.length})</button>
-          <button role="tab" aria-selected={tab === 'shared'} className={`tab ${tab === 'shared' ? 'on' : ''}`} onClick={() => setTab('shared')}>Shared cards ({s.library.length})</button>
-        </div>
-        <span className="spacer" />
-        {tab === 'mine' && <AddSources link={false} />}
-        {tab === 'mine' && (
-          <Link className="btn" to="/goal/book" title="A goal built from the 80/20 core of the sources you choose (goals are on hold)">
-            Book goal (80/20)</Link>
-        )}
-        {suggested.size > 0 && (
-          <button className="btn" title="Fact-checked cards for concepts you've learned"
-            onClick={() => dispatch({ type: 'promoteSuggested' })}>Share {suggested.size} suggested</button>
-        )}
-        {tab !== 'mine' && <a className="btn" href="/api/export/anki" download>Export Anki deck</a>}
-        {tab !== 'mine' && exported && <span className="muted small">last export: {exported[1]} cards, {new Date(exported[0]).toLocaleDateString()}</span>}
+      <div className="row row-between">
+        <div><div className="eyebrow">Library</div><h1>Sources</h1></div>
+        <AddSources />
       </div>
-      {tab !== 'mine' && <p className="muted small">The Anki deck holds the questions and explain-back prompts of the concepts you've learned.</p>}
+      <p className="lead">Your books, articles, documents, web pages and videos. Click a title to open it. To study a book, use
+        <Link to="/books"> Books</Link>.</p>
+      <SourceFilter q={q} onChange={setQ} counts={counts} />
 
       {s.cardProposals.map(p => {
         const concept = s.concepts.find(c => c.id === p.conceptId)
@@ -67,54 +48,7 @@ export default function Library() {
         )
       })}
 
-      {tab === 'goal' && (
-        <table className="table">
-          <thead><tr><th>Concept</th><th>Version</th><th>Fact-check</th><th>Canonical sources</th><th /></tr></thead>
-          <tbody>
-            {s.cards.map(c => {
-              const concept = s.concepts.find(x => x.id === c.conceptId)
-              return (
-                <tr key={c.conceptId}>
-                  <td><Link to={`/lesson/${c.conceptId}`}>{concept?.title}</Link>
-                    {suggested.has(c.conceptId) && <> <span className="pill pill-ok" title="You've learned it and it's fact-checked">suggested to share</span></>}</td>
-                  <td>v{c.version}</td>
-                  <td><span className={`pill ${c.factCheck === 'passed' ? 'pill-ok' : 'pill-warn'}`}>{c.factCheck}</span></td>
-                  <td>{c.sources.map(src => <div key={src.url}><a href={sourceHref(src.url)} target="_blank" rel="noreferrer">{src.title}</a></div>)}</td>
-                  <td className="row">
-                    <button className="btn btn-small" disabled={refreshing.has(c.conceptId)}
-                      onClick={() => dispatch({ type: 'refreshCard', conceptId: c.conceptId })}>
-                      {refreshing.has(c.conceptId) ? 'Checking…' : 'Check for updates'}
-                    </button>
-                    {shared.has(c.conceptId)
-                      ? <span className="pill pill-ok">shared</span>
-                      : <button className="btn btn-small" disabled={c.factCheck !== 'passed'}
-                          title={c.factCheck !== 'passed' ? 'Only fact-checked cards can be shared' : undefined}
-                          onClick={() => dispatch({ type: 'promoteCard', conceptId: c.conceptId })}>Add to shared library</button>}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      )}
-      {tab === 'mine' && (
-        <>
-          <p className="muted small">Your own books, articles and posts (PDF). “Learn” makes a book goal from a source. To use a
-            source for a goal you already have, open that goal's home page (“Sources for this goal”).</p>
-          <SourcesTable />
-        </>
-      )}
-      {tab === 'shared' && (s.library.length === 0
-        ? <p className="muted">Nothing shared yet. Add fact-checked cards from “This goal”; research for any goal reuses them instead of rewriting.</p>
-        : (
-          <table className="table">
-            <thead><tr><th>Concept</th><th>Objective</th><th>Version</th><th>Reused</th></tr></thead>
-            <tbody>{s.library.map(l => (
-              <tr key={l.key}><td>{l.title}</td><td className="small">{l.objective}</td><td>v{l.version}</td><td>{l.uses}×</td></tr>
-            ))}</tbody>
-          </table>
-        ))}
-      {tab !== 'mine' && <p className="muted small">{s.modules.reduce((n, m) => n + (m.research === 'ready' ? 0 : m.plannedConcepts ?? 0), 0)} more concepts are outlined and will get cards as you approach them.</p>}
+      <SourcesTable q={q} />
     </div>
   )
 }

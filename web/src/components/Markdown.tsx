@@ -33,6 +33,28 @@ const LINKS: Components = {
  * this one block is cut out of the text and drawn as a real collapsible block, its parts as Markdown again. */
 const DETAILS = /<details>\s*<summary>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/g
 
+/** The components for a lesson's runnable code. One object per lesson, made once: a new `pre` function at each render
+ * would be a new component type to React, so every refresh of the page (the app polls while jobs run) would remount the
+ * code blocks and throw away what the learner typed. */
+const RUNNABLE = new Map<string, Components>()
+function runnableComponents(lesson: string): Components {
+  let c = RUNNABLE.get(lesson)
+  if (!c) {
+    c = { ...LINKS,
+      pre: ({ node, children: body, ...props }) => {
+        const code = (node as HastNode | undefined)?.children?.find(x => x.tagName === 'code')
+        const cls = (code?.properties?.className as string[] | undefined) ?? []
+        if (code && cls.some(x => x === 'language-python' || x === 'language-py')) {
+          return <RunnableCode source={textOf(code)} lesson={lesson} />
+        }
+        return <pre {...props}>{body}</pre>
+      },
+    }
+    RUNNABLE.set(lesson, c)
+  }
+  return c
+}
+
 /** ``runnable``: the lesson id; Python code blocks then become editable and runnable (one namespace per lesson). */
 export default function Markdown({ children, inline, runnable }: { children: string; inline?: boolean; runnable?: string }) {
   if (!inline && children.includes('<details>')) {
@@ -52,16 +74,7 @@ export default function Markdown({ children, inline, runnable }: { children: str
   return (
     <div className={inline ? 'md md-inline' : 'md'}>
       <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}
-        components={runnable ? { ...LINKS,
-          pre: ({ node, children: body, ...props }) => {
-            const code = (node as HastNode | undefined)?.children?.find(c => c.tagName === 'code')
-            const cls = (code?.properties?.className as string[] | undefined) ?? []
-            if (code && cls.some(c => c === 'language-python' || c === 'language-py')) {
-              return <RunnableCode source={textOf(code)} lesson={runnable} />
-            }
-            return <pre {...props}>{body}</pre>
-          },
-        } : LINKS}>
+        components={runnable ? runnableComponents(runnable) : LINKS}>
         {inline ? children : displayBlocks(children)}
       </ReactMarkdown>
     </div>

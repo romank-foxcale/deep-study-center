@@ -1009,3 +1009,42 @@ Change log shows text changes only (not graph or question changes).
   `latest.json` (version, signature, download URL). Steps: `docs/RELEASING.md`. `npm run build:local` builds with no
   signing key and no update files.
 - 0.4.0 has no updater; its users install 0.4.1 by hand once.
+
+## 40. Sources, the shelf, and the review fixes (2026-11-23)
+
+What it is for: the learner's review of 0.4 (navigation, the source library, the map, lessons, the formula tree).
+
+- **Back.** Every page but Today has "Back" at the top: the previous page in this tab, else the page above (a chapter →
+  its book, a book → Books, a lesson → Books, the formula tree → Map).
+- **Sources** (was "Source library", "My PDFs"): one table of every source. Removed: the tabs "This goal's cards" and
+  "Shared cards", the Anki export, the book goal (80/20, SPEC §18: page, actions, `books.py`, the outline branch and
+  its prompt). Shared cards from before still feed goal research.
+  - Types: Book, Article, Internet source (`web`), Video, Custom (made by the learner: a roadmap, or a "teach me" topic).
+    Old `post` → `web`, `other` → `custom`. The learner changes the type at any time.
+  - Status: error (red: unreadable or no text), uploading (gray: being read), uploaded (yellow), ready (green: "Teach me
+    this book" made its lessons).
+  - A click on the title opens the source: the PDF, or the link (a web page, a video).
+  - "Add source" is a dialog: a PDF file or a link; a name (default: the file name; it wins over the PDF's own title);
+    a type; the upload progress; Cancel. Duplicates: the same file (SHA-256, any name) or the same link is refused; the
+    same name asks first. Links are kept and opened; reading a web page or a video transcript comes later.
+  - A search box (title, author, file name, link, type) and type chips, on Sources and on Books.
+- **Books.** Every card has a trash can (it deletes the source and its book study; learned ideas stay on the map). The
+  shelf also shows links and Custom study topics ("teach me X"). A book has one color: the map area's color
+  (`graph.area_colors`: books in the order they were added, then goals, then sessions), on its card and on every map view.
+- **On hold:** Practice joins goals in the sidebar group "On hold"; Today hides "Due for recall".
+- **Map:** the views Graph, Nebula and Globe are removed (a saved one shows Territories). The Tree view zooms with the
+  mouse wheel (the listener was attached before the map had loaded, so the wheel did nothing).
+- **Lessons:**
+  - A Python block keeps the learner's edits when the page refreshes (the code block's component was made again at
+    each render, so React remounted it).
+  - Formula hover: "Where you met it" lists other lessons only. A formula you met in other lessons is orange; new is
+    gray. A step of a derivation (a formula on the way to the final form) has no frame and no hover card.
+  - A board task ("Work it out") is only for a calculation that is hard in the head, and states its inputs, what to
+    compute and the form of the answer. Its slider asks "How sure are you of your answer?".
+  - Book lessons: one lesson is one idea, each built on what the learner already knows (the map prompt). Books mapped
+    before (`books.plan` 1) show "Re-plan lessons": every chapter is mapped again; answers, notes and learned ideas stay.
+- **Formula tree = the derivation graph.** Pick a formula: it is at the top, and under it what it is derived from, each
+  node with its own formula (rendered math). "What is it built from?" finds a node's parts one level down (job
+  `formula_open`; a formula lesson gets its blocks, a formula with no page gets `formula_parts`). "Make a formula page"
+  makes a page for any formula node (placed before the nearest formula page above it; its parts become its blocks).
+  Formula and notation pages look different (a tinted background, "Formula page") and have no multiple-choice quiz.

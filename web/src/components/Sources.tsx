@@ -1,110 +1,257 @@
 import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { uploadSource, useStore } from '../store'
-import type { SourceDoc } from '../types'
+import { addLinkSource, uploadSource, useStore } from '../store'
+import type { SourceDoc, SourceKind } from '../types'
 
-const KINDS: SourceDoc['kind'][] = ['book', 'article', 'post', 'other']
-const STATUS: Record<SourceDoc['status'], { label: string; cls: string; title: string }> = {
-  reading: { label: 'reading…', cls: 'pill', title: 'The text of each page is read in the background' },
-  ready: { label: 'ready', cls: 'pill pill-ok', title: 'Research can use and cite its pages' },
-  no_text: { label: 'no text', cls: 'pill pill-warn', title: 'A scanned PDF without a text layer. Research cannot read it.' },
-  error: { label: 'error', cls: 'pill pill-warn', title: 'The file could not be read. Click "Read again".' },
-}
+// The learner's sources (SPEC §17, §40): PDF files and links, with a type, a status, a filter and a duplicate check.
 
-/** "Add PDF" button. Uploads one or more PDFs; calls onAdded with the new source ids. */
-export function AddSources({ link, onAdded, label = 'Add PDF' }: { link: boolean; onAdded?: (ids: string[]) => void; label?: string }) {
-  const { s, reload } = useStore()
-  const input = useRef<HTMLInputElement>(null)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const pick = async (files: FileList | null) => {
-    if (!files?.length) return
-    setBusy(true); setError('')
-    const before = new Set(s.sources.map(x => x.id))
-    let added: string[] = []
-    try {
-      for (const f of Array.from(files)) {
-        const next = await uploadSource(f, { link })
-        added = next.sources.filter(x => !before.has(x.id)).map(x => x.id)
-      }
-      onAdded?.(added)
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setBusy(false)
-      if (input.current) input.current.value = ''
-      await reload()
-    }
-  }
-  return (
-    <span className="row">
-      <input ref={input} type="file" accept="application/pdf,.pdf" multiple hidden onChange={e => pick(e.target.files)} />
-      <button className="btn" disabled={busy} onClick={() => input.current?.click()}>{busy ? 'Uploading…' : label}</button>
-      {error && <span className="error small">{error}</span>}
-    </span>
-  )
+export const KINDS: { id: SourceKind; label: string }[] = [
+  { id: 'book', label: 'Book' }, { id: 'article', label: 'Article' }, { id: 'web', label: 'Internet source' },
+  { id: 'video', label: 'Video' }, { id: 'custom', label: 'Custom' },
+]
+export const kindLabel = (k: string) => KINDS.find(x => x.id === k)?.label ?? k
+
+/** The status the learner sees: error (red), uploading (gray), uploaded (yellow), ready (green: its lessons are made). */
+export function sourceStatus(src: SourceDoc): { label: string; cls: string; title: string } {
+  if (src.status === 'error') return { label: 'error', cls: 'pill pill-bad', title: 'The file could not be read. Click "Read again".' }
+  if (src.status === 'no_text') return { label: 'error: no text', cls: 'pill pill-bad', title: 'A scanned PDF without a text layer. DSC cannot read it.' }
+  if (src.status === 'reading') return { label: 'uploading', cls: 'pill', title: 'The pages are being read' }
+  if (src.mapped) return { label: 'ready', cls: 'pill pill-ok', title: '"Teach me this book" made its lessons' }
+  return { label: 'uploaded', cls: 'pill pill-warn', title: src.url ? 'A link: open it with a click' : 'Read. Use "Teach me this book" to make its lessons.' }
 }
 
 export function SourceStatus({ src }: { src: SourceDoc }) {
-  const st = STATUS[src.status] ?? STATUS.error
+  const st = sourceStatus(src)
   return <span className={st.cls} title={st.title}>{st.label}</span>
 }
 
-/** All the learner's PDFs: rename, kind, open, delete, and "Learn" (a book goal built on this source).
- * Which goal uses which source is chosen on the goal page (GoalSources). */
-export function SourcesTable() {
+/** Where a click on the title goes: the PDF, or the link (a web page, a video). */
+export const sourceUrl = (src: SourceDoc) => src.url || `/api/sources/${src.id}/file`
+
+const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+
+/** Search words and the chosen types. A source matches when every word is in its title, author, file name, address
+ *  or type. */
+export interface SourceQuery { text: string; kinds: SourceKind[] }
+export const EMPTY_QUERY: SourceQuery = { text: '', kinds: [] }
+export function matches(q: SourceQuery, kind: string, ...fields: string[]): boolean {
+  if (q.kinds.length && !q.kinds.includes(kind as SourceKind)) return false
+  const hay = norm([...fields, kindLabel(kind)].join(' '))
+  return norm(q.text).split(' ').filter(Boolean).every(w => hay.includes(w))
+}
+
+/** The search box and the type chips (Books and Sources pages). */
+export function SourceFilter({ q, onChange, counts }: { q: SourceQuery; onChange: (q: SourceQuery) => void; counts?: Partial<Record<SourceKind, number>> }) {
+  const toggle = (k: SourceKind) => onChange({ ...q, kinds: q.kinds.includes(k) ? q.kinds.filter(x => x !== k) : [...q.kinds, k] })
+  return (
+    <div className="src-filter" role="search">
+      <input className="input" type="search" placeholder="Search by title, author, file name or link" aria-label="Search sources"
+        value={q.text} onChange={e => onChange({ ...q, text: e.target.value })} />
+      <div className="row" role="group" aria-label="Type">
+        {KINDS.map(k => (
+          <button key={k.id} className={`chip ${q.kinds.includes(k.id) ? 'on' : ''}`} aria-pressed={q.kinds.includes(k.id)} onClick={() => toggle(k.id)}>
+            {k.label}{counts?.[k.id] != null ? <span className="muted"> {counts[k.id]}</span> : null}</button>
+        ))}
+        {(q.kinds.length > 0 || q.text) && <button className="link small" onClick={() => onChange(EMPTY_QUERY)}>Clear</button>}
+      </div>
+    </div>
+  )
+}
+
+async function sha256(file: File): Promise<string> {
+  const d = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+  return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('')
+}
+const titleOf = (name: string) => name.replace(/\.pdf$/i, '').replace(/[_-]+/g, ' ').trim()
+const isVideo = (url: string) => /(^|\.)(youtube\.com|youtu\.be|vimeo\.com)$/i.test((() => { try { return new URL(url).hostname } catch { return '' } })())
+
+/** "Add source": a dialog for a PDF file or a link, with a name, a type, a duplicate check and the upload progress. */
+export function AddSources({ link = false, onAdded, label = 'Add source' }: { link?: boolean; onAdded?: (ids: string[]) => void; label?: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button className="btn" onClick={() => setOpen(true)}>{label}</button>
+      {open && <AddSourceDialog link={link} onClose={() => setOpen(false)} onAdded={onAdded} />}
+    </>
+  )
+}
+
+function AddSourceDialog({ link, onClose, onAdded }: { link: boolean; onClose: () => void; onAdded?: (ids: string[]) => void }) {
+  const { s, reload } = useStore()
+  const input = useRef<HTMLInputElement>(null)
+  const [mode, setMode] = useState<'file' | 'link'>('file')
+  const [file, setFile] = useState<File | null>(null)
+  const [hash, setHash] = useState<string | null>(null)
+  const [url, setUrl] = useState('')
+  const [title, setTitle] = useState('')
+  const [kind, setKind] = useState<SourceKind>('book')
+  const [progress, setProgress] = useState<number | null>(null)
+  const [error, setError] = useState('')
+
+  const pick = async (f: File | undefined) => {
+    setError(''); setHash(null)
+    if (!f) return
+    setFile(f); setTitle(titleOf(f.name))
+    setHash(await sha256(f).catch(() => ''))
+  }
+  const sameFile = hash ? s.sources.find(x => x.sha256 && x.sha256 === hash) : undefined
+  const sameLink = mode === 'link' && url.trim() ? s.sources.find(x => x.url && x.url === url.trim()) : undefined
+  const sameName = title.trim() ? s.sources.find(x => norm(x.title) === norm(title)) : undefined
+  const blocked = mode === 'file' ? (!file || hash === null || !!sameFile) : (!/^https?:\/\/\S+$/i.test(url.trim()) || !!sameLink)
+  const busy = progress !== null
+
+  const submit = async () => {
+    if (blocked || busy) return
+    if (sameName && !window.confirm(`A source named “${sameName.title}” already exists. Add this one too?`)) return
+    setError(''); setProgress(0)
+    const before = new Set(s.sources.map(x => x.id))
+    try {
+      const next = mode === 'file'
+        ? await uploadSource(file!, { kind, title: title.trim(), link, onProgress: setProgress })
+        : await addLinkSource({ url: url.trim(), title: title.trim(), kind })
+      onAdded?.(next.sources.filter(x => !before.has(x.id)).map(x => x.id))
+      await reload()
+      onClose()
+    } catch (e) {
+      setError((e as Error).message); setProgress(null)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget && !busy) onClose() }}>
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="add-src-title"
+        onKeyDown={e => { if (e.key === 'Escape' && !busy) onClose() }}>
+        <div className="modal-head"><h3 id="add-src-title">Add a source</h3>
+          <p className="muted small">A PDF (a book, an article, a document), or a link to a web page or a video.</p></div>
+        <div className="tabs tabs-inline" role="tablist">
+          <button role="tab" aria-selected={mode === 'file'} className={`tab ${mode === 'file' ? 'on' : ''}`} disabled={busy}
+            onClick={() => { setMode('file'); setKind('book'); setTitle(file ? titleOf(file.name) : '') }}>PDF file</button>
+          <button role="tab" aria-selected={mode === 'link'} className={`tab ${mode === 'link' ? 'on' : ''}`} disabled={busy}
+            onClick={() => { setMode('link'); setKind(isVideo(url) ? 'video' : 'web'); setTitle('') }}>Link</button>
+        </div>
+        {mode === 'file' ? (
+          <div className="field">
+            <input ref={input} type="file" accept="application/pdf,.pdf" hidden onChange={e => pick(e.target.files?.[0])} />
+            <div className="row">
+              <button className="btn" disabled={busy} onClick={() => input.current?.click()}>{file ? 'Choose another file' : 'Choose a PDF'}</button>
+              {file && <span className="small">{file.name} · {(file.size / 1048576).toFixed(1)} MB</span>}
+            </div>
+            {file && hash === null && <span className="muted small">Checking for a duplicate…</span>}
+            {sameFile && <span className="error small">This file is already in your sources as “{sameFile.title}”.</span>}
+          </div>
+        ) : (
+          <label className="field"><span className="small">Address</span>
+            <input className="input" type="url" placeholder="https://…" value={url} disabled={busy} autoFocus
+              onChange={e => { setUrl(e.target.value); if (isVideo(e.target.value)) setKind('video') }} />
+            {sameLink && <span className="error small">This link is already in your sources as “{sameLink.title}”.</span>}
+          </label>
+        )}
+        <label className="field"><span className="small">Name</span>
+          <input className="input" value={title} disabled={busy} placeholder={mode === 'link' ? 'The page or video title' : ''}
+            onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submit() }} />
+          {sameName && !sameFile && !sameLink && <span className="warn small">A source with this name already exists. Check that it is not the same.</span>}
+        </label>
+        <label className="field"><span className="small">Type</span>
+          <select className="input" value={kind} disabled={busy} onChange={e => setKind(e.target.value as SourceKind)}>
+            {KINDS.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
+          </select>
+        </label>
+        {progress !== null && mode === 'file' && (
+          <div className="upload-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}>
+            <i style={{ width: `${Math.round(progress * 100)}%` }} /><span className="small">{progress < 1 ? `Uploading… ${Math.round(progress * 100)}%` : 'Saving…'}</span>
+          </div>
+        )}
+        {error && <span className="error small">{error}</span>}
+        <div className="row row-end">
+          <button className="btn" disabled={busy} onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={blocked || busy} onClick={submit}>{mode === 'file' ? 'Upload' : 'Add link'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** All the learner's sources: open, type, status, rename, delete, and "Teach me this book" for a PDF. */
+export function SourcesTable({ q }: { q: SourceQuery }) {
   const { s, dispatch } = useStore()
   const navigate = useNavigate()
   const [editing, setEditing] = useState<{ id: string; title: string } | null>(null)
-  const goalTitle = (id: string) => s.goals.find(g => g.id === id)?.title ?? id
+  const [waiting, setWaiting] = useState<string | null>(null)
   if (s.sources.length === 0) {
-    return <p className="muted">No sources yet. Add a book, article or post as a PDF. Then learn it as a book goal, or use it
-      for a goal on that goal's home page.</p>
+    return <p className="muted">No sources yet. Add a book, an article or a document as a PDF, or a link to a web page or a video.</p>
   }
+  const rows = s.sources.filter(x => matches(q, x.kind, x.title, x.author, x.filename, x.url))
+  if (rows.length === 0) return <p className="muted">No source matches the search.</p>
   const save = () => {
     if (editing) dispatch({ type: 'editSource', id: editing.id, title: editing.title })
     setEditing(null)
   }
+  const bookOf = (id: string) => s.studyBooks.find(b => b.sourceId === id)
+  const teach = async (id: string) => {
+    setWaiting(id)
+    if (await dispatch({ type: 'studyBook', sourceId: id })) navigate('/books')
+    setWaiting(null)
+  }
   return (
     <table className="table">
-      <thead><tr><th>Title</th><th>Kind</th><th>Pages</th><th>Status</th><th>Used in goals</th><th /></tr></thead>
-      <tbody>{s.sources.map(src => (
-        <tr key={src.id}>
-          <td>
-            {editing?.id === src.id
-              ? <input className="input" autoFocus value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })}
-                  onBlur={save} onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(null) }} />
-              : <a href={`/api/sources/${src.id}/file`} target="_blank" rel="noreferrer">{src.title}</a>}
-            <div className="muted small">{[src.author, src.outline ? `${src.outline} chapters` : ''].filter(Boolean).join(' · ') || src.filename}</div>
-          </td>
-          <td>
-            <select className="input input-small" value={src.kind} onChange={e => dispatch({ type: 'editSource', id: src.id, kind: e.target.value as SourceDoc['kind'] })}>
-              {KINDS.map(k => <option key={k} value={k}>{k}</option>)}
-            </select>
-          </td>
-          <td>{src.pages || '—'}</td>
-          <td><SourceStatus src={src} /></td>
-          <td className="small">{src.goalIds.length
-            ? src.goalIds.map(g => <div key={g} className="src-goal" title={goalTitle(g)}>{goalTitle(g)}</div>)
-            : <span className="muted">—</span>}</td>
-          <td><div className="row src-actions">
-            {src.status === 'error'
-              ? <button className="btn btn-small" onClick={() => dispatch({ type: 'rereadSource', id: src.id })}>Read again</button>
-              : <button className="btn btn-small btn-primary" disabled={src.status !== 'ready'}
-                  title="Make a book goal from this source: its 80/20 core, with its own roadmap"
-                  onClick={() => navigate('/goal/book', { state: { sourceIds: [src.id] } })}>Learn</button>}
-            <button className="btn btn-small" onClick={() => setEditing({ id: src.id, title: src.title })}>Rename</button>
-            <button className="btn btn-small" onClick={() => {
-              if (window.confirm(`Delete “${src.title}”? The PDF and its pages are removed. Cards that cite it keep their text.`)) {
-                dispatch({ type: 'deleteSource', id: src.id })
-              }
-            }}>Delete</button>
-          </div></td>
-        </tr>
-      ))}</tbody>
+      <thead><tr><th>Title</th><th>Type</th><th>Pages</th><th>Status</th><th /></tr></thead>
+      <tbody>{rows.map(src => {
+        const book = bookOf(src.id)
+        return (
+          <tr key={src.id}>
+            <td>
+              {editing?.id === src.id
+                ? <input className="input" autoFocus value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })}
+                    onBlur={save} onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(null) }} />
+                : <a href={sourceUrl(src)} target="_blank" rel="noreferrer" title={src.url ? `Open ${src.url}` : 'Open the PDF'}>{src.title}</a>}
+              <div className="muted small src-sub">{[src.author, src.outline ? `${src.outline} chapters` : '', src.url ? src.url : ''].filter(Boolean).join(' · ') || src.filename}</div>
+            </td>
+            <td>
+              <select className="input input-small" value={src.kind} aria-label={`Type of ${src.title}`}
+                onChange={e => dispatch({ type: 'editSource', id: src.id, kind: e.target.value as SourceKind })}>
+                {KINDS.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
+              </select>
+            </td>
+            <td>{src.pages || '—'}</td>
+            <td><SourceStatus src={src} /></td>
+            <td><div className="row src-actions">
+              {src.status === 'error' && <button className="btn btn-small" onClick={() => dispatch({ type: 'rereadSource', id: src.id })}>Read again</button>}
+              {book && <Link className="btn btn-small btn-primary" to={`/book/${book.id}`}>Open</Link>}
+              {!book && !src.url && src.status === 'ready' && (
+                <button className="btn btn-small btn-primary" disabled={waiting !== null} onClick={() => teach(src.id)}>
+                  {waiting === src.id ? 'Starting…' : 'Teach me this'}</button>
+              )}
+              <button className="btn btn-small" onClick={() => setEditing({ id: src.id, title: src.title })}>Rename</button>
+              <DeleteSource src={src} />
+            </div></td>
+          </tr>
+        )
+      })}</tbody>
     </table>
   )
 }
+
+/** A trash-can button that deletes a source (and its lessons plan, when it was taught as a book). */
+export function DeleteSource({ src, icon = false }: { src: SourceDoc; icon?: boolean }) {
+  const { s, dispatch } = useStore()
+  const book = s.studyBooks.find(b => b.sourceId === src.id)
+  const go = (e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation()
+    const what = src.url ? 'The link is removed.' : book
+      ? 'The PDF and its book (chapters and lessons) are removed. What you learned stays on the map.'
+      : 'The PDF and its pages are removed.'
+    if (window.confirm(`Delete “${src.title}”? ${what}`)) dispatch({ type: 'deleteSource', id: src.id })
+  }
+  return icon
+    ? <button className="icon-btn" onClick={go} aria-label={`Delete ${src.title}`} title="Delete"><TrashIcon /></button>
+    : <button className="btn btn-small" onClick={go}>Delete</button>
+}
+
+export const TrashIcon = () => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+  </svg>
+)
 
 const DRAG = 'text/x-dsc-goal-source'
 
@@ -114,8 +261,9 @@ export function GoalSources() {
   const [over, setOver] = useState<'used' | 'unused' | null>(null)
   const goal = s.goal
   if (!goal) return null
-  const used = s.sources.filter(x => x.goalIds.includes(goal.id))
-  const unused = s.sources.filter(x => !x.goalIds.includes(goal.id))
+  const own = s.sources.filter(x => !x.url)
+  const used = own.filter(x => x.goalIds.includes(goal.id))
+  const unused = own.filter(x => !x.goalIds.includes(goal.id))
   const set = (id: string, on: boolean) => dispatch({ type: 'linkSource', sourceId: id, goalId: goal.id, on })
   const list = (zone: 'used' | 'unused', items: SourceDoc[], empty: string) => (
     <div className={`src-zone ${over === zone ? 'src-zone-over' : ''}`}
@@ -128,7 +276,7 @@ export function GoalSources() {
         <label key={src.id} className="src-item" draggable onDragStart={e => e.dataTransfer.setData(DRAG, src.id)}>
           <span className="src-grip" aria-hidden>⠿</span>
           <input type="checkbox" checked={zone === 'used'} onChange={e => set(src.id, e.target.checked)} />
-          <span className="src-name">{src.title}<span className="muted small"> · {src.kind}{src.pages ? `, ${src.pages} p.` : ''}</span></span>
+          <span className="src-name">{src.title}<span className="muted small"> · {kindLabel(src.kind)}{src.pages ? `, ${src.pages} p.` : ''}</span></span>
           {src.status !== 'ready' && <SourceStatus src={src} />}
         </label>
       ))}
@@ -138,13 +286,13 @@ export function GoalSources() {
     <section className="card">
       <div className="row row-between">
         <h2 className="h-small">Sources for this goal</h2>
-        <span className="row"><AddSources link label="Add PDF to this goal" /><Link className="btn" to="/library?tab=mine">All sources</Link></span>
+        <span className="row"><AddSources link label="Add source to this goal" /><Link className="btn" to="/library">All sources</Link></span>
       </div>
       <p className="muted small">Research for this goal bases its cards on the pages of the used sources and cites them as
         “Title, p. N”. Tick a box or drag a source between the lists.</p>
       <div className="src-zones">
         {list('used', used, 'Drag a source here, or tick it in the other list.')}
-        {list('unused', unused, s.sources.length ? 'All your sources are used.' : 'No sources yet. Add a PDF.')}
+        {list('unused', unused, own.length ? 'All your sources are used.' : 'No sources yet. Add a PDF.')}
       </div>
     </section>
   )

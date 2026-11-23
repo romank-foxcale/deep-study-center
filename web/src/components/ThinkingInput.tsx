@@ -115,10 +115,12 @@ export function DictationArea({ value, onChange, rows = 3, placeholder, disabled
   )
 }
 
-export function ConfidenceSlider({ value, onChange, disabled }: { value: number | null; onChange: (v: number | null) => void; disabled?: boolean }) {
+export function ConfidenceSlider({ value, onChange, disabled, label = 'How likely is your pick right?' }: {
+  value: number | null; onChange: (v: number | null) => void; disabled?: boolean; label?: string
+}) {
   return (
     <div className={`confidence ${value === null ? 'confidence-unset' : ''}`}>
-      <span className="small">How likely is your pick right?</span>
+      <span className="small">{label}</span>
       <input type="range" min={0} max={STOPS.length - 1} step={1} value={nearest(value ?? 0.5)} disabled={disabled}
         aria-label="Confidence" aria-valuetext={value === null ? 'not set' : confidenceLabel(value)}
         onChange={e => onChange(STOPS[Number(e.target.value)].at)}

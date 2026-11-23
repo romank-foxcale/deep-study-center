@@ -87,15 +87,6 @@ def test_activity_heartbeats_show_as_actual_time(env):
     assert p["days"][0]["actualMinutes"] == 2 and p["actualLast7"][-1]["minutes"] == 2
 
 
-def test_share_suggestions_are_learned_and_fact_checked(env):
-    db, jobs, runner_fake = env
-    assert state.share_suggestions(db) == []
-    learn_vectors(db, jobs, runner_fake)
-    assert state.share_suggestions(db) == ["c-vectors"]
-    s = act(db, jobs, type="promoteSuggested")
-    assert [l["key"] for l in s["library"]] == ["vectors"] and s["shareSuggestions"] == []
-
-
 def test_per_goal_hours(env):
     db, jobs, _ = env
     act(db, jobs, type="setPlanSettings", goalId="g-ai", hours=4)

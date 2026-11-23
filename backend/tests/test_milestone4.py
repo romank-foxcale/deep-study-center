@@ -124,27 +124,6 @@ def _research_reusing(call):
         {"key": "ghost", "title": "Missing", "objective": "o", "minutes": 5, "prereq_keys": [], "reuse_key": "nope"}]}
 
 
-def test_promoted_cards_are_reused_by_research(env):
-    db, jobs, runner_fake = env
-    with pytest.raises(actions.ActionError):
-        act(db, jobs, type="promoteCard", conceptId="c-lincomb")  # fact-check pending
-    s = act(db, jobs, type="promoteCard", conceptId="c-vectors")
-    assert s["library"][0]["key"] == "vectors" and s["library"][0]["version"] == 1
-
-    runner_fake.responses["Research"] = _research_reusing
-    runner_fake.responses["Fact-check"] = lambda call: {"results": []}
-    s = act(db, jobs, type="researchModule", moduleId="m-calc")
-    calc = next(m for m in s["modules"] if m["id"] == "m-calc")
-    assert len(calc["conceptIds"]) == 2  # the unknown reuse_key without a card is dropped
-    reused = state.latest_card(db, "m-calc-vec")
-    assert reused["factCheck"] == "passed" and reused["core"] == state.latest_card(db, "c-vectors")["core"]
-    fresh = state.latest_card(db, "m-calc-new")
-    assert "viz" not in fresh["sections"][0] and fresh["sections"][0]["code"]["runtime"] == "pyodide"
-    checked = [c for role, c in runner_fake.calls if role == "Fact-check"]
-    assert len(checked) == 1 and "m-calc-vec" not in checked[0].prompt  # reused cards aren't re-checked
-    assert state.snapshot(db)["library"][0]["uses"] == 1
-
-
 # ---------------------------------------------------------------- search
 
 def test_search_finds_notes_lessons_and_cards(env):
@@ -163,14 +142,3 @@ def test_search_finds_notes_lessons_and_cards(env):
 
 # ---------------------------------------------------------------- Anki
 
-def test_anki_export_contains_learned_concepts_only(env, tmp_path):
-    db, jobs, runner_fake = env
-    learn_vectors(db, jobs, runner_fake)
-    path = library.export_anki(db)
-    with zipfile.ZipFile(path) as z:
-        (tmp_path / "c.db").write_bytes(z.read("collection.anki2"))
-    notes = [r[0] for r in sqlite3.connect(tmp_path / "c.db").execute("SELECT flds FROM notes")]
-    assert len(notes) == 4  # 3 checks + 1 explain-back, all from Vectors
-    assert any("\\(2 \\cdot (1, -3) + (0, 4)\\)" in n for n in notes)  # $math$ converted for Anki
-    assert all("Vectors" in n for n in notes)
-    assert state.snapshot(db)["ankiExport"].endswith("|4")
