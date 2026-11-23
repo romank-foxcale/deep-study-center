@@ -137,15 +137,30 @@ export interface Grading {
   review?: ReasoningReview | null
 }
 
-export interface PracticeChunk { text: string; ts: string; askedHint: boolean; verdict?: string; feedback?: string; hint?: string }
+export interface PracticeChunk {
+  text: string; ts: string; askedHint: boolean; verdict?: string; feedback?: string; hint?: string
+  /** The rung of the hint ladder the hint came from (SPEC §44). */
+  rung?: number | null
+}
 export interface PracticeItem {
   id: number; title: string; prompt: string; level: number; ideas: { id: string; title: string }[]
-  status: 'open' | 'solved' | 'given_up' | 'skipped'; hints: number; score: number | null; chunks: PracticeChunk[]; solution: string | null
+  /** "waiting": written, shown when the learner presses "Next problem" (SPEC §44). */
+  status: 'open' | 'waiting' | 'solved' | 'given_up' | 'skipped'; hints: number; score: number | null; chunks: PracticeChunk[]; solution: string | null
+  mode: 'recall' | 'tell_apart' | 'combine'; retest: boolean
 }
-/** A recall-practice run (SPEC §24). */
+/** A recall-practice run (SPEC §24, §44). */
 export interface PracticeView {
   id: string; title: string; status: 'active' | 'done'; level: number; levelText: string; count: number
   busy: boolean; error: string | null; items: PracticeItem[]; ideas: { id: string; title: string }[]
+  retests: number; rungs: string[]; surface: string; wantNext: boolean
+  focus: Record<string, string[]>; formulas: { name: string; tex: string }[]
+}
+/** What can be practised (SPEC §44). */
+export interface PracticeTargets {
+  books: { id: string; title: string; chapters: { chapter: number; title: string; lessons: {
+    conceptId: string; nodeId: string; title: string; state: string; mastery: number; studied: boolean; parts: string[] }[] }[] }[]
+  fields: { id: string; title: string; formulas: { key: string; name: string; tex: string }[] }[]
+  weakest: { nodeId: string; title: string; state: string; mastery: number; misses: number }[]
 }
 export interface PracticeDue {
   due: { nodeId: string; title: string; state: string; reason: 'due' | 'new'; due: string | null }[]

@@ -86,6 +86,11 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
             raise HTTPException(404, "no such practice")
         return v
 
+    @app.get("/api/practice-targets")
+    def get_practice_targets() -> dict:
+        """What can be practised: books → chapters → lessons → steps, formula fields, the weakest ideas (SPEC §44)."""
+        return practice.targets(db)
+
     @app.get("/api/practice-due")
     def get_practice_due() -> dict:
         return practice.schedule(db)

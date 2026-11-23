@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { jobActive, useStore } from '../store'
 import Markdown from './Markdown'
 import InlineCheck from './InlineCheck'
@@ -45,6 +46,10 @@ export default function StepLesson({ conceptId, sections, steps, onFeedback }: P
         <div className="card steps-done">
           <strong>You finished the lesson.</strong>
           <span className="muted small"> Your answers count as practice for this idea. Open any step again from the plan above.</span>
+          <div className="row" style={{ marginTop: 8 }}>
+            <Link className="btn btn-small btn-primary" to="/practice"
+              state={{ nodeIds: [conceptId], title: sections[sections.length - 1]?.heading }}>Practise this lesson</Link>
+          </div>
         </div>
       )}
     </div>

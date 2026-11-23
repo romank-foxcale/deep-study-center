@@ -33,5 +33,8 @@ Decide `verdict`:
 - "wrong": going in a wrong direction or using a wrong idea.
 
 `feedback`: one or two short sentences to the learner ("you"): what is right so far and, if not solved, where they are. Never give the solution, the final result or the next step's answer.
-`hint`: only when they asked for a hint, or the verdict is "stuck" or "wrong": the smallest nudge that lets them take the next step themselves (a question, a cue, or the name of what to look at; not the step itself). Each later hint may be a little more specific. Leave it empty otherwise.
+`hint`: only when they asked for a hint, or the verdict is "stuck" or "wrong". Hints climb a ladder, from least to most revealing:
+{rungs}
+Find the first point in their thinking that is wrong or missing, and give the hint at rung {rung} for exactly that point: the coarsest help that lets them go on, never more. Revealed help cannot be taken back. If their thinking goes the wrong way, the hint is "check the assumption behind ...", not the correction. If they do not understand what the problem asks, explain the problem fully: that is free and does not climb the ladder. Leave `hint` empty otherwise.
+`rung`: the rung of the hint you gave (0-5).
 Return JSON matching the schema.

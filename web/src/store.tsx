@@ -2,7 +2,7 @@
 // /api/action and return the next snapshot. While agent jobs run, the snapshot is polled.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Angle, BookView, ReasoningEntry, FormulaTreeView, TodayView, FeedbackKind, IdeaDetail, FeedbackRef, GraphView, LessonDiff, LessonPlanView, LessonView, Plan, PracticeDue, PracticeView, RunResult, SearchHit, SessionView, SourceDoc, State, Verdict } from './types'
+import type { Angle, BookView, ReasoningEntry, FormulaTreeView, TodayView, FeedbackKind, IdeaDetail, FeedbackRef, GraphView, LessonDiff, LessonPlanView, LessonView, Plan, PracticeDue, PracticeTargets, PracticeView, RunResult, SearchHit, SessionView, SourceDoc, State, Verdict } from './types'
 
 export type Action =
   | { type: 'answer'; conceptId: string; checkId: string; angle?: Angle; choice?: number; correct?: boolean; thinking?: string; confidence?: number | null }
@@ -35,7 +35,9 @@ export type Action =
   | { type: 'route'; role: string; provider: string; model: string }
   | { type: 'useRecommendedRoutes' }
   | { type: 'explain'; conceptId: string; itemId: string; answer: string; angle?: Angle; confidence?: number | null; drawing?: string }
-  | { type: 'startPractice'; nodeIds?: string[]; own?: string; source?: { id: string; page: number } }
+  | { type: 'startPractice'; nodeIds?: string[]; own?: string; source?: { id: string; page: number }
+      focus?: Record<string, string[]>; formulas?: string[]; count?: number; surface?: string; title?: string }
+  | { type: 'practiceNext'; practiceId: string }
   | { type: 'practiceSubmit'; itemId: number; text: string; hint?: boolean }
   | { type: 'practiceGiveUp'; itemId: number }
   | { type: 'practiceRetry'; practiceId: string }
@@ -157,6 +159,7 @@ export const sourceHref = (url: string) => {
 }
 export const getPractice = (id: string) => api<PracticeView>(`/api/practice/${encodeURIComponent(id)}`)
 export const getPracticeDue = () => api<PracticeDue>('/api/practice-due')
+export const getPracticeTargets = () => api<PracticeTargets>('/api/practice-targets')
 export const getGraph = () => api<GraphView>('/api/graph')
 export const getSession = (id: string) => api<SessionView>(`/api/session/${encodeURIComponent(id)}`)
 export const getBook = (id: string) => api<BookView>(`/api/book/${encodeURIComponent(id)}`)
