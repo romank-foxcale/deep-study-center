@@ -35,6 +35,7 @@ SCHEMA = {"type": "object", "required": ["body", "check", "repair"], "properties
     "viz": viz.SCHEMA,
     "check": _MCQ,
     "repair": {"type": "string"},
+    "demo_brief": {"type": "string"},
     "explain": {"type": "object", "required": ["prompt", "rubric"], "properties": {
         "prompt": {"type": "string"}, "work": {"type": "boolean"},
         "rubric": {"type": "array", "minItems": 1, "items": {"type": "string"}}}}}}
@@ -242,7 +243,14 @@ def run(jobs, jid: int, d: dict) -> dict:
         fields["viz"], fields["vizNotes"] = spec, (notes or None) if spec else None
     else:
         fields["viz"] = fields["vizNotes"] = None
+    # no built-in widget fits: a generated demo (SPEC §45), built in the background and tested before it shows
+    brief = str(out.get("demo_brief") or "").strip()
+    want_demo = bool(brief) and not fields.get("viz") and sec.get("form") in ("interactive", "figure")
+    fields["demo"] = None
     _save_section(db, cid, card["version"], sid, fields)
+    if want_demo:
+        from . import demos
+        demos.request(db, jobs, cid, sid, brief)
     angle = (r or {}).get("section_angles", {}).get(sid) or sec["angles"][0]
     style = (r or {}).get("style") or "default"
     db.x("""INSERT OR REPLACE INTO prose(concept_id, card_version, section_id, angle, style, body, source, created_at)

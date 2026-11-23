@@ -71,6 +71,7 @@ export type Action =
   | { type: 'approveLessonPlan'; conceptId: string }
   | { type: 'predictStep'; conceptId: string; sectionId: string; choice: number; thinking?: string; confidence?: number | null }
   | { type: 'rewriteStep'; conceptId: string; sectionId: string; note?: string }
+  | { type: 'demoResult'; conceptId: string; sectionId: string; version: number; ok: boolean; errors?: string[] }
   | { type: 'makeFormulaPage'; node: string }
   | { type: 'setMapView'; view: import('./types').MapViewId }
   | { type: 'setDictation'; mode?: 'browser' | 'local'; model?: string }

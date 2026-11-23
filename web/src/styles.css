@@ -716,7 +716,7 @@ pre.code-output.bad { color: #f48771; }
 .lp-skip { margin-top: -6px; }
 /* step lessons (SPEC §43) */
 .steps-lesson { display: flex; flex-direction: column; gap: 16px; }
-.steps-bar { position: sticky; top: 0; z-index: 3; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.steps-bar { position: static; z-index: 3; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
 .steps-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; counter-reset: st; }
 .steps-chip { counter-increment: st; font-size: 12px; border: 1px solid var(--border-2); border-radius: 99px; padding: 2px 10px; color: var(--faint); }
 .steps-chip::before { content: counter(st) ". "; }
@@ -733,6 +733,7 @@ pre.code-output.bad { color: #f48771; }
 .check-open:hover { background: var(--accent-soft); }
 .step-repair { border-left: 3px solid var(--warn); background: var(--warn-soft); padding: 6px 12px; border-radius: 0 8px 8px 0; }
 .step-note .input { flex: 1; min-width: 0; }
+@media (min-width: 761px) { .steps-bar { position: sticky; top: 0; } }
 .steps-done { border-color: color-mix(in srgb, var(--ok) 45%, var(--border)); }
 .lp-old .lp-canvas { opacity: .55; }
 .lp-approved { margin: 6px 0 14px; } .lp-approved summary { cursor: pointer; color: var(--muted); }
@@ -1198,3 +1199,10 @@ a.shelf-card:hover { text-decoration: none; border-color: var(--border-2); }
 .hint-ladder { display: flex; gap: 4px; margin-top: 6px; }
 .hint-ladder span { flex: 1; height: 5px; border-radius: 3px; background: var(--border-2); }
 .hint-ladder span.used { background: var(--warn); }
+
+/* generated demos (SPEC §45) */
+.demo { display: flex; flex-direction: column; gap: 6px; }
+.demo-frame { width: 100%; border: 1px solid var(--border-2); border-radius: 10px; background: #0b0f17; display: block; }
+.demo-tester { position: absolute; left: -10000px; top: 0; width: 680px; height: 420px; border: 0; visibility: hidden; }
+.demo-watch { margin: 0; }
+.demo-note { padding: 14px; border-radius: 10px; }

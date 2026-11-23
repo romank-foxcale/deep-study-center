@@ -600,6 +600,17 @@ def predict_step(db: DB, jobs: Jobs, a: dict) -> None:
 
 
 @_step
+def demo_result(db: DB, jobs: Jobs, a: dict) -> None:
+    """The page ran a generated demo hidden and operated it (SPEC §45): it passed, or these errors came up."""
+    from . import demos
+    try:
+        demos.result(db, jobs, str(a.get("conceptId") or ""), str(a.get("sectionId") or ""), int(a.get("version") or 0),
+                     bool(a.get("ok")), [str(e) for e in a.get("errors") or []])
+    except demos.DemoError as e:
+        raise ActionError(str(e)) from e
+
+
+@_step
 def rewrite_step(db: DB, jobs: Jobs, a: dict) -> None:
     from . import lesson_steps
     lesson_steps.rewrite(db, jobs, str(a.get("conceptId") or ""), str(a.get("sectionId") or ""), str(a.get("note") or ""))
@@ -1038,7 +1049,7 @@ ACTIONS = {
     "learnBlocksFirst": learn_blocks_first, "bookRemapChapter": book_remap_chapter, "bookReplan": book_replan,
     "openFormula": open_formula, "makeFormulaPage": make_formula_page, "bookHomework": book_homework,
     "deleteBook": delete_book, "setMapView": set_map_view,
-    "planLesson": plan_lesson, "predictStep": predict_step, "rewriteStep": rewrite_step, "lessonPlanNote": lesson_plan_note, "approveLessonPlan": approve_lesson_plan,
+    "planLesson": plan_lesson, "predictStep": predict_step, "rewriteStep": rewrite_step, "demoResult": demo_result, "lessonPlanNote": lesson_plan_note, "approveLessonPlan": approve_lesson_plan,
     "setDictation": set_dictation, "downloadDictationModel": download_dictation_model,
     "removeDictationModel": remove_dictation_model,
 }
