@@ -1,6 +1,6 @@
 [project]
 name = "deep-study-center"
-version = "0.4.0"
+version = "0.4.1"
 license = {text = "MIT"}  # table form: works with setuptools 68+ (see LICENSE)
 description = "Backend for Deep Study Center: engine, workspace store, agent-CLI providers, API"
 requires-python = ">=3.11"

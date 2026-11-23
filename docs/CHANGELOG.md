@@ -17,6 +17,13 @@ work still open is in [TODO.md](TODO.md).
 - **Formula tree** is a derivation graph with the math in each node, one level at a time, and formula pages on request.
   Formula pages look different and have no quiz.
 
+## 0.4.1 (2026-11-23): the desktop app updates itself
+
+- **Auto-update** (SPEC §39): after the start, the desktop app asks the newest GitHub release for a newer version and
+  offers "Install and restart". Updates are signed; the app installs only an update with a correct signature.
+  `DSC_NO_UPDATE_CHECK=1` turns the check off. Version 0.4.0 has no updater: install 0.4.1 once by hand.
+- Release files: `desktop/release.py` writes `latest.json`; the steps are in [RELEASING.md](RELEASING.md).
+
 ## 0.4.0 (2026-11-23): book study, the first public release
 
 - **Teach me this book** (SPEC §28, §31): a PDF becomes chapters of lessons by topic. Lessons are written from the

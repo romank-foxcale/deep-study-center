@@ -989,6 +989,27 @@ Change log shows text changes only (not graph or question changes).
   for a formula with blocks that have no lesson, "Learn them first". The rest of the tree dims, except the
   selected node's whole subtree. API: `GET /api/formulas` (`formula_lessons.tree`).
 
+## 39. Desktop app updates (2026-11-23)
+
+- **What it is for:** a learner with the installed app gets new versions without a visit to GitHub.
+- **When:** after each start of the installed app (not in a debug build), when the backend answers. One request goes
+  to `https://github.com/romank-foxcale/deep-study-center/releases/latest/download/latest.json` (the Tauri updater
+  plugin). No data about the learner is sent.
+- **The offer:** a native dialog "A new version": the new and the current version, and that the workspace is not
+  changed. "Later" closes it until the next start. "Install and restart" downloads the installer, checks its
+  signature, stops the backend (the installer replaces its files), and runs the installer in passive mode (a progress
+  bar, no questions). The installer opens the new version.
+- **Signing:** the public key is in `tauri.conf.json` (`plugins.updater.pubkey`). The private key stays with the
+  maintainer, outside the repository; a release build reads it from `TAURI_SIGNING_PRIVATE_KEY`. An update with no
+  correct signature is not installed. A lost key means installed apps cannot update again.
+- **Errors:** every step goes to `update.log` in the app's log folder. A failed check is silent (offline is normal);
+  a failed download or install shows a dialog that points to the Releases page.
+- **Switches:** `DSC_NO_UPDATE_CHECK=1` turns the check off; `DSC_UPDATE_URL` replaces the server (for a test).
+- **Release files:** `desktop/release.py` copies the installer under the name GitHub gives it and writes
+  `latest.json` (version, signature, download URL). Steps: `docs/RELEASING.md`. `npm run build:local` builds with no
+  signing key and no update files.
+- 0.4.0 has no updater; its users install 0.4.1 by hand once.
+
 ## 40. Sources, the shelf, and the review fixes (2026-11-23)
 
 What it is for: the learner's review of 0.4 (navigation, the source library, the map, lessons, the formula tree).
@@ -1027,4 +1048,3 @@ What it is for: the learner's review of 0.4 (navigation, the source library, the
   `formula_open`; a formula lesson gets its blocks, a formula with no page gets `formula_parts`). "Make a formula page"
   makes a page for any formula node (placed before the nearest formula page above it; its parts become its blocks).
   Formula and notation pages look different (a tinted background, "Formula page") and have no multiple-choice quiz.
-

@@ -61,6 +61,11 @@ npm run build     # the UI, the bundled backend and the installer
 The installer is `desktop/src-tauri/target/release/bundle/nsis/Deep Study Center_<version>_x64-setup.exe` (per-user,
 no admin rights). It is not code-signed, so Windows SmartScreen warns on the first run. See SPEC §25.
 
+From 0.4.1, the installed app finds new versions itself: after the start it asks the Releases page for a newer
+version and offers "Install and restart". Each update is signed, and the app installs only an update with a correct
+signature (SPEC §39). Set `DSC_NO_UPDATE_CHECK=1` to turn the check off. A build of your own needs no signing key:
+use `npm run build:local`. How to publish a release: [docs/RELEASING.md](docs/RELEASING.md).
+
 ## Model providers
 
 Deep Study Center sends each agent job to a provider. Choose which job goes where in Settings → "Who does what".
@@ -93,6 +98,8 @@ Sent to other services:
   computer (Whisper)" in Settings → Dictation to avoid this.
 - **To jsDelivr (a CDN):** the page loads Pyodide from it the first time you run Python in a lesson.
 - **To Hugging Face:** the one-time download of a dictation model, only when you click "Download".
+- **To GitHub (desktop app only):** one request for `latest.json` of the newest release at each start, to find an
+  update. It sends no data about you or your workspace. `DSC_NO_UPDATE_CHECK=1` turns it off.
 
 ## Daily roadmap (terminal)
 
