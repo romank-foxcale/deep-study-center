@@ -24,3 +24,4 @@ Thumbs.db
 desktop/backend/build/
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
+desktop/release/

@@ -2,6 +2,7 @@
 // Starts the bundled Python backend (`dsc-backend serve`) on a free local port, shows a "starting" page, switches the
 // window to the app when the backend answers, and stops the backend when the app exits. The learner's data stays in
 // the normal workspace (~/DeepStudy, or DSC_WORKSPACE); backend output goes to the app's log folder.
+// Updates (SPEC §39): after the start, the app asks GitHub Releases for a newer signed version and offers to install it.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::fs::{self, File};
@@ -13,6 +14,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use tauri::{Manager, RunEvent, Url};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+use tauri_plugin_updater::UpdaterExt;
 
 struct Backend(Mutex<Option<Child>>);
 
@@ -59,25 +62,9 @@ fn wait_until_listening(port: u16, timeout: Duration) -> bool {
 
 fn show_error(app: &tauri::AppHandle, msg: &str) {
     if let Some(win) = app.get_webview_window("main") {
-        let js = format!("window.showError({})", serde_json_string(msg));
+        let js = format!("window.showError({})", serde_json::Value::from(msg));
         let _ = win.eval(&js);
     }
-}
-
-// A JSON string literal (no serde dependency needed for one string).
-fn serde_json_string(s: &str) -> String {
-    let mut out = String::from("\"");
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-    out
 }
 
 fn stop_backend(app: &tauri::AppHandle) {
@@ -91,8 +78,57 @@ fn stop_backend(app: &tauri::AppHandle) {
     }
 }
 
+// One line in the app's log folder (update.log), so a failed check can be found without a console.
+fn log_update(app: &tauri::AppHandle, msg: &str) {
+    if let Ok(dir) = app.path().app_log_dir() {
+        let _ = fs::create_dir_all(&dir);
+        if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(dir.join("update.log")) {
+            use std::io::Write;
+            let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+            let _ = writeln!(f, "{secs} {msg}");
+        }
+    }
+}
+
+// Ask the update server for a newer version. If there is one, offer it; on "Install", download it, stop the backend
+// (its files are replaced), and run the installer, which closes the app and opens the new version.
+// DSC_UPDATE_URL replaces the server (for a test); DSC_NO_UPDATE_CHECK=1 turns the check off.
+fn check_for_update(app: &tauri::AppHandle) -> Result<(), String> {
+    if std::env::var("DSC_NO_UPDATE_CHECK").map(|v| v == "1").unwrap_or(false) {
+        return Ok(log_update(app, "check turned off (DSC_NO_UPDATE_CHECK=1)"));
+    }
+    let mut builder = app.updater_builder().timeout(Duration::from_secs(30));
+    if let Ok(url) = std::env::var("DSC_UPDATE_URL") {
+        let url = Url::parse(&url).map_err(|e| format!("DSC_UPDATE_URL: {e}"))?;
+        builder = builder.endpoints(vec![url]).map_err(|e| e.to_string())?;
+    }
+    let updater = builder.build().map_err(|e| e.to_string())?;
+    let update = match tauri::async_runtime::block_on(updater.check()).map_err(|e| e.to_string())? {
+        Some(u) => u,
+        None => return Ok(log_update(app, "no newer version")),
+    };
+    log_update(app, &format!("version {} found (this is {})", update.version, update.current_version));
+    let yes = app.dialog()
+        .message(format!("Deep Study Center {} is ready to install. You have {}.\n\nThe app closes, installs the new \
+            version and opens again. Your workspace is not changed. What is new: the Releases page on GitHub.",
+            update.version, update.current_version))
+        .title("A new version")
+        .kind(MessageDialogKind::Info)
+        .buttons(MessageDialogButtons::OkCancelCustom("Install and restart".into(), "Later".into()))
+        .blocking_show();
+    if !yes {
+        return Ok(log_update(app, "the learner chose Later"));
+    }
+    let bytes = tauri::async_runtime::block_on(update.download(|_, _| {}, || {})).map_err(|e| format!("download: {e}"))?;
+    log_update(app, &format!("downloaded {} bytes, signature checked; installing", bytes.len()));
+    stop_backend(app);
+    update.install(bytes).map_err(|e| format!("install: {e}"))  // on Windows this exits the app
+}
+
 fn main() {
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             app.manage(Backend(Mutex::new(None)));
             let handle = app.handle().clone();
@@ -115,6 +151,18 @@ fn main() {
                 }
                 if let (Some(win), Ok(url)) = (handle.get_webview_window("main"), Url::parse(&format!("http://127.0.0.1:{port}/"))) {
                     let _ = win.navigate(url);
+                }
+                if !cfg!(debug_assertions) {
+                    let h = handle.clone();
+                    thread::spawn(move || {
+                        if let Err(e) = check_for_update(&h) {
+                            log_update(&h, &format!("failed: {e}"));
+                            if e.starts_with("download") || e.starts_with("install") {
+                                h.dialog().message(format!("The update could not be installed.\n{e}\n\nDownload it from the Releases page on GitHub."))
+                                    .title("Update failed").kind(MessageDialogKind::Error).blocking_show();
+                            }
+                        }
+                    });
                 }
             });
             Ok(())

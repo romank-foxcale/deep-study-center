@@ -323,7 +323,8 @@ Open, for the user to decide or do:
   public; a rewrite would change every hash and break old pull-request links). Future commits can use the GitHub
   no-reply e-mail.
 - Repository settings: turn on private vulnerability reporting (SECURITY.md points to it), add a description and topics.
-- First release: build the installer and attach it to a GitHub release (unsigned; code signing is a later step).
+- First release: ✅ done 2026-11-23 (v0.4.0, unsigned; code signing is a later step). Auto-update: ✅ done in 0.4.1
+  (SPEC §39, `docs/RELEASING.md`).
 - **Why:** the user wants to publish DSC as open source.
 - **What:**
   1. Choose a license with the user (MIT or Apache-2.0 are common).
