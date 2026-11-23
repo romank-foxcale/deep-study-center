@@ -3,8 +3,12 @@
 The history of Deep Study Center, newest first. The full design and the decisions are in [SPEC.md](SPEC.md); the
 work still open is in [TODO.md](TODO.md).
 
-## Unreleased: the review fixes (SPEC §40)
+## 0.4.1 (2026-11-23): the app updates itself, and the review fixes (SPEC §39, §40)
 
+- **Auto-update** (SPEC §39): after the start, the desktop app asks the newest GitHub release for a newer version and
+  offers "Install and restart". Updates are signed; the app installs only an update with a correct signature.
+  `DSC_NO_UPDATE_CHECK=1` turns the check off. Version 0.4.0 has no updater: install 0.4.1 once by hand.
+- Release files: `desktop/release.py` writes `latest.json`; the steps are in [RELEASING.md](RELEASING.md).
 - **Back** at the top of every page.
 - **Sources:** types (Book, Article, Internet source, Video, Custom), clear status colors, a click opens the source,
   an "Add source" dialog (file or link, name, type, progress, duplicate check by SHA-256), search and type filters.
@@ -16,13 +20,6 @@ work still open is in [TODO.md](TODO.md).
   lesson, with "Re-plan lessons" for books mapped before.
 - **Formula tree** is a derivation graph with the math in each node, one level at a time, and formula pages on request.
   Formula pages look different and have no quiz.
-
-## 0.4.1 (2026-11-23): the desktop app updates itself
-
-- **Auto-update** (SPEC §39): after the start, the desktop app asks the newest GitHub release for a newer version and
-  offers "Install and restart". Updates are signed; the app installs only an update with a correct signature.
-  `DSC_NO_UPDATE_CHECK=1` turns the check off. Version 0.4.0 has no updater: install 0.4.1 once by hand.
-- Release files: `desktop/release.py` writes `latest.json`; the steps are in [RELEASING.md](RELEASING.md).
 
 ## 0.4.0 (2026-11-23): book study, the first public release
 
