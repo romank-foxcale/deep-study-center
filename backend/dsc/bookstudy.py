@@ -170,12 +170,14 @@ def listing(db: DB) -> list[dict]:
         c["known"] += int(bool(s) and s.state in KNOWN)
         c["strong"] += int(bool(s) and s.state == "mastered")
     out = []
-    for b in db.q("SELECT b.*, s.author FROM books b LEFT JOIN sources s ON s.id = b.source_id ORDER BY b.updated_at DESC"):
+    colors = graph.area_colors(db)
+    for b in db.q("SELECT b.*, s.author, s.kind FROM books b LEFT JOIN sources s ON s.id = b.source_id ORDER BY b.updated_at DESC"):
         n = db.one("SELECT COUNT(*) AS n FROM book_chapters WHERE book_id=?", (b["id"],))["n"] or b["chapters"]
         done = sum(1 for ch in _chapter_rows(db, b["id"]) if ch["lessons"] and all(x["state"] in KNOWN for x in ch["lessons"]))
         out.append({"id": b["id"], "sourceId": b["source_id"], "title": b["title"], "author": b["author"] or "",
                     "status": b["status"], "chapters": b["chapters"], "chaptersDone": b["chapters_done"],
                     "parts": n, "partsDone": done, "goalId": b["goal_id"],
+                    "kind": b["kind"] or "book", "color": colors.get(f"book:{b['id']}", 0),
                     **counts.get(b["id"], {"ideas": 0, "known": 0, "strong": 0}), "updatedAt": b["updated_at"]})
     return out
 
@@ -272,6 +274,7 @@ def view(db: DB, bid: str) -> dict | None:
     nxt = (next((x for x in todo if x["started"] and x["ready"]), None) or next((x for x in todo if x["ready"]), None)
            or next((x for x in todo if x["started"]), None) or (todo[0] if todo else None))
     return {"id": b["id"], "sourceId": b["source_id"], "title": b["title"], "status": b["status"], "goalId": b["goal_id"],
+            "oldPlan": b["status"] == "ready" and (b["plan"] or 1) < PLAN,
             "version": b["version"], "chapters": chapters, "chapterCount": b["chapters"], "chaptersDone": b["chapters_done"],
             "next": nxt["conceptId"] if nxt else None,
             "error": running["error"] if running and running["status"] == "failed" else None,
@@ -344,6 +347,9 @@ def retry(db: DB, jobs: Jobs, bid: str) -> None:
         jobs.enqueue("book_map", f"Map the book: {b['title'][:60]}", {"book_id": bid})
 
 
+PLAN = 2  # the lesson plan rule: 1 = by topic (before 0.5), 2 = one idea per lesson, built on what the learner knows
+
+
 def remap_chapter(db: DB, jobs: Jobs, bid: str, chapter: int, as_lessons: bool = False) -> None:
     """Cut one chapter into lessons again: its lessons and their written text go, the map job maps it anew. What the
     learner did stays: answers, notes and feedback are kept by lesson id, and a new lesson with the same key gets them
@@ -354,6 +360,28 @@ def remap_chapter(db: DB, jobs: Jobs, bid: str, chapter: int, as_lessons: bool =
         raise BookError("unknown chapter")
     if jobs.active("book_map", book_id=bid) or jobs.active("research_module", module_id=ch["module_id"]):
         raise BookError("this book is being mapped or written right now; try again when it is done")
+    _reset_chapter(db, bid, ch, as_lessons)
+    jobs.enqueue("book_map", f"Map again: {ch['title'][:60]}", {"book_id": bid})
+
+
+def replan(db: DB, jobs: Jobs, bid: str) -> None:
+    """Plan the whole book's lessons again with the current rule (one idea per lesson, SPEC §40). Like "Map again" for
+    every chapter: what the learner did is kept by lesson id, and the ideas they learned stay on the map."""
+    b = get(db, bid)
+    if not b:
+        raise BookError("unknown book")
+    if b["status"] == "mapping" or jobs.active("book_map", book_id=bid) or any(
+            jobs.active("research_module", module_id=ch["module_id"])
+            for ch in db.q("SELECT module_id FROM book_chapters WHERE book_id=?", (bid,))):
+        raise BookError("this book is being mapped or written right now; try again when it is done")
+    for ch in db.q("SELECT * FROM book_chapters WHERE book_id=? AND kind != 'reference' ORDER BY chapter", (bid,)):
+        _reset_chapter(db, bid, ch, False)
+    db.x("UPDATE books SET chapters_done=(SELECT COUNT(*) FROM book_chapters WHERE book_id=? AND mapped=1) WHERE id=?", (bid, bid))
+    jobs.enqueue("book_map", f"Plan the lessons again: {b['title'][:60]}", {"book_id": bid})
+
+
+def _reset_chapter(db: DB, bid: str, ch: dict, as_lessons: bool) -> None:
+    chapter = ch["chapter"]
     cids = [r["concept_id"] for r in db.q("SELECT concept_id FROM book_parts WHERE book_id=? AND chapter=? AND concept_id IS NOT NULL",
                                           (bid, chapter))]
     made = [r["node_id"] for r in db.q("""SELECT bn.node_id FROM book_nodes bn JOIN book_parts p ON p.id = bn.part_id
@@ -373,7 +401,6 @@ def remap_chapter(db: DB, jobs: Jobs, bid: str, chapter: int, as_lessons: bool =
         db.conn.execute("UPDATE books SET status='mapping', updated_at=? WHERE id=?", (now(), bid))
         _drop_unused(db, made)
     graph.prune(db)
-    jobs.enqueue("book_map", f"Map again: {ch['title'][:60]}", {"book_id": bid})
 
 
 def homework(db: DB, jobs: Jobs, bid: str, chapter: int) -> str:
@@ -466,7 +493,7 @@ def run_map(jobs: Jobs, jid: int, d: dict) -> dict:
     except Exception:
         db.x("UPDATE books SET status='failed', updated_at=? WHERE id=?", (now(), b["id"]))
         raise
-    db.x("UPDATE books SET status='ready', updated_at=? WHERE id=?", (now(), b["id"]))
+    db.x("UPDATE books SET status='ready', plan=?, updated_at=? WHERE id=?", (PLAN, now(), b["id"]))
     n = db.one("SELECT COUNT(*) AS n FROM book_parts WHERE book_id=? AND concept_id IS NOT NULL", (b["id"],))["n"]
     jobs.progress(jid, f"mapped {len(chapters)} chapter(s), {n} lessons")
     return {"chapters": len(chapters), "lessons": n}

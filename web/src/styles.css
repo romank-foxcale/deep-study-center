@@ -986,8 +986,7 @@ a.shelf-card:hover { text-decoration: none; border-color: var(--border-2); }
 .lesson .katex-display[data-fx="orange"] { border-color: color-mix(in srgb, #f08c2e 80%, transparent);
   background: color-mix(in srgb, #f08c2e 6%, transparent); }
 .lesson .katex-display[data-fx="gray"] { border-color: color-mix(in srgb, var(--muted) 45%, transparent); }
-.lesson .katex-display[data-fx="step"] { border: 1px dashed color-mix(in srgb, var(--muted) 22%, transparent); }
-.lesson .katex-display[data-fx="none"] { border: 1px dashed color-mix(in srgb, var(--muted) 15%, transparent); }
+/* a step of a derivation, or no note: no frame (SPEC §40) */
 .formula-own { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding: 6px 8px; border-radius: 8px;
   border-left: 3px solid var(--border); background: color-mix(in srgb, var(--text) 4%, transparent); }
 .fx-own-green { border-left-color: var(--st-learned, #3fb27f); }
@@ -1047,3 +1046,48 @@ a.shelf-card:hover { text-decoration: none; border-color: var(--border-2); }
 .ft-list { list-style: none; padding: 0; margin: 4px 0 10px; display: grid; gap: 4px; }
 .ft-list .link { text-align: left; }
 @media (max-width: 760px) { .ft-layout { flex-direction: column; align-items: stretch; } .ft-panel { width: 100%; position: static; } }
+
+/* ---------- Sources: filter, add dialog, delete (SPEC §40) ---------- */
+.src-filter { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 14px; }
+.src-filter .input[type="search"] { max-width: 520px; }
+.src-sub { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modal .field { display: flex; flex-direction: column; gap: 4px; }
+.warn { color: var(--warn); }
+.upload-progress { position: relative; height: 26px; border-radius: 6px; background: var(--surface-2); overflow: hidden; display: flex; align-items: center; }
+.upload-progress > i { position: absolute; inset: 0 auto 0 0; background: var(--accent-soft, var(--ok-soft)); transition: width .2s; }
+.upload-progress > span { position: relative; padding: 0 10px; }
+.icon-btn { display: inline-grid; place-items: center; width: 28px; height: 28px; flex: none; border-radius: 6px; border: 1px solid transparent;
+  background: transparent; color: var(--muted); cursor: pointer; }
+.icon-btn:hover, .icon-btn:focus-visible { color: var(--bad); border-color: var(--border); background: var(--surface-2); }
+.shelf-side { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.shelf-card .shelf-head > .eyebrow { margin-right: auto; }
+
+/* ---------- Back button at the top of each page (SPEC §40) ---------- */
+.back-btn { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 8px; padding: 4px 10px 4px 6px; font: inherit; font-size: 0.85rem;
+  color: var(--muted); background: transparent; border: 1px solid transparent; border-radius: 99px; cursor: pointer; }
+.back-btn:hover, .back-btn:focus-visible { color: var(--text); border-color: var(--border); background: var(--surface-2); }
+
+/* ---------- Formula and notation pages look different from lessons (SPEC §40) ---------- */
+.lesson.lesson-formula { --fp: color-mix(in srgb, #f08c2e 9%, var(--bg)); background: var(--fp); border: 1px solid color-mix(in srgb, #f08c2e 30%, transparent);
+  border-radius: 16px; }
+.lesson.lesson-formula::before { content: "Formula page"; display: inline-block; font: 600 0.72rem var(--mono, monospace); letter-spacing: .08em;
+  text-transform: uppercase; color: #f08c2e; margin-bottom: 6px; }
+
+/* ---------- The formula derivation graph (SPEC §40) ---------- */
+.ft-world { position: relative; margin: 8px auto; }
+.ft-edges { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.ft-edge { fill: none; stroke: var(--border-2, var(--border)); stroke-width: 1.6; }
+.ft-edge.lit { stroke: color-mix(in srgb, var(--ok) 60%, transparent); }
+.ft-edge.hot { stroke: var(--text); stroke-width: 2.2; }
+.ft-card { position: absolute; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 10px; cursor: pointer;
+  background: var(--surface); border: 1.5px dashed var(--border); overflow: hidden; }
+.ft-card:focus-visible, .ft-card.selected { outline: 2.5px solid var(--text); outline-offset: 1px; }
+.ft-card.ft-known { border: 1.5px solid var(--ok); background: color-mix(in srgb, var(--ok) 8%, var(--surface)); }
+.ft-card.ft-learning { border: 1.5px solid var(--warn); background: color-mix(in srgb, var(--warn) 8%, var(--surface)); }
+.ft-card.ft-writing { border-color: var(--accent); }
+.ft-card.ft-has-page { box-shadow: inset 4px 0 0 #f08c2e; }
+.ft-card-name { font-weight: 600; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ft-card-tex { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 0.95rem; }
+.ft-card-tex .md { max-width: 100%; overflow: hidden; white-space: nowrap; }
+.ft-card-foot { display: flex; justify-content: flex-end; min-height: 18px; }
+.ft-canvas { overflow: auto; }

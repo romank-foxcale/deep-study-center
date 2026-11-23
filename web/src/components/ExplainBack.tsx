@@ -64,7 +64,7 @@ export default function ExplainBack({ item, grading, inProgress, onSubmit, onUnd
           {board
             ? <DrawingBoard onChange={setPng} />
             : <button type="button" className="link small" onClick={() => setBoard(true)}>Use a drawing board for a calculation or a sketch</button>}
-          <ConfidenceSlider value={confidence} onChange={setConfidence} />
+          <ConfidenceSlider value={confidence} onChange={setConfidence} label="How sure are you of your answer?" />
           <button className="btn btn-primary" disabled={!ready}
             onClick={() => { onSubmit(text, confidence, png ?? undefined); setRetry(false); setPng(null) }}>Submit for grading</button>
           {png && !text.trim() && <span className="muted small"> Add a line that says what the board shows.</span>}

@@ -125,22 +125,30 @@ def _resolve(db: DB, ref: object, fid: str) -> tuple[str | None, str | None]:
     return None, None
 
 
-def decompose(jobs: Jobs, jid: int, fid: str) -> int:
-    """Find the building blocks of a formula: the notations it uses and the simpler formulas and ideas it is built
-    from, each matched to a formula lesson or graph idea the learner has, or marked basic. Saved once per formula."""
+def _find_blocks(jobs: Jobs, jid: int, name: str, tex: str, meaning: str, near_concept: str | None, exclude: str) -> list[dict]:
+    """Ask the model what a formula is directly built from (one level down)."""
     from .jobs import prompt
     from .providers import Call
     db = jobs.db
+    st = graph.states(db)
+    near = formulas._ideas(db, near_concept, f"{name} {meaning}") if near_concept else {}
+    ideas = "\n".join(f'- {i}: {t} ({st[i].state if i in st else "new"})' for i, t in near.items() if i != exclude) or "(none)"
+    jobs.progress(jid, f"finding what “{name[:60]}” is built from")
+    out = jobs.call(jid, "Formula notes", Call(
+        prompt=prompt("formula_blocks", title=name, main=tex or name, meaning=meaning,
+                      known=formulas._known_text(db, exclude), ideas=ideas),
+        schema=BLOCKS_SCHEMA, model="sonnet", timeout=300))
+    return (out.get("blocks") or [])[:6]
+
+
+def decompose(jobs: Jobs, jid: int, fid: str) -> int:
+    """Find the building blocks of a formula: the notations it uses and the simpler formulas and ideas it is built
+    from, each matched to a formula lesson or graph idea the learner has, or marked basic. Saved once per formula."""
+    db = jobs.db
     f = db.one("SELECT * FROM formula_lessons WHERE id=?", (fid,))
     main = _main_form(db, f)
-    st = graph.states(db)
-    near = formulas._ideas(db, f["source_concept"], f'{f["name"]} {f["meaning"] or ""}')
-    ideas = "\n".join(f'- {i}: {t} ({st[i].state if i in st else "new"})' for i, t in near.items() if i != fid) or "(none)"
-    jobs.progress(jid, f"finding the building blocks of “{f['name'][:60]}”")
-    out = jobs.call(jid, "Formula notes", Call(
-        prompt=prompt("formula_blocks", title=f["name"], main=main["tex"], meaning=f["meaning"] or "",
-                      known=formulas._known_text(db, fid), ideas=ideas),
-        schema=BLOCKS_SCHEMA, model="sonnet", timeout=300))
+    found = _find_blocks(jobs, jid, f["name"], main["tex"], f["meaning"] or "", f["source_concept"], fid)
+    out = {"blocks": found}
     ts = now()
     with db.tx():
         db.conn.execute("DELETE FROM formula_blocks WHERE formula_id=?", (fid,))
@@ -153,6 +161,77 @@ def decompose(jobs: Jobs, jid: int, fid: str) -> int:
                              int(bool(bl.get("basic")) and not ref and bl.get("kind") != "notation"), ts))  # a notation is never basic
         db.conn.execute("UPDATE formula_lessons SET blocks_at=? WHERE id=?", (ts, fid))
     return len(out.get("blocks") or [])
+
+
+def open_node(jobs: Jobs, jid: int, node: str) -> int:
+    """The derivation graph (SPEC §40): find what a node is built from, one level down. A formula lesson gets its
+    blocks (``decompose``); a formula with no lesson ("block:<name>") gets its parts in ``formula_parts``."""
+    db = jobs.db
+    if db.one("SELECT 1 FROM formula_lessons WHERE id=?", (node,)):
+        return decompose(jobs, jid, node)
+    if not node.startswith("block:"):
+        raise FormulaError("only a formula or a notation can be opened")
+    want = node[len("block:"):]
+    row = next((r for r in db.q("SELECT name, kind, tex, meaning, formula_id AS near FROM formula_blocks")
+                + db.q("SELECT name, kind, tex, meaning, NULL AS near FROM formula_parts") if _norm(r["name"]) == want), None)
+    if not row:
+        raise FormulaError("unknown formula")
+    near = row["near"] and db.one("SELECT source_concept FROM formula_lessons WHERE id=?", (row["near"],))
+    found = _find_blocks(jobs, jid, row["name"], row["tex"], row["meaning"], near["source_concept"] if near else None, "")
+    ts = now()
+    with db.tx():
+        db.conn.execute("DELETE FROM formula_parts WHERE node=?", (node,))
+        for n, bl in enumerate(found):
+            kind = bl.get("kind") if bl.get("kind") in ("notation", "formula", "idea") else "formula"
+            db.conn.execute("""INSERT INTO formula_parts(node, ord, name, kind, tex, meaning, basic, created_at)
+                               VALUES(?,?,?,?,?,?,?,?)""",
+                            (node, n, (bl.get("name") or "")[:120], kind, (bl.get("tex") or "")[:300], (bl.get("meaning") or "")[:400],
+                             int(bool(bl.get("basic")) and kind != "notation"), ts))
+        db.conn.execute("INSERT OR REPLACE INTO formula_opened(node, at) VALUES(?,?)", (node, ts))
+    return len(found)
+
+
+def make_page(db: DB, jobs: Jobs, node: str) -> str:
+    """A formula page for a node of the derivation graph that has none (SPEC §40). It is placed before the nearest
+    formula lesson above it in the graph, and written."""
+    t = tree(db)
+    by = {n["id"]: n for n in t["nodes"]}
+    n = by.get(node)
+    if not n or n["lesson"] or n["kind"] == "idea":
+        raise FormulaError("this node already has a page, or is not a formula")
+    up, seen, anchor = [node], set(), None
+    while up and not anchor:  # breadth first up the graph to a formula lesson
+        cur = up.pop(0)
+        for lk in t["links"]:
+            if lk["src"] == cur and lk["dst"] not in seen:
+                seen.add(lk["dst"])
+                if by[lk["dst"]]["formula"]:
+                    anchor = lk["dst"]
+                    break
+                up.append(lk["dst"])
+    if not anchor:
+        raise FormulaError("no formula lesson above this one")
+    kind = "notation" if n["kind"] == "notation" else "formula"
+    obj = (f"Read the notation {n['name']}: what it means and how to use it" if kind == "notation"
+           else f"Read, use and explain: {n['meaning']}")
+    ts = now()
+    with db.tx():
+        new_id = _insert(db, anchor, "before", n["name"], obj, n["meaning"], [])
+        db.conn.execute("""INSERT INTO formula_lessons(id, name, source_concept, preferred, created_at, meaning, kind)
+                           VALUES(?,?,?,?,?,?,?)""", (new_id, n["name"][:200], anchor, None, ts, n["meaning"], kind))
+        if n["tex"]:
+            db.conn.execute("INSERT OR IGNORE INTO formula_forms(formula_id, key, tex, concept_id, added_at) VALUES(?,?,?,?,?)",
+                            (new_id, formulas.key(n["tex"]), n["tex"], anchor, ts))
+        # what the node was found to be built from becomes the page's blocks
+        for p in db.conn.execute("SELECT * FROM formula_parts WHERE node=? ORDER BY ord", (node,)).fetchall():
+            db.conn.execute("""INSERT INTO formula_blocks(formula_id, ord, name, kind, tex, meaning, ref_kind, ref, basic, created_at)
+                               VALUES(?,?,?,?,?,?,NULL,NULL,?,?)""", (new_id, p["ord"], p["name"], p["kind"], p["tex"], p["meaning"], p["basic"], ts))
+        if db.conn.execute("SELECT 1 FROM formula_parts WHERE node=?", (node,)).fetchone():
+            db.conn.execute("UPDATE formula_lessons SET blocks_at=? WHERE id=?", (ts, new_id))
+    graph.sync(db)
+    db.x("INSERT OR IGNORE INTO links(src, dst, why, origin) VALUES(?,?,?,?)", (new_id, anchor, "a building block", "formula"))
+    queue(db, jobs, new_id, "Write a formula page")
+    return new_id
 
 
 def _basic(b: dict) -> bool:
@@ -282,6 +361,33 @@ def tree(db: DB) -> dict:
                             "formula": False, "blocksReady": True, "source": None, "covers": []}
         if nid != b["formula_id"]:
             links.add((nid, b["formula_id"]))
+    # deeper levels of the derivation graph (SPEC §40): parts found for formulas that have no lesson
+    parts = db.q("SELECT * FROM formula_parts ORDER BY created_at, node, ord")
+    for _ in range(12):  # each pass adds one more level
+        added = False
+        for p in parts:
+            if p["node"] not in out or _norm(p["name"]) == p["node"][len("block:"):]:
+                continue
+            key = _norm(p["name"])
+            nid = by_name.get(key) or f"block:{key}"
+            if nid not in out:
+                out[nid] = {"id": nid, "name": p["name"], "kind": p["kind"], "tex": p["tex"], "meaning": p["meaning"],
+                            "state": "known" if p["basic"] else "new", "lesson": None, "basic": bool(p["basic"]),
+                            "formula": False, "blocksReady": True, "source": None, "covers": []}
+                added = True
+            if nid != p["node"] and (nid, p["node"]) not in links:
+                links.add((nid, p["node"]))
+                added = True
+        if not added:
+            break
+    opened = {r["node"] for r in db.q("SELECT node FROM formula_opened")}
+    opening = {loads(j["input"]).get("node") for j in db.q(
+        "SELECT input FROM jobs WHERE kind='formula_open' AND status IN ('queued','running')")}
+    has_parts = {d for _, d in links}
+    for n in out.values():
+        n["opening"] = n["id"] in opening
+        n["openable"] = (n["kind"] != "idea" and not n["basic"] and n["id"] not in has_parts
+                         and not (n["formula"] and n["blocksReady"]) and n["id"] not in opened)
     return {"nodes": list(out.values()), "links": [{"src": s, "dst": d} for s, d in sorted(links)]}
 
 

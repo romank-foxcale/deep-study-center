@@ -334,3 +334,33 @@ def test_next_is_a_lesson_whose_parts_you_hold(book):
     assert ls["Softmax"]["ready"] and not ls["Attention"]["ready"]
     assert {n["title"] for n in ls["Attention"]["needs"]} >= {"Softmax"}
     assert bookstudy.view(db, bid)["next"] == ls["Softmax"]["conceptId"]
+
+
+def test_an_old_book_is_planned_again_with_one_idea_per_lesson(book):
+    """SPEC §40: a book mapped by topic (plan 1) offers "Re-plan lessons"; it maps every chapter again and keeps
+    what the learner did."""
+    db, jobs, runner = book
+    bid = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]["id"]
+    assert not bookstudy.view(db, bid)["oldPlan"] and "**One lesson is one idea.**" in map_reply.prompts[0]
+    db.x("UPDATE books SET plan=1 WHERE id=?", (bid,))
+    assert bookstudy.view(db, bid)["oldPlan"]
+    att = lessons(db, bid)["Attention"]
+    db.x("""INSERT INTO evidence(ts, concept_id, item_id, kind, correct, score) VALUES('2026-01-01', ?, 'x', 'check', 1, 1.0)""",
+         (att["conceptId"],))
+    calls = len(map_reply.prompts)
+    act(db, jobs, type="bookReplan", bookId=bid)
+    assert len(map_reply.prompts) == calls + 3  # every chapter again
+    v = bookstudy.view(db, bid)
+    assert v["status"] == "ready" and not v["oldPlan"] and len(lessons(db, bid)) == 5
+    assert lessons(db, bid)["Attention"]["conceptId"] == att["conceptId"]
+    assert db.one("SELECT 1 FROM evidence WHERE concept_id=?", (att["conceptId"],))
+
+
+def test_a_book_card_and_its_map_area_have_one_color(book):
+    from dsc import graph
+    db, jobs, runner = book
+    s = act(db, jobs, type="studyBook", sourceId="src-1")
+    b = s["studyBooks"][0]
+    clusters = {c["id"]: c for c in graph.view(db)["clusters"]}
+    assert clusters[f"book:{b['id']}"]["color"] == b["color"] == 0 and b["kind"] == "book"
+    assert next(x for x in s["sources"] if x["id"] == "src-1")["mapped"]

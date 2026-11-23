@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from . import books, bookstudy, dictation, engine, guidelines, lesson, library, practice, probe, progress, reasoning, remedial, session, sources, state, versions, writer
+from . import bookstudy, dictation, engine, guidelines, lesson, practice, probe, progress, reasoning, remedial, session, sources, state, versions, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now
 from .jobs import Jobs
@@ -442,28 +442,12 @@ def research_module(db: DB, jobs: Jobs, a: dict) -> None:
 def create_goal(db: DB, jobs: Jobs, a: dict) -> None:
     answers = [{"q": str(x.get("q", "")), "a": str(x.get("a", ""))} for x in (a.get("answers") or [])]
     layout = "list" if a.get("layout") == "list" else "ohtani"
-    if a.get("kind") == "book":  # the 80/20 core of the chosen sources: the sources are the goal (SPEC §18)
-        try:
-            ids = [s["id"] for s in books.ready_sources(db, a.get("sourceIds") or [])]
-        except ValueError as e:
-            raise ActionError(str(e)) from e
-        jobs.enqueue("outline", "Find the core of your sources" + (" (Ohtani table)" if layout == "ohtani" else ""),
-                     {"answers": answers, "layout": layout, "source_ids": ids, "kind": "book"})
-        return
     if not answers or not answers[0]["a"].strip():
         raise ActionError("the goal is required")
     known = {r["id"] for r in db.q("SELECT id FROM sources")}
     ids = [s for s in (a.get("sourceIds") or []) if s in known]
     jobs.enqueue("outline", "Build Ohtani table" if layout == "ohtani" else "Build roadmap",
                  {"answers": answers, "layout": layout, "source_ids": ids})
-
-
-def restore_cut(db: DB, jobs: Jobs, a: dict) -> None:
-    """Bring a chapter the 80/20 cut left out back into the book goal's roadmap."""
-    try:
-        books.restore(db, jobs, int(a["id"]))
-    except (ValueError, KeyError, TypeError) as e:
-        raise ActionError(str(e)) from e
 
 
 # ---------------------------------------------------------------- the learner's own sources (PDF)
@@ -590,6 +574,28 @@ def book_remap_chapter(db: DB, jobs: Jobs, a: dict) -> None:
     bookstudy.remap_chapter(db, jobs, str(a["bookId"]), int(a["chapter"]), bool(a.get("asLessons")))
 
 
+def open_formula(db: DB, jobs: Jobs, a: dict) -> None:
+    """The derivation graph: find what this formula is built from, one level down (SPEC §40)."""
+    node = str(a.get("node") or "")
+    if not node or not (node.startswith("block:") or db.one("SELECT 1 FROM formula_lessons WHERE id=?", (node,))):
+        raise ActionError("unknown formula")
+    if not jobs.active("formula_open", node=node):
+        jobs.enqueue("formula_open", "Find what a formula is built from", {"node": node})
+
+
+def make_formula_page(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import formula_lessons
+    try:
+        formula_lessons.make_page(db, jobs, str(a.get("node") or ""))
+    except formula_lessons.FormulaError as e:
+        raise ActionError(str(e)) from e
+
+
+@_book
+def book_replan(db: DB, jobs: Jobs, a: dict) -> None:
+    bookstudy.replan(db, jobs, str(a["bookId"]))
+
+
 @_book
 def book_homework(db: DB, jobs: Jobs, a: dict) -> None:
     db.set_meta("last_practice", bookstudy.homework(db, jobs, str(a["bookId"]), int(a["chapter"])))
@@ -600,7 +606,7 @@ def delete_book(db: DB, jobs: Jobs, a: dict) -> None:
     bookstudy.delete(db, str(a["bookId"]))
 
 
-MAP_VIEWS = ("tree", "graph", "nebula", "wheel", "cells", "territory", "globe")
+MAP_VIEWS = ("tree", "wheel", "cells", "territory")  # graph, nebula and globe were removed in 0.5
 
 
 def set_map_view(db: DB, jobs: Jobs, a: dict) -> None:
@@ -698,7 +704,6 @@ def reset_probe(db: DB, jobs: Jobs, a: dict) -> None:
 
 def dismiss_probe(db: DB, jobs: Jobs, a: dict) -> None:
     db.set_meta(f"probe_dismissed:{state.active_goal(db)}", "1")
-
 
 
 # ---------------------------------------------------------------- reflection
@@ -819,13 +824,6 @@ def set_setting(db: DB, jobs: Jobs, a: dict) -> None:
     progress.research_ahead(db, jobs)
 
 
-def promote_card(db: DB, jobs: Jobs, a: dict) -> None:
-    try:
-        library.promote(db, a["conceptId"])
-    except ValueError as e:
-        raise ActionError(str(e)) from e
-
-
 def setup_runner(db: DB, jobs: Jobs, a: dict) -> None:
     if not jobs.active("runner_setup"):
         jobs.enqueue("runner_setup", "Set up local Python (numpy, torch)", {})
@@ -918,11 +916,6 @@ def backup_now(db: DB, jobs: Jobs, a: dict) -> None:
     backup.backup_now(db)
 
 
-def promote_suggested(db: DB, jobs: Jobs, a: dict) -> None:
-    for cid in state.share_suggestions(db):
-        library.promote(db, cid)
-
-
 def set_runner_mode(db: DB, jobs: Jobs, a: dict) -> None:
     from . import runner
     if a["mode"] not in ("local", "docker"):
@@ -951,10 +944,10 @@ ACTIONS = {
     "startPractice": start_practice, "practiceSubmit": practice_submit, "practiceGiveUp": practice_give_up,
     "practiceRetry": practice_retry, "practiceStop": practice_stop,
     "reflect": reflect, "decideProposal": decide_proposal, "setSetting": set_setting,
-    "promoteCard": promote_card, "setupRunner": setup_runner,
+    "setupRunner": setup_runner,
     "refreshCard": refresh_card, "decideCardProposal": decide_card_proposal, "setPlanSettings": set_plan_settings,
     "undoAnswer": undo_answer, "loadDemo": load_demo, "deleteGoal": delete_goal, "backupNow": backup_now,
-    "promoteSuggested": promote_suggested, "setRunnerMode": set_runner_mode, "setupRunnerDocker": setup_runner_docker, "feedback": feedback, "explainDifferently": explain_differently,
+    "setRunnerMode": set_runner_mode, "setupRunnerDocker": setup_runner_docker, "feedback": feedback, "explainDifferently": explain_differently,
     "editFeedback": edit_feedback, "deleteFeedback": delete_feedback, "applyFeedback": apply_feedback,
     "revertLesson": revert_lesson, "addRemedial": add_remedial, "dismissRemedial": dismiss_remedial,
     "editGuidelines": edit_guidelines, "distillGuidelines": distill_guidelines, "refresh": refresh, "markStudied": mark_studied, "addNote": add_note, "deleteNote": delete_note,
@@ -962,10 +955,10 @@ ACTIONS = {
     "setGoal": set_goal, "correctEntry": correct_entry, "adjust": adjust, "route": route, "useRecommendedRoutes": use_recommended_routes,
     "setApiKey": set_api_key, "clearApiKey": clear_api_key, "useApiForAll": use_api_for_all,
     "linkSource": link_source, "editSource": edit_source, "deleteSource": delete_source, "rereadSource": reread_source, "reset": reset,
-    "restoreCut": restore_cut,
     "studyBook": study_book, "bookRetry": book_retry, "bookOpenLesson": book_open_lesson, "reviewReasoning": review_reasoning,
     "makeFormulaLesson": make_formula_lesson, "addFormulaForm": add_formula_form, "preferFormulaForm": prefer_formula_form,
-    "learnBlocksFirst": learn_blocks_first, "bookRemapChapter": book_remap_chapter, "bookHomework": book_homework,
+    "learnBlocksFirst": learn_blocks_first, "bookRemapChapter": book_remap_chapter, "bookReplan": book_replan,
+    "openFormula": open_formula, "makeFormulaPage": make_formula_page, "bookHomework": book_homework,
     "deleteBook": delete_book, "setMapView": set_map_view,
     "setDictation": set_dictation, "downloadDictationModel": download_dictation_model,
     "removeDictationModel": remove_dictation_model,

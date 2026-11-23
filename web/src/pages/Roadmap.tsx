@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../store'
 import StateBadge, { MasteryBar } from '../components/StateBadge'
-import BookCuts from '../components/BookCuts'
 import OhtaniGrid, { useStepProgress, type GridPick, type StepProgress } from '../components/OhtaniGrid'
 
 const OP_LABEL = { insert: 'Insert', compress: 'Compress', deepen: 'Deepen' }
@@ -30,7 +29,6 @@ export default function Roadmap() {
         ? <p className="lead">{s.goal.title}. Your Ohtani table: 8 areas of 8 steps around the goal, and 8 merge steps that join
             neighbouring areas. A cell fills as you pass its lessons' checks.</p>
         : <p className="lead">{s.goal.title}. Tracks → modules → concepts. It changes as you learn, but only with your approval.</p>}
-      {s.goal.kind === 'book' && <BookCuts />}
 
       {s.goal.layout === 'ohtani' && (
         <section className="og-wrap">

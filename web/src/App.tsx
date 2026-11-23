@@ -5,7 +5,6 @@ import Home from './pages/Home'
 import Today from './pages/Today'
 import Books from './pages/Books'
 import GoalSetup from './pages/GoalSetup'
-import BookGoal from './pages/BookGoal'
 import Roadmap from './pages/Roadmap'
 import Lesson from './pages/Lesson'
 import Me from './pages/Me'
@@ -37,12 +36,11 @@ const Icon = ({ name }: { name: string }) => (
     <path d={ICON[name]} />
   </svg>
 )
-/** The main flow (SPEC §30): five entries. Big goals are on hold, in their own group. */
+/** The main flow (SPEC §30): four entries. Big goals and Practice are on hold, in their own group (SPEC §40). */
 const NAV = [
   { to: '/', label: 'Today', icon: 'today', end: true },
   { to: '/books', label: 'Books', icon: 'books' },
   { to: '/study', label: 'Learn', icon: 'learn' },
-  { to: '/practice', label: 'Practice', icon: 'practice' },
   { to: '/map', label: 'Map', icon: 'map' },
 ]
 const GOALS = [
@@ -52,7 +50,34 @@ const GOALS = [
   { to: '/review', label: 'Reviews' },
   { to: '/goal/new', label: '+ New goal' },
 ]
-const GOAL_PATHS = ['/goal', '/roadmap', '/week', '/review', '/lesson', '/probe', '/placement']
+const GOAL_PATHS = ['/goal', '/roadmap', '/week', '/review', '/probe', '/placement', '/practice']
+
+/** Where "Back" goes when there is no earlier page in this tab (a page opened from a link or after a reload). */
+function parentOf(path: string): string | null {
+  const m = /^\/book\/([^/]+)\/chapter\/[^/]+$/.exec(path)
+  if (m) return `/book/${m[1]}`
+  if (path.startsWith('/book/')) return '/books'
+  if (path.startsWith('/study/')) return '/study'
+  if (path.startsWith('/practice/')) return '/practice'
+  if (path === '/formulas') return '/map'
+  if (path.startsWith('/lesson/')) return '/books'
+  return path === '/' ? null : '/'
+}
+
+/** "Back" at the top of every page but Today (SPEC §40): the previous page in this tab, else the page above this one. */
+function BackButton() {
+  const { pathname, key } = useLocation()
+  const navigate = useNavigate()
+  const parent = parentOf(pathname)
+  if (pathname === '/') return null
+  const hasHistory = key !== 'default' && window.history.length > 1
+  return (
+    <button className="back-btn" onClick={() => (hasHistory ? navigate(-1) : parent && navigate(parent))} title="Back (Alt+Left)">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M15 6l-6 6 6 6" /></svg>
+      Back
+    </button>
+  )
+}
 
 export default function App() {
   const { s, dispatch, error, clearError } = useStore()
@@ -77,12 +102,11 @@ export default function App() {
           {NAV.map(n => (
             <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `nav-link${isActive || (n.to === '/books' && pathname.startsWith('/book')) ? ' active' : ''}`}>
               <Icon name={n.icon} /><span>{n.label}</span>
-              {n.to === '/practice' && s.practiceDue > 0 && <span className="nav-badge">{s.practiceDue}</span>}
             </NavLink>
           ))}
         </div>
         <details className="nav-group" open={GOAL_PATHS.some(p => pathname.startsWith(p)) || undefined}>
-          <summary>Goals (on hold)</summary>
+          <summary>On hold: goals, practice</summary>
           {s.goals.length > 1 && (
             <select className="input input-small sidebar-goal-select" value={s.goal?.id ?? ''} aria-label="Active goal"
               onChange={e => dispatch({ type: 'setGoal', id: e.target.value })}>
@@ -96,23 +120,25 @@ export default function App() {
               {n.to === '/review' && due > 0 && <span className="nav-badge">{due}</span>}
             </NavLink>
           ))}
+          <NavLink to="/practice" className="nav-link nav-sub"><span>Practice</span>
+            {s.practiceDue > 0 && <span className="nav-badge">{s.practiceDue}</span>}</NavLink>
         </details>
         <div className="sidebar-foot">
           {running > 0 && <span className="muted small">{running} agent job{running > 1 ? 's' : ''} running…</span>}
-          <NavLink to="/library" className="nav-link nav-sub"><span>Source library</span>
+          <NavLink to="/library" className="nav-link nav-sub"><span>Sources</span>
             {s.cardProposals.length > 0 && <span className="nav-badge">{s.cardProposals.length}</span>}</NavLink>
           <NavLink to="/me" className="nav-link"><Icon name="me" /><span>Me</span></NavLink>
           <NavLink to="/settings" className="nav-link"><Icon name="settings" /><span>Settings</span></NavLink>
         </div>
       </nav>
       <main className="main">
+        <BackButton />
         {error && <div className="banner banner-bad app-error"><span>{error}</span><button className="btn btn-small" onClick={clearError}>Dismiss</button></div>}
         <Routes>
           <Route path="/" element={<Today />} />
           <Route path="/books" element={<Books />} />
           <Route path="/goal" element={<Home />} />
           <Route path="/goal/new" element={<GoalSetup />} />
-          <Route path="/goal/book" element={<BookGoal />} />
           <Route path="/roadmap" element={<Roadmap />} />
           <Route path="/review" element={<Review />} />
           <Route path="/probe" element={<Probe />} />

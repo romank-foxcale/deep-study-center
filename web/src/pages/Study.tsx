@@ -110,7 +110,7 @@ function StudyBookCard() {
         <p className="small muted">Pick one of your PDFs. DSC reads it chapter by chapter, maps its ideas into your knowledge graph
           (joined to what you already know), and cuts it into lessons by topic that follow the book's own pages.</p>
         {ready.length === 0
-          ? <p className="small">Add a PDF in the <Link to="/library">Source library</Link> first.</p>
+          ? <p className="small">Add a PDF in the <Link to="/library">Sources</Link> first.</p>
           : <div className="row">
               <select className="input" value={pick} onChange={e => setPick(e.target.value)} aria-label="Book">
                 <option value="">Choose a book…</option>

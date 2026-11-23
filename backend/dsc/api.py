@@ -24,6 +24,7 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
     if not db.one("SELECT 1 FROM routes LIMIT 1"):
         init_empty(db)  # first run: the learner chooses their own goal or the demo
     ensure_routes(db)
+    sources.upgrade(db)
     jobs = jobs or Jobs(db)
     app = FastAPI(title="Deep Study Center")
     app.state.db, app.state.jobs = db, jobs
@@ -175,16 +176,29 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
         return library.search(db, q)
 
     @app.post("/api/sources")
-    async def upload_source(request: Request, filename: str = "source.pdf", kind: str = "book") -> dict:
-        """Upload a PDF (the raw file as the body). Its text is read by a background job."""
+    async def upload_source(request: Request, filename: str = "source.pdf", kind: str = "book", title: str = "") -> dict:
+        """Upload a PDF (the raw file as the body). Its text is read by a background job. The same file twice: 409."""
         data = await request.body()
         try:
-            sid = sources.add(db, data, filename, kind)
+            sid = sources.add(db, data, filename, kind, title)
+        except sources.Duplicate as e:
+            raise HTTPException(409, str(e)) from e
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         if request.query_params.get("link") == "1" and state.active_goal(db):
             sources.link(db, state.active_goal(db), sid, True)
         jobs.enqueue("ingest_source", f"Read {filename}", {"source_id": sid})
+        return state.snapshot(db)
+
+    @app.post("/api/sources/link")
+    def add_link_source(body: dict) -> dict:
+        """A link source (web page or video): kept and opened, not read. The same link twice: 409."""
+        try:
+            sources.add_link(db, str(body.get("url") or ""), str(body.get("title") or ""), str(body.get("kind") or ""))
+        except sources.Duplicate as e:
+            raise HTTPException(409, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
         return state.snapshot(db)
 
     @app.post("/api/transcribe")
@@ -203,11 +217,6 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
             raise HTTPException(404, "no such source")
         return FileResponse(sources.file_path(sid), media_type="application/pdf",
                             headers={"Content-Disposition": "inline"})
-
-    @app.get("/api/export/anki")
-    def anki() -> FileResponse:
-        path = library.export_anki(db)
-        return FileResponse(path, filename=path.name, media_type="application/octet-stream")
 
     @app.get("/api/providers")
     def get_providers() -> list[dict]:

@@ -25,12 +25,13 @@ Write:
 - `lessons`: the chapter cut **by topic**, in the order the book teaches them.
   - If the chapter is reference material that is looked up rather than studied (a glossary, a list of terms, a reading
     list, an index), return the summary and an empty `lessons` list.
-  - One lesson is one topic a learner can study in about 10-20 minutes and then check: one mechanism, one method, one formula and its use, one model. A long book section can become several lessons; two short sections about one topic become one lesson. Leave out what has nothing to learn (an introduction that only lists what comes, exercises lists, an author note), but keep a lesson for each real topic: the learner wants to read the whole book through these lessons.
+  - **One lesson is one idea.** Each lesson has one main idea and one purpose: one mechanism, one method, one formula and its use, one model. Every explanation, formula and example in the lesson serves that one idea, so the learner comes to understand it step by step. A book section with two or three ideas becomes two or three lessons; two short sections about one idea become one lesson. A lesson takes about 10-20 minutes and can then be checked. Leave out what has nothing to learn (an introduction that only lists what comes, exercises lists, an author note), but keep a lesson for each real idea: the learner wants to read the whole book through these lessons.
+  - **Build on what the learner knows.** Order the lessons so that each one needs only lessons before it, and ideas already in the learner's graph. Name in `prereq_keys` what each lesson starts from. A lesson that needs an idea that is neither in this book before it nor in the graph starts from that idea's simplest form, in `covers`.
   - `key`: short, unique in this chapter, lowercase with dashes (for example `kv-cache`).
-  - `title`: the name a reader would search for (2-6 words), not "Section 3.2".
-  - `covers`: one or two sentences: what the lesson teaches, in the book's terms. Use `$...$` for math.
+  - `title`: the name of the lesson's one idea, as a reader would search for it (2-6 words), not "Section 3.2".
+  - `covers`: one or two sentences: the one idea, and what the lesson starts from. In the book's terms. Use `$...$` for math.
   - `pages`: the pages the lesson follows ("52" or "52-57"), inside the chapter's pages.
-  - `ideas`: 2-6 short phrases: the key ideas, formulas or terms the lesson must make clear, in the book's order.
+  - `ideas`: 2-6 short phrases: the parts of the one idea (terms, formulas, steps) the lesson must make clear, in the book's order.
   - `prereq_keys`: what the lesson builds on: keys of earlier lessons in this chapter, ids of lessons from earlier chapters (listed above), or ids of graph ideas listed above. Only real dependencies: what the reader must already understand.
   - `same_as`: when the lesson teaches the same topic as an idea in the graph list above (another book's lesson, a goal lesson), even if this book explains it a bit differently or writes it in other notation, set that id. Knowledge builds up in blocks: the topic is then ONE shared block, the learner's progress on it is shared, and this book's explanation becomes another version of it (backpropagation taught by five books is one block, not five). Leave it out for a related but different topic, or when this book goes clearly deeper (then use `prereq_keys` to build on it).
 

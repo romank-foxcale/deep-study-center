@@ -57,8 +57,10 @@ def test_the_mock_never_writes_into_a_real_workspace(tmp_path):
 def test_the_map_view_is_saved(env):
     db, jobs, _ = env
     assert state.snapshot(db)["mapView"] == "territory"  # the default (SPEC §30)
-    actions.dispatch(db, jobs, {"type": "setMapView", "view": "globe"})
-    assert state.snapshot(db)["mapView"] == "globe"
+    actions.dispatch(db, jobs, {"type": "setMapView", "view": "cells"})
+    assert state.snapshot(db)["mapView"] == "cells"
+    db.set_meta("map_view", "globe")  # a view removed in 0.5
+    assert state.snapshot(db)["mapView"] == "territory"
     with pytest.raises(actions.ActionError):
         actions.dispatch(db, jobs, {"type": "setMapView", "view": "spiral"})
 

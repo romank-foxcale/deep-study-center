@@ -91,6 +91,17 @@ export default function Book() {
             : <button className="link small" onClick={() => setConfirm(true)}>Remove</button>}
         </div>
       </div>
+      {v.oldPlan && !v.busy && (
+        <div className="card card-warn row row-between">
+          <span className="small">These lessons were planned by topic. Plan them again with one idea per lesson, each built on
+            what you already know? What you answered and learned stays.</span>
+          <button className="btn btn-small btn-primary" onClick={() => {
+            if (window.confirm('Plan all lessons of this book again? The saved lesson texts are written again when you open them.')) {
+              dispatch({ type: 'bookReplan', bookId: v.id })
+            }
+          }}>Re-plan lessons</button>
+        </div>
+      )}
       <div className="row small muted book-stats">
         <span><b className="text">{known}</b> of {all.length} lessons known</span>
         <span className="row-tight"><i className="state-dot state-mastered" /> <b className="text">{count('mastered')}</b> strong</span>

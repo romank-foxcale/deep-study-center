@@ -25,7 +25,6 @@ export type Action =
   | { type: 'decideDiff'; id: number; approve: boolean }
   | { type: 'researchModule'; moduleId: string }
   | { type: 'createGoal'; answers: { q: string; a: string }[]; layout: 'ohtani' | 'list'; sourceIds?: string[]; kind?: 'goal' | 'book' }
-  | { type: 'restoreCut'; id: number }
   | { type: 'linkSource'; sourceId: string; goalId?: string; on: boolean }
   | { type: 'editSource'; id: string; title?: string; kind?: SourceDoc['kind'] }
   | { type: 'deleteSource'; id: string }
@@ -63,6 +62,9 @@ export type Action =
   | { type: 'bookRemapChapter'; bookId: string; chapter: number; asLessons?: boolean }
   | { type: 'bookHomework'; bookId: string; chapter: number }
   | { type: 'deleteBook'; bookId: string }
+  | { type: 'bookReplan'; bookId: string }
+  | { type: 'openFormula'; node: string }
+  | { type: 'makeFormulaPage'; node: string }
   | { type: 'setMapView'; view: import('./types').MapViewId }
   | { type: 'setDictation'; mode?: 'browser' | 'local'; model?: string }
   | { type: 'downloadDictationModel'; model: string }
@@ -81,13 +83,11 @@ export type Action =
   | { type: 'refreshCard'; conceptId: string }
   | { type: 'decideCardProposal'; id: number; approve: boolean }
   | { type: 'setPlanSettings'; weeklyHours?: number; studyDays?: number[]; startTime?: string; goalId?: string; hours?: number }
-  | { type: 'promoteCard'; conceptId: string }
   | { type: 'setupRunner' }
   | { type: 'undoAnswer'; conceptId: string; itemId: string }
   | { type: 'loadDemo' }
   | { type: 'deleteGoal'; id: string }
   | { type: 'backupNow' }
-  | { type: 'promoteSuggested' }
   | { type: 'setRunnerMode'; mode: 'local' | 'docker' }
   | { type: 'setupRunnerDocker' }
   | { type: 'reset' }
@@ -124,10 +124,27 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 export const getLesson = (id: string) => api<LessonView>(`/api/lesson/${encodeURIComponent(id)}`)
 export const postActivity = (conceptId: string, seconds: number) =>
   api<{ ok: boolean }>('/api/activity', { method: 'POST', body: JSON.stringify({ conceptId, seconds }) })
-/** Upload a PDF as the raw request body; the server reads its text in a background job. */
-export const uploadSource = (file: File, opts: { kind?: string; link?: boolean } = {}) =>
-  api<State>(`/api/sources?filename=${encodeURIComponent(file.name)}&kind=${opts.kind ?? 'book'}&link=${opts.link ? 1 : 0}`,
-    { method: 'POST', body: file, headers: { 'Content-Type': 'application/pdf' } })
+/** Upload a PDF as the raw request body; the server reads its text in a background job. ``onProgress`` gets 0..1.
+ *  The same file twice is refused (409) with a message that names the source it already is. */
+export const uploadSource = (file: File, opts: { kind?: string; title?: string; link?: boolean; onProgress?: (f: number) => void } = {}) =>
+  new Promise<State>((resolve, reject) => {
+    const q = new URLSearchParams({ filename: file.name, kind: opts.kind ?? 'book', title: opts.title ?? '', link: opts.link ? '1' : '0' })
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `/api/sources?${q}`)
+    xhr.setRequestHeader('Content-Type', 'application/pdf')
+    xhr.upload.onprogress = e => { if (e.lengthComputable) opts.onProgress?.(e.loaded / e.total) }
+    xhr.onload = () => {
+      let body: unknown = null
+      try { body = JSON.parse(xhr.responseText) } catch { /* not JSON */ }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(body as State)
+      else reject(new Error(String((body as { detail?: string } | null)?.detail ?? xhr.statusText)))
+    }
+    xhr.onerror = () => reject(new Error('The upload failed. Is the app still running?'))
+    xhr.send(file)
+  })
+/** A link source (a web page or a video). */
+export const addLinkSource = (body: { url: string; title: string; kind: string }) =>
+  api<State>('/api/sources/link', { method: 'POST', body: JSON.stringify(body) })
 /** A card source url "source:<id>#page=N" points into an uploaded PDF; open it at that page. */
 export const sourceHref = (url: string) => {
   const m = /^source:([\w-]+)(?:#page=(\d+))?$/.exec(url)

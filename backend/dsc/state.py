@@ -194,25 +194,22 @@ def probe_view(db: DB, gid: str) -> dict:
 def snapshot(db: DB) -> dict:
     gid = active_goal(db)
     pb = playbook(db)
-    from . import books, bookstudy, library, practice, session, sources
+    from . import bookstudy, practice, session, sources
     from . import guidelines
     base = {"playbook": pb, "guidelines": guidelines.current(db), "providers": providers.status(), "apiKey": apikey.status(), "routes": routes(db), "jobs": jobs(db),
-            "library": library.listing(db),
             "sources": sources.listing(db),
             "sessions": session.listing(db), "lastSession": db.meta("last_session"),
             "dictation": dictation.status(db),
-            "studyBooks": bookstudy.listing(db), "lastBook": db.meta("last_book"), "mapView": db.meta("map_view") or "territory",
+            "studyBooks": bookstudy.listing(db), "lastBook": db.meta("last_book"), "mapView": db.meta("map_view") if db.meta("map_view") in ("tree", "wheel", "cells", "territory") else "territory",
             "practices": practice.listing(db), "lastPractice": db.meta("last_practice"), "practiceDue": practice.due_count(db),
             "runner": runner_status(db),
             "backups": {"folder": str(workspace() / "backups"), "last": db.meta("last_backup"), "items": _backups()[:5]},
             "firstRun": db.meta("first_run") == "1" and not db.one("SELECT 1 FROM goals LIMIT 1"),
-            "ankiExport": db.meta("last_anki_export"),
             "goals": [{"id": g["id"], "title": g["title"]} for g in db.q("SELECT id, title FROM goals WHERE kind != 'bookstudy' ORDER BY created_at")]}
     if not gid:
         return {**base, "goal": None, "tracks": [], "modules": [], "concepts": [], "cards": [], "renditions": [],
                 "feedback": [], "notes": [], "diffs": [], "chats": {}, "answers": {}, "reviews": [], "gradings": {},
-                "probe": None, "reflections": reflections(db), "settings": settings(db), "cardProposals": [], "shareSuggestions": [],
-                "bookCuts": []}
+                "probe": None, "reflections": reflections(db), "settings": settings(db), "cardProposals": []}
 
     g = db.one("SELECT * FROM goals WHERE id=?", (gid,))
     tracks = db.q("SELECT * FROM tracks WHERE goal_id=? ORDER BY ord", (gid,))
@@ -234,7 +231,6 @@ def snapshot(db: DB) -> dict:
         **base,
         "goal": {"id": g["id"], "title": g["title"], "why": g["why"], "doneLooksLike": g["done"],
                  "hoursPerWeek": g["hours"], "profile": g["profile"], "layout": g["layout"], "kind": g["kind"]},
-        "bookCuts": books.listing(db, gid),
         "tracks": [{"id": t["id"], "title": t["title"], "summary": t["summary"], "pos": t["pos"],
                     "moduleIds": [m["id"] for m in modules if m["track_id"] == t["id"]]} for t in tracks],
         "modules": [{"id": m["id"], "trackId": m["track_id"], "title": m["title"], "research": m["research"], "known": bool(m["known"]),
@@ -258,7 +254,6 @@ def snapshot(db: DB) -> dict:
         "reflections": reflections(db),
         "settings": settings(db),
         "cardProposals": card_proposals(db, ids),
-        "shareSuggestions": share_suggestions(db),
         "reviews": [{"conceptId": r["concept_id"], "due": r["due"], "isDue": r["due"] <= now}
                     for r in db.q(f"SELECT * FROM reviews WHERE concept_id IN {in_goal} ORDER BY due", ids)],
     }
@@ -295,21 +290,6 @@ def runner_status(db: DB) -> dict:
 def _backups() -> list[dict]:
     from . import backup
     return backup.listing()
-
-
-def share_suggestions(db: DB) -> list[str]:
-    """Cards worth sharing: fact-checked, about concepts the learner has actually learned, not shared yet."""
-    gid = active_goal(db)
-    if not gid:
-        return []
-    concepts, states = concept_states(db, gid)
-    shared = {r["source_concept"] for r in db.q("SELECT source_concept FROM library")}
-    out = []
-    for c in concepts:
-        card = latest_card(db, c["id"])
-        if card and card["factCheck"] == "passed" and states[c["id"]].state in ("learned", "mastered") and c["id"] not in shared:
-            out.append(c["id"])
-    return out
 
 
 def settings(db: DB) -> dict:

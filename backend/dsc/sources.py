@@ -8,13 +8,17 @@ so cards are based on them and cite "Title, p. N". A scanned PDF without a text 
 
 from __future__ import annotations
 
+import hashlib
 import re
 import secrets
 from pathlib import Path
+from urllib.parse import urlparse
 
 from .db import DB, dumps, loads, now, workspace
 
-KINDS = ("book", "article", "post", "other")
+# book, article, web (an internet source), video, custom (made by the learner: a roadmap or a "teach me" topic)
+KINDS = ("book", "article", "web", "video", "custom")
+_OLD_KINDS = {"post": "web", "other": "custom"}
 MAX_BYTES = 200 * 1024 * 1024
 EXCERPT_CHARS = 900  # one page's text in a research prompt, at most
 _WORD = re.compile(r"[\w']+")
@@ -39,19 +43,64 @@ def file_path(sid: str) -> Path:
     return folder() / f"{sid}.pdf"
 
 
-def add(db: DB, data: bytes, filename: str, kind: str = "book") -> str:
-    """Save an uploaded PDF and create its row (status "reading"); the ingest job reads it."""
+class Duplicate(ValueError):
+    """The same file or link is already a source."""
+
+
+def upgrade(db: DB) -> None:
+    """Old workspaces: rename old kinds, and hash the files that have no hash yet (for the duplicate check)."""
+    for old, new in _OLD_KINDS.items():
+        db.x("UPDATE sources SET kind=? WHERE kind=?", (new, old))
+    for r in db.q("SELECT id FROM sources WHERE sha256='' AND url=''"):
+        f = file_path(r["id"])
+        if f.exists():
+            db.x("UPDATE sources SET sha256=? WHERE id=?", (hashlib.sha256(f.read_bytes()).hexdigest(), r["id"]))
+
+
+def _title_of(filename: str) -> str:
+    return re.sub(r"[_\-]+", " ", Path(filename or "source.pdf").stem).strip()[:200] or "Untitled"
+
+
+def add(db: DB, data: bytes, filename: str, kind: str = "book", title: str = "") -> str:
+    """Save an uploaded PDF and create its row (status "reading"); the ingest job reads it.
+    The same file twice is refused (``Duplicate``), found by its SHA-256 hash."""
     if not data.startswith(b"%PDF"):
         raise ValueError("this is not a PDF file")
     if len(data) > MAX_BYTES:
         raise ValueError("the file is larger than 200 MB")
-    stem = Path(filename or "source.pdf").stem
-    title = re.sub(r"[_\-]+", " ", stem).strip()[:200] or "Untitled"
+    sha = hashlib.sha256(data).hexdigest()
+    same = db.one("SELECT title FROM sources WHERE sha256=?", (sha,))
+    if same:
+        raise Duplicate(f"This file is already in your sources as “{same['title']}”.")
+    title = " ".join(title.split())[:200] or _title_of(filename)
     sid = f"src-{secrets.token_hex(4)}"
     file_path(sid).write_bytes(data)
-    db.x("""INSERT INTO sources(id, title, author, kind, filename, bytes, pages, status, outline, added_at)
-            VALUES(?,?,?,?,?,?,?,?,?,?)""",
-         (sid, title, "", kind if kind in KINDS else "book", Path(filename or "").name[:200], len(data), 0, "reading", "[]", now()))
+    db.x("""INSERT INTO sources(id, title, author, kind, filename, bytes, pages, status, outline, added_at, sha256)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+         (sid, title, "", kind if kind in KINDS else "book", Path(filename or "").name[:200], len(data), 0, "reading", "[]",
+          now(), sha))
+    return sid
+
+
+def is_video(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    return any(host == h or host.endswith("." + h) for h in ("youtube.com", "youtu.be", "vimeo.com"))
+
+
+def add_link(db: DB, url: str, title: str = "", kind: str = "") -> str:
+    """A link source (a web page or a video). It is kept and opened; its text is not read yet."""
+    url = url.strip()
+    parts = urlparse(url)
+    if parts.scheme not in ("http", "https") or not parts.netloc:
+        raise ValueError("the link must start with http:// or https://")
+    same = db.one("SELECT title FROM sources WHERE url=?", (url,))
+    if same:
+        raise Duplicate(f"This link is already in your sources as “{same['title']}”.")
+    kind = kind if kind in KINDS else ("video" if is_video(url) else "web")
+    title = " ".join(title.split())[:200] or (parts.netloc + parts.path).rstrip("/")[:200]
+    sid = f"src-{secrets.token_hex(4)}"
+    db.x("""INSERT INTO sources(id, title, author, kind, filename, bytes, pages, status, outline, added_at, url)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?)""", (sid, title, "", kind, "", 0, 0, "ready", "[]", now(), url))
     return sid
 
 
@@ -82,8 +131,8 @@ def ingest(db: DB, sid: str, progress=lambda msg: None) -> dict:
                             [(sid, n + 1, t) for n, t in enumerate(pages)])
         db.conn.executemany("INSERT INTO source_fts(source_id, page, text) VALUES(?,?,?)",
                             [(sid, n + 1, t) for n, t in enumerate(pages) if t])
-        row = db.conn.execute("SELECT title FROM sources WHERE id=?", (sid,)).fetchone()
-        keep_title = row and row[0] and row[0] != Path(row[0]).stem  # the learner's own title wins
+        row = db.conn.execute("SELECT title, filename FROM sources WHERE id=?", (sid,)).fetchone()
+        keep_title = row and row[0] and row[0] != _title_of(row[1])  # a name the learner gave (not the file name) wins
         db.conn.execute("UPDATE sources SET pages=?, status=?, outline=?, author=?, title=? WHERE id=?",
                         (len(pages), status, dumps(outline), author[:200],
                          (title[:200] if title and len(title) > 3 and not keep_title else row[0]), sid))
@@ -117,6 +166,10 @@ def _outline(reader) -> list[dict]:
 
 
 def delete(db: DB, sid: str) -> None:
+    """Remove a source: its file, its pages, and its book study (if any)."""
+    from . import bookstudy
+    for b in db.q("SELECT id FROM books WHERE source_id=?", (sid,)):
+        bookstudy.delete(db, b["id"])
     with db.tx():
         for t in ("source_pages", "source_fts", "goal_sources"):
             db.conn.execute(f"DELETE FROM {t} WHERE source_id=?", (sid,))
@@ -139,12 +192,15 @@ def for_goal(db: DB, goal_id: str | None) -> list[dict]:
 
 
 def listing(db: DB) -> list[dict]:
+    """``mapped``: "Teach me this book" made its lessons (the book study is ready)."""
     links: dict[str, list[str]] = {}
     for r in db.q("SELECT * FROM goal_sources"):
         links.setdefault(r["source_id"], []).append(r["goal_id"])
-    return [{"id": s["id"], "title": s["title"], "author": s["author"], "kind": s["kind"], "filename": s["filename"],
-             "pages": s["pages"], "status": s["status"], "addedAt": s["added_at"], "goalIds": links.get(s["id"], []),
-             "outline": len(loads(s["outline"], []))}
+    mapped = {r["source_id"] for r in db.q("SELECT source_id FROM books WHERE status='ready'")}
+    return [{"id": s["id"], "title": s["title"], "author": s["author"], "kind": _OLD_KINDS.get(s["kind"], s["kind"]),
+             "filename": s["filename"], "pages": s["pages"], "status": s["status"], "addedAt": s["added_at"],
+             "goalIds": links.get(s["id"], []), "outline": len(loads(s["outline"], [])), "url": s["url"],
+             "sha256": s["sha256"], "mapped": s["id"] in mapped}
             for s in db.q("SELECT * FROM sources ORDER BY added_at DESC")]
 
 

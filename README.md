@@ -16,13 +16,13 @@ with your subscription, or an Anthropic API key. There is no account, no server 
 - **"Teach me X" study sessions.** A short probe asks one question at a time to find the edge of what you know. Then
   each idea is taught as predict → explain → check, fitted to your answers and to the thinking you type or dictate.
 - **Knowledge map.** Everything you learn becomes a node in one graph, with the reasoning links between ideas. Choose
-  how to see it: a tree, an Obsidian-style graph, clouds per book, a skill wheel, nested cells, a hex map or a globe.
+  how to see it: a tree, a skill wheel, nested cells or a hex map. Each book has one color, on its card and on the map.
 - **Recall practice.** Problems that need the right idea without naming it. Hints, never answers. Each idea gets its
   own review schedule (FSRS).
 - **Goals and roadmaps.** A big goal becomes a roadmap (an Ohtani 9x9 table or classic tracks) of researched,
-  fact-checked lessons. A book goal teaches the 80/20 core of your own PDFs and cites the pages.
+  fact-checked lessons (on hold for now).
 - **Lessons that adapt to you.** Give feedback on any part of a lesson; later lessons follow it. Interactive graphs,
-  explain-back grading, runnable Python, Anki export, a weekly plan across goals.
+  explain-back grading, runnable Python, a weekly plan across goals.
 - **Think out loud.** Every question has a thinking box and a confidence slider. Dictation works through the browser
   or, privately, with a Whisper model on your computer.
 

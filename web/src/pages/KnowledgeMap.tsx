@@ -15,12 +15,9 @@ const LEGEND = ['mastered', 'learned', 'learning', 'rusty', 'ready', 'locked']
 /** The map views the learner can choose from (SPEC §29). */
 const VIEWS: { id: MapViewId; label: string; hint: string }[] = [
   { id: 'tree', label: 'Tree', hint: 'Basics at the bottom; an arrow points to the idea it helps you reason toward.' },
-  { id: 'graph', label: 'Graph', hint: 'Every idea colored by its state, pulled together by its links. Zoom in to read the names.' },
-  { id: 'nebula', label: 'Nebula', hint: 'Each book or goal is a cloud of its own color; shared ideas float between clouds.' },
   { id: 'wheel', label: 'Skill wheel', hint: 'Your goal’s basics in the core; each book a sector, each chapter a spoke from basics to advanced.' },
   { id: 'cells', label: 'Cells', hint: 'Books hold chapters, chapters hold ideas; sizes follow the number of ideas.' },
   { id: 'territory', label: 'Territories', hint: 'Every hex is an idea and every book a country; learning lights the land.' },
-  { id: 'globe', label: 'Globe', hint: 'Each book is a region of the sphere. Drag to turn it.' },
 ]
 
 /** Two short lines for a node label; the full title is in the tooltip. */
@@ -39,7 +36,7 @@ function labelLines(title: string): string[] {
 /** The knowledge map (SPEC §23): every idea you know or need, as one skill tree. Basics at the bottom. */
 export default function KnowledgeMap() {
   const { s, dispatch } = useStore()
-  const mode: MapViewId = s.mapView ?? 'tree'
+  const mode: MapViewId = VIEWS.some(v => v.id === s.mapView) ? s.mapView : 'tree'  // a removed view (graph, nebula, globe) shows the tree
   const [center, setCenter] = useState<{ id: string; n: number } | null>(null)
   const location = useLocation()
   const asked = location.state as { focus?: string; select?: string } | null
@@ -104,10 +101,12 @@ export default function KnowledgeMap() {
     setView(v => ({ ...v, x: el.clientWidth / 2 - p.x * v.k, y: el.clientHeight / 2 - p.y * v.k }))
   }
 
-  // wheel zoom around the cursor (a non-passive listener, so the page does not scroll)
+  // wheel zoom around the cursor (a non-passive listener, so the page does not scroll). The tree's box exists only after
+  // the map is loaded, so the listener is attached again then (it was missing before: the wheel did nothing).
+  const loaded = g !== null
   useEffect(() => {
     const el = box.current
-    if (!el) return
+    if (!el || !loaded || mode !== 'tree') return
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const r = el.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top
@@ -118,7 +117,7 @@ export default function KnowledgeMap() {
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
-  }, [])
+  }, [loaded, mode])
   const zoom = (f: number) => {
     const el = box.current
     if (!el) return

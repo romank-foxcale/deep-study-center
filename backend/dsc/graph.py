@@ -228,6 +228,15 @@ def view(db: DB) -> dict:
     return {"nodes": out, "links": links(db), "goals": goals, "sessions": sessions, "books": books, "clusters": clusters}
 
 
+def area_colors(db: DB) -> dict[str, int]:
+    """One fixed color number per area of the map: books in the order they were added, then goals, then sessions.
+    The map and the book cards use the same number, so a book has one color everywhere."""
+    keys = [f"book:{r['id']}" for r in db.q("SELECT id FROM books ORDER BY created_at, id")]
+    keys += [f"goal:{r['id']}" for r in db.q("SELECT id FROM goals WHERE kind != 'bookstudy' ORDER BY created_at, id")]
+    keys += [f"session:{r['id']}" for r in db.q("SELECT id FROM sessions ORDER BY created_at, id")]
+    return {k: i for i, k in enumerate(keys)}
+
+
 def _clusters(db: DB, nodes: list[dict]) -> tuple[list[dict], dict[str, dict]]:
     """Group the map into clusters for the map views (SPEC §29): each idea belongs to one cluster (the book that made
     it, else its first book, else its first goal, else its first study session, else "loose") and lists the other
@@ -269,7 +278,9 @@ def _clusters(db: DB, nodes: list[dict]) -> tuple[list[dict], dict[str, dict]]:
     titles.update({f"goal:{r['id']}": ("goal", r["title"]) for r in db.q("SELECT id, title FROM goals")})
     titles.update({f"session:{r['id']}": ("session", r["title"]) for r in db.q("SELECT id, title FROM sessions")})
     titles["loose"] = ("loose", "Other ideas")
-    clusters = [{"id": k, "kind": titles.get(k, ("loose", k))[0], "title": titles.get(k, ("loose", k))[1], "size": len(v)}
+    colors = area_colors(db)
+    clusters = [{"id": k, "kind": titles.get(k, ("loose", k))[0], "title": titles.get(k, ("loose", k))[1], "size": len(v),
+                 "color": colors.get(k, -1)}
                 for k, v in sorted(seq.items(), key=lambda kv: -len(kv[1]))]
     return clusters, place
 
