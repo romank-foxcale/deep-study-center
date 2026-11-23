@@ -149,7 +149,7 @@ def test_first_open_writes_the_chapter_from_the_book_then_the_lesson_is_saved(bo
     att = lessons(db, bid)["Attention"]
     act(db, jobs, type="bookOpenLesson", conceptId=att["conceptId"])
     assert state.active_goal(db) == bookstudy.get(db, bid)["goal_id"]
-    v = lesson.open_lesson(db, jobs, att["conceptId"])
+    v = lesson.open_lesson(db, jobs, att["conceptId"], plan=False)
     # one call wrote the cards of all three lessons of chapter 1, from the chapter's pages, without web tools
     research = [c for r, c in runner.calls if r == "Research"]
     assert len(research) == 1 and not research[0].tools and "[p. 4]" in research[0].prompt
@@ -167,7 +167,7 @@ def test_first_open_writes_the_chapter_from_the_book_then_the_lesson_is_saved(bo
     assert f"[softmax](#idea/{softmax})" in sec["body"] and "#idea/n-nope" not in sec["body"] and "magic" in sec["body"]
     # opening again changes nothing: the lesson is saved
     n = len(runner.calls)
-    lesson.open_lesson(db, jobs, att["conceptId"])
+    lesson.open_lesson(db, jobs, att["conceptId"], plan=False)
     assert len(runner.calls) == n and lessons(db, bid)["Attention"]["written"]
 
 
@@ -214,7 +214,7 @@ def test_the_grader_sees_the_drawing_board(book):
     bid = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]["id"]
     cid = lessons(db, bid)["Attention"]["conceptId"]
     act(db, jobs, type="bookOpenLesson", conceptId=cid)
-    lesson.open_lesson(db, jobs, cid)
+    lesson.open_lesson(db, jobs, cid, plan=False)
     runner.responses["Grading"] = {"score": 1, "feedback": "ok", "missing": [], "followup": ""}
     act(db, jobs, type="explain", conceptId=cid, itemId="e-s-why", answer="see board", drawing=PNG)
     call = [c for r, c in runner.calls if r == "Grading"][-1]
@@ -250,7 +250,7 @@ def test_a_chapter_is_mapped_again_and_keeps_what_the_learner_did(book):
     db, jobs, runner = book
     bid = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]["id"]
     att = lessons(db, bid)["Attention"]
-    lesson.open_lesson(db, jobs, att["conceptId"])  # writes the chapter's cards and this lesson
+    lesson.open_lesson(db, jobs, att["conceptId"], plan=False)  # writes the chapter's cards and this lesson
     db.x("""INSERT INTO evidence(ts, concept_id, item_id, kind, correct, score) VALUES('2026-01-01', ?, 'x', 'check', 1, 1.0)""",
          (att["conceptId"],))
     db.x("INSERT INTO notes(ts, concept_id, quote, text) VALUES('t', ?, '', 'my note')", (att["conceptId"],))
@@ -276,7 +276,7 @@ def test_an_extra_lesson_in_a_book_chapter_is_researched_and_sure_wrong_answers_
     bid = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]["id"]
     cid = lessons(db, bid)["Attention"]["conceptId"]
     act(db, jobs, type="bookOpenLesson", conceptId=cid)
-    lesson.open_lesson(db, jobs, cid)
+    lesson.open_lesson(db, jobs, cid, plan=False)
     for i, conf in enumerate((0.9, 0.3, None)):
         db.x("""INSERT INTO evidence(ts, concept_id, item_id, kind, choice, correct, score, confidence, thinking)
                 VALUES('2026-01-01', ?, 'q-s-what', 'practice', 1, 0, 0, ?, ?)""", (cid, conf, "longer keys win" if i == 0 else ""))
@@ -318,9 +318,9 @@ def test_a_topic_another_lesson_already_teaches_is_one_shared_block(book):
     assert sm["nodeId"] == "c-lincomb" and sm["shared"]["conceptId"] == "c-lincomb"  # one block, written elsewhere
     # writing the chapter skips the shared block: this book's version is written only when asked for
     act(db, jobs, type="bookOpenLesson", conceptId=ls["Attention"]["conceptId"])
-    lesson.open_lesson(db, jobs, ls["Attention"]["conceptId"])
+    lesson.open_lesson(db, jobs, ls["Attention"]["conceptId"], plan=False)
     assert not lessons(db, bid)["Softmax"]["carded"] and lessons(db, bid)["KV cache"]["carded"]
-    lesson.open_lesson(db, jobs, sm["conceptId"])  # "This book's version"
+    lesson.open_lesson(db, jobs, sm["conceptId"], plan=False)  # "This book's version"
     assert lessons(db, bid)["Softmax"]["carded"]
     vs = lesson.view(db, sm["conceptId"])["blockVersions"]
     assert {v["conceptId"] for v in vs} == {sm["conceptId"], "c-lincomb"} and all(v["written"] for v in vs)

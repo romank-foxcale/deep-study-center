@@ -3,6 +3,20 @@
 The history of Deep Study Center, newest first. The full design and the decisions are in [SPEC.md](SPEC.md); the
 work still open is in [TODO.md](TODO.md).
 
+## Unreleased: formulas on the map, lesson plans (SPEC §41, §42)
+
+- **Plan a lesson before it is written** (SPEC §42): opening a book lesson that is not written yet first makes its plan,
+  a small graph from what you hold to the lesson's idea, with the form of each step (example, interactive, figure,
+  short text, derivation). Watch it being made and send notes; cut what you know, ask for another form, add notes,
+  re-plan, and approve. Only then is the lesson written, from the plan. "Write it now without a plan" keeps the old way.
+- **Formulas on the map:** every formula from your lessons is on the knowledge map, in a "Formulas" country of its own,
+  linked to the idea that uses it. Click it to see the math.
+- **Formula provinces:** a model sorts each formula into fields of mathematics (probability, linear algebra, ...). Each
+  field is a province of the Formulas country. A formula in 2 or 3 fields sits where those provinces meet, split in
+  their colors; one in 4 or more is gray ("Essential"). The legend lists the provinces with their counts.
+- **Territories** is the default map view. Country names moved from the land into a legend under the map, which can be
+  collapsed.
+
 ## 0.4.1 (2026-11-23): the app updates itself, and the review fixes (SPEC §39, §40)
 
 - **Auto-update** (SPEC §39): after the start, the desktop app asks the newest GitHub release for a newer version and

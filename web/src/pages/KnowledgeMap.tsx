@@ -14,10 +14,10 @@ const STATE_LABEL: Record<string, string> = {
 const LEGEND = ['mastered', 'learned', 'learning', 'rusty', 'ready', 'locked']
 /** The map views the learner can choose from (SPEC §29). */
 const VIEWS: { id: MapViewId; label: string; hint: string }[] = [
+  { id: 'territory', label: 'Territories', hint: 'Every hex is an idea and every book a country; learning lights the land.' },
   { id: 'tree', label: 'Tree', hint: 'Basics at the bottom; an arrow points to the idea it helps you reason toward.' },
   { id: 'wheel', label: 'Skill wheel', hint: 'Your goal’s basics in the core; each book a sector, each chapter a spoke from basics to advanced.' },
   { id: 'cells', label: 'Cells', hint: 'Books hold chapters, chapters hold ideas; sizes follow the number of ideas.' },
-  { id: 'territory', label: 'Territories', hint: 'Every hex is an idea and every book a country; learning lights the land.' },
 ]
 
 /** Two short lines for a node label; the full title is in the tooltip. */
@@ -36,7 +36,7 @@ function labelLines(title: string): string[] {
 /** The knowledge map (SPEC §23): every idea you know or need, as one skill tree. Basics at the bottom. */
 export default function KnowledgeMap() {
   const { s, dispatch } = useStore()
-  const mode: MapViewId = VIEWS.some(v => v.id === s.mapView) ? s.mapView : 'tree'  // a removed view (graph, nebula, globe) shows the tree
+  const mode: MapViewId = VIEWS.some(v => v.id === s.mapView) ? s.mapView : 'territory'  // the default; also for a removed view (graph, nebula, globe)
   const [center, setCenter] = useState<{ id: string; n: number } | null>(null)
   const location = useLocation()
   const asked = location.state as { focus?: string; select?: string } | null
@@ -146,7 +146,7 @@ export default function KnowledgeMap() {
         <h1 className="km-title">Knowledge map</h1>
         <Link className="link small" to="/formulas" title="Every formula lesson and the blocks it is built from">Formula tree</Link>
         <select className="input input-small" value={focus} onChange={e => { setFocus(e.target.value); setSelected(null) }} aria-label="Show">
-          <option value="all">Everything ({nodes.length} ideas)</option>
+          <option value="all">Everything ({nodes.filter(n => n.kind !== 'formula').length} ideas, {nodes.filter(n => n.kind === 'formula').length} formulas)</option>
           {g.goals.length > 0 && <optgroup label="Goals">{g.goals.map(x => <option key={x.id} value={`goal:${x.id}`}>{x.title}</option>)}</optgroup>}
           {g.books.length > 0 && <optgroup label="Books">{g.books.map(x => <option key={x.id} value={`book:${x.id}`}>{x.title}</option>)}</optgroup>}
           {g.sessions.length > 0 && <optgroup label="Study sessions">{g.sessions.map(x => <option key={x.id} value={`session:${x.id}`}>{x.title}</option>)}</optgroup>}
@@ -178,7 +178,7 @@ export default function KnowledgeMap() {
 
       <div className="km-canvas" ref={box}>
         {nodes.length === 0 && <p className="muted km-empty">No ideas yet. Research a goal or <Link to="/study">study something</Link>.</p>}
-        {mode !== 'tree' && <MapCanvas view={mode as CanvasView} nodes={shown} links={links} clusters={g.clusters ?? []}
+        {mode !== 'tree' && <MapCanvas view={mode as CanvasView} nodes={shown} links={links} clusters={g.clusters ?? []} fields={g.formulaFields}
           selected={selected} matches={matches} center={center} onSelect={setSelected} />}
         {mode === 'tree' && <svg width="100%" height="100%" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => { drag.current = null }}
           onClick={e => { if (!(e.target as Element).closest('.km-node')) setSelected(null) }}>
@@ -242,7 +242,9 @@ function NodePanel({ n, g, onPick, onClose }: { n: GraphNode; g: GraphView; onPi
         <span className={`pill km-pill-${n.state}`}>{STATE_LABEL[n.state] ?? n.state}{['learning', 'rusty'].includes(n.state) ? ` · ${Math.round(n.mastery * 100)}%` : ''}</span>
         <button className="link small" onClick={onClose} aria-label="Close">Close</button>
       </div>
+      {n.kind === 'formula' && <div className="eyebrow">Formula</div>}
       <h2 className="h-small"><Markdown inline>{n.title}</Markdown></h2>
+      {n.tex && <Markdown>{`$$${n.tex}$$`}</Markdown>}
       {n.statement && <div className="small"><Markdown>{n.statement}</Markdown></div>}
       {before.length > 0 && <><div className="eyebrow">Builds on</div>
         <ul className="km-list">{before.map(id => <li key={id}><button className="link" onClick={() => onPick(id)}><Markdown inline>{title(id)}</Markdown></button></li>)}</ul></>}
@@ -262,7 +264,7 @@ function NodePanel({ n, g, onPick, onClose }: { n: GraphNode; g: GraphView; onPi
           <button className="btn btn-primary btn-small" onClick={() => navigate('/study', { state: { topic: `Teach me: ${n.title}. ${n.statement}`.slice(0, 400) } })}>
             Teach me this</button>
         )}
-        {n.state !== 'pending' && n.state !== 'locked' && (
+        {n.state !== 'pending' && n.state !== 'locked' && !n.id.startsWith('fx:') && (
           <button className={`btn btn-small ${LIT.has(n.state) ? 'btn-primary' : ''}`} title="Problems that make you recall this idea"
             onClick={() => navigate('/practice', { state: { nodeIds: [n.id], title: n.title } })}>Practise</button>
         )}

@@ -201,6 +201,9 @@ def _chapter_rows(db: DB, bid: str, st: dict | None = None) -> list[dict]:
     for c, n in nodes.items():
         concepts_of.setdefault(n, []).append(c)
     formula_ids = {r["id"] for r in db.q("SELECT id FROM formula_lessons")}
+    plan_of: dict[str, str] = {}  # the newest plan's status per lesson (SPEC §42)
+    for r in db.q("SELECT concept_id, status FROM lesson_graphs ORDER BY version"):
+        plan_of[r["concept_id"]] = r["status"]
     out = []
     for ch in db.q("SELECT * FROM book_chapters WHERE book_id=? ORDER BY chapter", (bid,)):
         lessons = []
@@ -229,6 +232,7 @@ def _chapter_rows(db: DB, bid: str, st: dict | None = None) -> list[dict]:
                             "pages": [p["page_from"], p["page_to"]], "ideas": loads(p["ideas"], []),
                             "state": s.state if s else "pending", "mastery": s.mastery if s else 0.0,
                             "written": cid in rendered, "carded": cid in written, "started": cid in started,
+                            "plan": plan_of.get(cid),
                             "alsoIn": [{"id": o, "title": titles.get(o, o)} for o in others.get(nid, [])],
                             "needs": needs[:5], "ready": not needs,
                             "shared": _where(db, home) if home else None})
@@ -388,7 +392,7 @@ def _reset_chapter(db: DB, bid: str, ch: dict, as_lessons: bool) -> None:
                                          WHERE bn.book_id=? AND p.chapter=? AND bn.created=1""", (bid, chapter))]
     with db.tx():
         for cid in cids:
-            for t in ("cards", "prose", "renditions", "lesson_versions", "lesson_heads", "lesson_plans", "card_proposals",
+            for t in ("cards", "prose", "renditions", "lesson_versions", "lesson_heads", "lesson_plans", "lesson_graphs", "lesson_graph_notes", "card_proposals",
                       "concept_nodes"):
                 db.conn.execute(f"DELETE FROM {t} WHERE concept_id=?", (cid,))
             db.conn.execute("DELETE FROM concepts WHERE id=?", (cid,))
@@ -592,6 +596,13 @@ def write_cards(jobs: Jobs, jid: int, d: dict) -> dict:
     shared = {x["concept_id"] for x in lessons
               if any(o != x["concept_id"] and o in have for o in by_node.get(nodes.get(x["concept_id"], x["concept_id"]), []))}
     todo = [x for x in lessons if x["concept_id"] not in have and (x["concept_id"] not in shared or x["concept_id"] == d.get("open"))]
+    from . import lesson_graph
+    if d.get("only"):  # one lesson, from its approved plan
+        todo = [x for x in lessons if x["concept_id"] == d["only"]]
+    else:  # a lesson that has a plan waits for it to be approved
+        planned = {r["concept_id"] for r in db.q("SELECT DISTINCT concept_id FROM lesson_graphs")}
+        todo = [x for x in todo if x["concept_id"] not in planned or x["concept_id"] == d.get("open")]
+    plans = {x["concept_id"]: p for x in todo for p in [lesson_graph.approved(db, x["concept_id"])] if p}
     if not todo:
         db.x("UPDATE modules SET research='ready' WHERE id=?", (ch["module_id"],))
         return {"cards": 0}
@@ -603,6 +614,7 @@ def write_cards(jobs: Jobs, jid: int, d: dict) -> dict:
     out = jobs.call(jid, "Research", Call(
         prompt=prompt("book_cards", book=b["title"], chapter=ch["title"], summary=ch["summary"] or "(none)",
                       lessons=listing_text, others=others, source=b["source_id"],
+                      plans="\n\n".join(f'Lesson {c}:\n{lesson_graph.as_text(p)}' for c, p in plans.items()) or "(none)",
                       text=_chapter_text(db, b["source_id"], ch["page_from"], ch["page_to"]) or "(no text)"),
         schema=CARDS_SCHEMA, model="opus", timeout=1800))
     by_id = {x["concept_id"]: x for x in todo}
@@ -651,19 +663,37 @@ def write_cards(jobs: Jobs, jid: int, d: dict) -> dict:
     return {"cards": len(written)}
 
 
-def ensure_written(db: DB, jobs: Jobs, cid: str) -> bool:
-    """On first open of a book lesson without a card: write the chapter's cards (then the lesson). True when queued.
-    Any open of a book lesson marks its book as used now (Today continues the newest book)."""
+def ensure_written(db: DB, jobs: Jobs, cid: str, plan: bool = True) -> bool:
+    """On first open of a book lesson without a card: plan it first (SPEC §42; the learner approves the plan, and the
+    lesson is then written from it), or with ``plan=False`` write the chapter's cards (then the lesson) at once. True when
+    queued. Any open of a book lesson marks its book as used now (Today continues the newest book)."""
     db.x("UPDATE books SET updated_at=? WHERE id=(SELECT book_id FROM book_parts WHERE concept_id=?)", (now(), cid))
     row = db.one("""SELECT m.id, m.research, t.goal_id FROM concepts c JOIN modules m ON m.id = c.module_id
                     JOIN tracks t ON t.id = m.track_id WHERE c.id=?""", (cid,))
     if not row or not is_book_goal(db, row["goal_id"]) or db.one("SELECT 1 FROM cards WHERE concept_id=?", (cid,)) \
             or db.one("SELECT 1 FROM formula_lessons WHERE id=?", (cid,)):
         return False
+    from . import lesson_graph
+    if plan and db.one("SELECT 1 FROM book_parts WHERE concept_id=?", (cid,)):
+        if not lesson_graph.latest(db, cid):
+            lesson_graph.start(db, jobs, cid)
+        return True
     if not jobs.active("research_module", module_id=row["id"]):
         db.x("UPDATE modules SET research='researching' WHERE id=?", (row["id"],))
         jobs.enqueue("research_module", "Write the lessons of this chapter", {"module_id": row["id"], "open": cid})
     return True
+
+
+def write_planned(db: DB, jobs: Jobs, cid: str) -> None:
+    """Write one lesson from its approved plan (SPEC §42): its card only, then its text."""
+    row = db.one("SELECT c.module_id FROM concepts c WHERE c.id=?", (cid,))
+    if not row:
+        raise BookError("unknown lesson")
+    db.x("DELETE FROM cards WHERE concept_id=?", (cid,))  # a lesson planned again is written again
+    db.x("DELETE FROM prose WHERE concept_id=?", (cid,))
+    db.x("DELETE FROM renditions WHERE concept_id=?", (cid,))
+    db.x("UPDATE modules SET research='researching' WHERE id=?", (row["module_id"],))
+    jobs.enqueue("research_module", "Write this lesson from its plan", {"module_id": row["module_id"], "open": cid, "only": cid})
 
 
 def open_lesson(db: DB, jobs: Jobs, cid: str) -> None:

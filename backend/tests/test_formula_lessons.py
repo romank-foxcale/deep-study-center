@@ -230,3 +230,62 @@ def test_the_derivation_graph_opens_a_node_one_level_down_and_makes_a_page(fx):
     assert page["id"] in ids and node not in ids and {"src": page["id"], "dst": fid} in t["links"]
     with pytest.raises(actions.ActionError):
         actions.dispatch(db, jobs, {"type": "makeFormulaPage", "node": page["id"]})  # it has a page now
+
+
+def test_formulas_are_on_the_knowledge_map(fx):
+    """SPEC §41: a formula met in a lesson is a map item linked to that lesson; a step is not; a formula with a page is
+    that page's node."""
+    db, jobs, runner = fx
+    from dsc import graph
+    v = graph.view(db)
+    host = graph.node_of(db)[CID]
+    items = [n for n in v["nodes"] if n["kind"] == "formula"]
+    assert [n["title"] for n in items] == ["Linear combination"]  # the step "a + b = 3" is left out
+    f = items[0]
+    home = next(n for n in v["nodes"] if n["id"] == host)["cluster"]
+    assert f["id"].startswith("fx:") and f["tex"] == FORM_A and f["cluster"] == "formulas" and home != "formulas"
+    country = next(c for c in v["clusters"] if c["id"] == "formulas")  # all formulas are one country of their own
+    assert country["title"] == "Formulas" and country["size"] == 1 and country["color"] == -2
+    assert f["fields"] == [] and f["chapterTitle"] == "Not sorted yet"  # no fields yet
+    assert {"src": f["id"], "dst": host, "origin": "formula"} in v["links"]
+    note(db, OTHER, FORM_A)  # the same formula in a second lesson: still one item, linked to both
+    v = graph.view(db)
+    items = [n for n in v["nodes"] if n["id"].startswith("fx:")]
+    assert len(items) == 1 and {l["dst"] for l in v["links"] if l["src"] == items[0]["id"]} == {host, graph.node_of(db)[OTHER]}
+    actions.dispatch(db, jobs, {"type": "makeFormulaLesson", "conceptId": CID, "key": formulas.key(FORM_A)})
+    fid = db.one("SELECT id FROM formula_lessons")["id"]
+    v = graph.view(db)
+    assert not [n for n in v["nodes"] if n["id"].startswith("fx:")]  # the page stands for the formula now
+    page = next(n for n in v["nodes"] if n["id"] == graph.node_of(db)[fid])
+    assert page["kind"] == "formula" and page["tex"] == FORM_A and page["cluster"] == "formulas"
+    assert any(l["src"] == page["id"] and l["dst"] == host for l in v["links"])
+
+
+def test_formulas_are_sorted_into_fields_for_the_map(fx):
+    """SPEC §41: a job tags each formula once with its fields; the map groups the Formulas country by them."""
+    db, jobs, runner = fx
+    from dsc import formula_fields, graph
+    note(db, OTHER, r"\log(ab) = \log a + \log b")
+    seen = []
+
+    def reply(call):
+        if "You sort formulas into fields" not in call.prompt:
+            return blocks_reply(call)
+        seen.append(call.prompt)
+        lines = [ln for ln in call.prompt.splitlines() if ln[:1].isdigit()]
+        return {"items": [{"n": int(ln.split(".")[0]), "fields": ["linalg", "ml"] if "c_1" in ln
+                           else ["algebra", "probability", "information", "algorithms", "nope"]} for ln in lines]}
+    runner.responses["Formula notes"] = reply
+    assert len(formula_fields.untagged(db)) == 2
+    formula_fields.ensure(db, jobs)  # inline jobs in tests: runs now
+    assert len(seen) == 1 and "Linear algebra" in seen[0] and not formula_fields.untagged(db)
+    formula_fields.ensure(db, jobs)
+    assert len(seen) == 1  # tagged once
+    v = graph.view(db)
+    by = {n["tex"]: n for n in v["nodes"] if n["kind"] == "formula"}
+    lin = by[FORM_A]
+    assert lin["fields"] == ["linalg", "ml"] and lin["chapterTitle"] == "Linear algebra · Machine learning"
+    many = next(n for n in by.values() if n is not lin)
+    assert many["fields"] == ["algebra", "probability", "information", "algorithms"]  # an unknown field is dropped
+    assert many["chapterTitle"].startswith("Essential: ") and many["chapter"] == 0
+    assert [f["id"] for f in v["formulaFields"]][:2] == ["algebra", "probability"]

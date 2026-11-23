@@ -57,9 +57,9 @@ def refresh(db: DB, jobs: Jobs, cid: str, by_learner: bool = False) -> None:
     ensure_prose(db, jobs, cid, rewrite=by_learner)
 
 
-def open_lesson(db: DB, jobs: Jobs, cid: str) -> dict:
+def open_lesson(db: DB, jobs: Jobs, cid: str, plan: bool = True) -> dict:
     from . import bookstudy
-    bookstudy.ensure_written(db, jobs, cid)  # a book lesson opened for the first time: write it from the book's pages
+    bookstudy.ensure_written(db, jobs, cid, plan=plan)  # a book lesson opened for the first time: plan it, or write it
     r = ensure_rendition(db, cid)
     refreshed = False
     if r and state.is_stale(r, state.latest_card(db, cid), state.playbook(db)) and not _studied(db, cid, r) \
@@ -178,6 +178,7 @@ def view(db: DB, cid: str) -> dict:
                                 and j["input"].get("module_id") == mod["module_id"] for j in state.jobs(db))
     return {
         "book": book, "writingCards": writing_cards, "writing": writing(db, cid),
+        "lessonPlan": _plan_brief(db, cid) if book else None,
         "formulas": formulas.notes(db, cid),
         "formulaLesson": formula_lessons.info(db, cid),
         "blockVersions": bookstudy.versions_of(db, cid),
@@ -198,3 +199,10 @@ def view(db: DB, cid: str) -> dict:
         "applying": any(j["status"] in ("queued", "running") and j["kind"] == "apply_feedback"
                         and j["input"].get("concept_id") == cid for j in state.jobs(db)),
     }
+
+
+def _plan_brief(db: DB, cid: str) -> dict | None:
+    """The lesson's plan graph, in short (SPEC §42): its newest version and status."""
+    from . import lesson_graph
+    p = lesson_graph.latest(db, cid)
+    return {"version": p["version"], "status": p["status"]} if p else None

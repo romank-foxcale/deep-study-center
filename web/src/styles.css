@@ -666,11 +666,74 @@ pre.code-output.bad { color: #f48771; }
 .km-swatch-rusty { background: var(--st-rusty); }
 .km-swatch-ready { background: var(--surface); border-color: var(--st-ready); }
 .km-swatch-locked { background: var(--st-locked); }
-.mc { position: absolute; inset: 0; }
+.mc { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.mc-stage { position: relative; flex: 1; min-height: 0; }
 .mc-canvas { display: block; touch-action: none; cursor: grab; }
 .mc-canvas:active { cursor: grabbing; }
 .mc-zoom { position: absolute; left: 12px; top: 12px; }
 .mc-hint { position: absolute; left: 12px; bottom: 10px; pointer-events: none; }
+/* the lesson plan graph (SPEC §42) */
+.lp { display: flex; flex-direction: column; gap: 12px; margin: 8px 0 16px; }
+.lp-head { align-items: flex-start; gap: 12px; }
+.lp-live { display: flex; flex-direction: column; gap: 6px; }
+.lp-pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); display: inline-block; animation: lp-pulse 1s infinite; }
+@keyframes lp-pulse { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .lp-pulse { animation: none; } }
+.lp-progress { list-style: none; margin: 0; padding: 0; color: var(--muted); }
+.lp-steer { flex-wrap: nowrap; } .lp-steer .input { flex: 1; min-width: 0; }
+.lp-layout { display: flex; flex-direction: column; gap: 12px; }
+.lp-canvas { flex: 1; min-width: 0; overflow: auto; padding: 14px; max-height: 70vh; }
+.lp-world { position: relative; margin: 0 auto; }
+.lp-edges { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.lp-edges path { fill: none; stroke: var(--border-2); stroke-width: 1.6; }
+.lp-edges path.hot { stroke: var(--accent); stroke-width: 2.2; }
+.lp-node { position: absolute; box-sizing: border-box; padding: 7px 9px; border-radius: 10px; background: var(--surface); border: 1.5px solid var(--border-2);
+  cursor: pointer; display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+.lp-node:hover, .lp-node:focus-visible { box-shadow: 0 0 0 2px var(--border-2); outline: none; }
+.lp-node.selected { box-shadow: 0 0 0 2px var(--text); }
+.lp-node.cut { opacity: .4; } .lp-node.cut .lp-title { text-decoration: line-through; }
+.lp-node.noted::after { content: "💬"; position: absolute; right: 6px; top: 4px; font-size: 12px; }
+.lp-kind { font: 600 10px var(--mono, monospace); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+.lp-title { font-weight: 600; font-size: 13px; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.lp-goal-line { display: flex; gap: 6px; flex-wrap: wrap; align-items: baseline; }
+.lp-form { font-size: 11.5px; color: var(--muted); margin-top: auto; }
+.lp-change { font: 600 9.5px var(--mono, monospace); padding: 0 5px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); text-transform: none; letter-spacing: 0; }
+.lp-held { border-color: var(--st-learned); } .lp-held .lp-kind { color: var(--st-learned); }
+.lp-foundation { border-color: var(--warn); } .lp-foundation .lp-kind { color: var(--warn); }
+.lp-step { border-color: var(--st-learning); } .lp-step .lp-kind { color: var(--st-learning); }
+.lp-formula { border-color: #a3e635; } .lp-formula .lp-kind { color: #a3e635; }
+.lp-goal { border-color: var(--st-mastered); background: color-mix(in srgb, var(--st-mastered) 10%, var(--surface)); } .lp-goal .lp-kind { color: var(--st-mastered); }
+.lp-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.lp-panel > :only-child { grid-column: 1 / -1; }
+.lp-node-panel { display: flex; flex-direction: column; gap: 6px; }
+.lp-node-panel h3 { margin: 0; font-size: 15px; }
+.lp-plan-note { display: flex; flex-direction: column; gap: 6px; border-left: 1px solid var(--border); padding-left: 16px; }
+.lp-notes { margin: 0; padding-left: 0; list-style: none; }
+.lp-legend { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.lp-swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; border: 2px solid; margin-right: 5px; vertical-align: -1px; }
+.lp-swatch.lp-held { border-color: var(--st-learned); } .lp-swatch.lp-foundation { border-color: var(--warn); } .lp-swatch.lp-step { border-color: var(--st-learning); }
+.lp-swatch.lp-formula { border-color: #a3e635; } .lp-swatch.lp-goal { border-color: var(--st-mastered); }
+.lp-skip { margin-top: -6px; }
+.lp-old .lp-canvas { opacity: .55; }
+.lp-approved { margin: 6px 0 14px; } .lp-approved summary { cursor: pointer; color: var(--muted); }
+.lp-readonly .lp-canvas { max-height: 50vh; }
+.lp-pill-ready { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
+.lp-pill-planning, .lp-pill-approved { color: var(--accent); }
+.lp-pill-failed { color: var(--bad); }
+@media (max-width: 860px) { .lp-panel { grid-template-columns: 1fr; } .lp-plan-note { border-left: 0; padding-left: 0; border-top: 1px solid var(--border); padding-top: 10px; } }
+.mc-legend { flex: none; border-top: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column;
+  max-height: 34%; cursor: default; }
+.mc-legend-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; width: 100%; padding: 8px 12px;
+  background: none; border: 0; color: var(--text); font-weight: 600; cursor: pointer; text-align: left; }
+.mc-legend-list { list-style: none; margin: 0; padding: 0 12px 10px; overflow-y: auto; display: grid; gap: 6px 20px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.mc-legend-list > li { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mc-legend-row, .mc-legend-sub li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mc-legend-sub { list-style: none; margin: 0 0 0 20px; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.mc-legend-sub .mc-legend-swatch { width: 9px; height: 9px; }
+.mc-legend-swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+.mc-legend-count { font-family: var(--mono); flex: none; }
+.mc-legend-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mc-tip { position: absolute; pointer-events: none; z-index: 5; display: flex; flex-direction: column; gap: 2px; max-width: 280px;
   padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2); font-size: 12px; }
@@ -1091,3 +1154,10 @@ a.shelf-card:hover { text-decoration: none; border-color: var(--border-2); }
 .ft-card-tex .md { max-width: 100%; overflow: hidden; white-space: nowrap; }
 .ft-card-foot { display: flex; justify-content: flex-end; min-height: 18px; }
 .ft-canvas { overflow: auto; }
+
+/* The map fills the window under the Back button, with no page scroll. */
+@media (min-width: 761px) {
+  .main:has(> .km) { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  .main:has(> .km) > .back-btn { align-self: flex-start; flex: none; }
+  .main:has(> .km) > .km { flex: 1; min-height: 0; height: auto; }
+}

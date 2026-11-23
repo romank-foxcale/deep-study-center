@@ -156,18 +156,24 @@ export interface GraphNode {
   id: string; title: string; statement: string; kind: string; state: string; mastery: number
   goals: string[]; concepts: string[]; sessions: string[]; lessons: { id: string; title: string; goalId: string }[]
   books: string[]
+  /** A formula on the map (SPEC §41): ``kind`` "formula" and its form. Ids "fx:…" are formulas with no page. */
+  tex?: string
+  /** A formula's fields of mathematics, most important first (SPEC §41). */
+  fields?: string[]
   /** Map views (SPEC §29): the idea's cluster ("book:<id>", "goal:<id>", "session:<id>" or "loose"), the other books and
    *  goals it is in, its chapter there and its reading order (0..1). */
   cluster: string; also: string[]; chapter: number; chapterTitle: string; order: number
 }
 export type MapViewId = 'tree' | 'wheel' | 'cells' | 'territory'
 /** ``color``: the area's fixed color number (see areaColors.ts); -1 for "Other ideas". */
-export interface MapCluster { id: string; kind: 'book' | 'goal' | 'session' | 'loose'; title: string; size: number; color: number }
+export interface MapCluster { id: string; kind: 'book' | 'goal' | 'session' | 'loose' | 'formulas'; title: string; size: number; color: number }
 /** The knowledge graph (SPEC §21, §23). */
 export interface GraphView {
   nodes: GraphNode[]; links: { src: string; dst: string; origin: string }[]
   goals: { id: string; title: string }[]; sessions: { id: string; title: string }[]; books: { id: string; title: string }[]
   clusters: MapCluster[]
+  /** The fields of mathematics: the provinces of the Formulas country (SPEC §41). */
+  formulaFields?: { id: string; title: string }[]
 }
 
 /** Book study (SPEC §28). */
@@ -198,6 +204,8 @@ export interface BookLesson {
   state: string; mastery: number
   /** written: its text is saved; carded: its plan is written from the book; started: opened at least once. */
   written: boolean; carded: boolean; started: boolean
+  /** The newest plan's status (SPEC §42), or null when the lesson has no plan. */
+  plan: LessonPlanStatus | null
   alsoIn: { id: string; title: string }[]
   /** What it builds on that you do not hold yet (SPEC §37); ready = nothing missing. */
   needs: { id: string; title: string; conceptId: string | null }[]; ready: boolean
@@ -377,8 +385,33 @@ export interface LessonPlan {
 }
 
 /** Knowledge center #2 output for one lesson, as the page shows it. */
+/** The lesson plan graph (SPEC §42). */
+export type LessonPlanStatus = 'planning' | 'ready' | 'approved' | 'failed'
+export type LessonPlanKind = 'held' | 'foundation' | 'step' | 'formula' | 'goal'
+export interface LessonPlanNode {
+  key: string; kind: LessonPlanKind; title: string; says: string
+  form: 'example' | 'interactive' | 'figure' | 'text' | 'derivation' | 'none'; whyForm: string; pages: string; linksTo: string
+  /** Compared with the version before: "new", "changed" or "". */
+  change?: string
+}
+export interface LessonPlan {
+  conceptId: string; version: number; status: LessonPlanStatus; approach: string; goal: string
+  nodes: LessonPlanNode[]; edges: [string, string][]; error: string; createdAt: string; approvedAt: string | null
+  /** Titles of nodes the version before had and this one has not. */
+  removed?: string[]
+  /** While a new version is made, or when it failed: the last finished version, shown dimmed. */
+  shown?: LessonPlan
+}
+export interface LessonPlanNote { id: number; version: number; node: string; kind: 'cut' | 'other' | 'note' | 'plan' | 'steer'; text: string; at: string; used: number | null }
+export interface LessonPlanView {
+  plan: LessonPlan | null; versions: number[]; notes: LessonPlanNote[]; pending: number
+  job: { id: number; status: string; progress: string[] } | null
+}
+
 export interface LessonView {
   conceptId: string
+  /** Book lessons: the plan's version and status (SPEC §42). */
+  lessonPlan: { version: number; status: LessonPlanStatus } | null
   /** Book lessons (SPEC §31): the book, chapter and pages, and the lessons before and after. */
   book: LessonBook | null
   /** The chapter's lessons are being written from the book's pages. */

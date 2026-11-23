@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { hierarchy, pack, type HierarchyCircularNode } from 'd3-hierarchy'
 import type { GraphNode, MapCluster, MapViewId } from '../types'
-import { areaColor } from '../areaColors'
+import { areaColor, ESSENTIAL_COLOR, FIELD_COLORS, FIELD_ORDER, fieldColors, UNSORTED_COLOR } from '../areaColors'
 
 // The knowledge map's canvas views (SPEC §29). Same data, three layouts the learner can choose from:
 //  wheel      — round skill tree: the main goal's basics in the core, each book a sector, each chapter a spoke
@@ -20,7 +20,7 @@ const STATE_LABEL: Record<string, string> = {
 interface C { id: string; title: string; kind: string; color: string; nodes: N[]; maxDepth: number; cx: number; cy: number; a0?: number; a1?: number; lx?: number; ly?: number }
 interface N {
   id: string; title: string; state: string; mastery: number; c: C; also: C[]; chapter: number; chapterTitle: string; order: number
-  idx: number; depth: number; prereqs: N[]; next: N[]; px: number; py: number; pr: number
+  idx: number; depth: number; prereqs: N[]; next: N[]; px: number; py: number; pr: number; formula: boolean; fields: string[]
 }
 interface L { s: N; t: N; cross: boolean }
 interface Props {
@@ -28,6 +28,8 @@ interface Props {
   selected: string | null; matches: Set<string>; center: { id: string; n: number } | null; onSelect: (id: string | null) => void
   /** A small map inside a card: no zoom buttons, and the wheel scrolls the page. */
   compact?: boolean
+  /** The field names, for the provinces of the Formulas country in the legend. */
+  fields?: { id: string; title: string }[]
 }
 
 const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -46,7 +48,7 @@ function build(nodes: GraphNode[], links: { src: string; dst: string }[], cluste
   const ns: N[] = nodes.map(g => {
     const c = cs.get(g.cluster) ?? loose(g.cluster || 'loose')
     const n: N = { id: g.id, title: g.title, state: g.state, mastery: g.mastery, c, also: (g.also ?? []).map(a => cs.get(a)).filter((x): x is C => !!x),
-      chapter: g.chapter ?? 0, chapterTitle: g.chapterTitle ?? '', order: g.order ?? 0, idx: 0, depth: 0, prereqs: [], next: [], px: 0, py: 0, pr: 4 }
+      chapter: g.chapter ?? 0, chapterTitle: g.chapterTitle ?? '', order: g.order ?? 0, idx: 0, depth: 0, prereqs: [], next: [], px: 0, py: 0, pr: 4, formula: g.kind === 'formula', fields: (g.fields ?? []).filter(f => FIELD_COLORS[f]) }
     c.nodes.push(n)
     return n
   })
@@ -160,6 +162,12 @@ function layoutTerritory(m: Model, W: number, H: number) {
   const placed: Cell[] = []
   const touching = (cell: Cell, c: C) => dirs.some(([dq, dr]) => { const nb = cells.get(key(cell.q + dq, cell.r + dr)); return !!nb && !!nb.owner && nb.owner !== c })
   for (const c of m.cl) {
+    if (c.kind === 'formulas') {  // provinces by field (SPEC §41)
+      for (const [cell, n] of placeFormulas(owned.get(c)!, c.nodes)) {
+        cell.node = n; n.px = W / 2 + size * s3 * (cell.q + cell.r / 2); n.py = H / 2 + size * 1.5 * cell.r; n.pr = size * 0.8; placed.push(cell)
+      }
+      continue
+    }
     const seedC = seeds.get(c)!
     const list = owned.get(c)!.slice().sort((a, b) => dist([a.q, a.r], seedC) - dist([b.q, b.r], seedC))
     const ideas = c.nodes.slice().sort((a, b) => a.depth - b.depth || a.idx - b.idx) // basics at the heart
@@ -176,9 +184,45 @@ function layoutTerritory(m: Model, W: number, H: number) {
   return { size, placed, cells, key, dirs }
 }
 
+/** The province key of a formula: its sorted fields, "essential" for 4 or more, "" when not sorted yet. */
+const provinceOf = (n: N) => (n.fields.length >= 4 ? 'essential' : [...n.fields].sort().join('+'))
+
+/** Places formulas inside the Formulas country (SPEC §41). Each field present gets a seed on a ring around the country's
+ *  middle (in ring order, so related fields are neighbours). A formula in 1 field goes near its field's seed; in 2 or 3
+ *  fields, near the middle point of those seeds (where the provinces meet); in 4 or more, at the middle ("Essential").
+ *  Formulas with more fields are placed first, each on the free cell nearest to its point. */
+function placeFormulas<T extends { q: number; r: number }>(cells: T[], nodes: N[]): [T, N][] {
+  const xy = (q: number, r: number) => [Math.sqrt(3) * (q + r / 2), 1.5 * r]
+  const pts = cells.map(c => xy(c.q, c.r))
+  const cx = mean(pts.map(p => p[0])), cy = mean(pts.map(p => p[1]))
+  const present = FIELD_ORDER.filter(f => nodes.some(n => n.fields.length < 4 && n.fields.includes(f)))
+  if (nodes.some(n => !n.fields.length)) present.push('')  // "Not sorted yet" gets a place on the ring too
+  const rad = Math.sqrt(cells.length) * 0.62
+  const seed = new Map(present.map((f, i) => {
+    const a = (i / Math.max(1, present.length)) * Math.PI * 2 - Math.PI / 2
+    return [f, present.length > 1 ? [cx + Math.cos(a) * rad, cy + Math.sin(a) * rad] : [cx, cy]] as const
+  }))
+  const target = (n: N) => {
+    if (n.fields.length >= 4) return [cx, cy]
+    const ps = (n.fields.length ? n.fields : ['']).map(f => seed.get(f) ?? [cx, cy])
+    const k = n.fields.length > 1 ? 0.85 : 1  // a shared formula a little toward the middle, where its provinces meet
+    return [cx + (mean(ps.map(p => p[0])) - cx) * k, cy + (mean(ps.map(p => p[1])) - cy) * k]
+  }
+  const free = new Set(cells.map((_, i) => i))
+  const out: [T, N][] = []
+  for (const n of nodes.slice().sort((a, b) => b.fields.length - a.fields.length || a.order - b.order)) {
+    const [tx, ty] = target(n)
+    let best = -1, bd = Infinity
+    for (const i of free) { const d = (pts[i][0] - tx) ** 2 + (pts[i][1] - ty) ** 2; if (d < bd) { bd = d; best = i } }
+    if (best < 0) break
+    free.delete(best); out.push([cells[best], n])
+  }
+  return out
+}
+
 // ------------------------------------------------------------------ the component
 
-export default function MapCanvas({ view, nodes, links, clusters, selected, matches, center, onSelect, compact }: Props) {
+export default function MapCanvas({ view, nodes, links, clusters, selected, matches, center, onSelect, compact, fields }: Props) {
   const box = useRef<HTMLDivElement>(null)
   const cv = useRef<HTMLCanvasElement>(null)
   const tipRef = useRef<HTMLDivElement>(null)
@@ -198,7 +242,9 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
   useEffect(() => {
     const el = box.current
     if (!el) return
-    const ro = new ResizeObserver(() => setSize({ W: el.clientWidth, H: el.clientHeight }))
+    const measure = () => setSize(s => (s.W === el.clientWidth && s.H === el.clientHeight ? s : { W: el.clientWidth, H: el.clientHeight }))
+    measure()
+    const ro = new ResizeObserver(measure)
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
@@ -358,8 +404,24 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
         ctx.beginPath(); for (let i = 0; i < 6; i++) { const [px, py] = corner(x, y, i, 0.94); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py) } ctx.closePath()
         const lit = ({ mastered: 0.95, learned: 0.62, rusty: 0.7, learning: 0.5 } as Record<string, number>)[n.state] ?? 0
         ctx.globalAlpha = dim(n)
-        ctx.fillStyle = rgba(n.c.color, n.state === 'locked' ? 0.07 : 0.17); ctx.fill()
-        if (lit) { ctx.fillStyle = rgba(c, lit); ctx.fill() }
+        if (n.formula) {  // a formula: its fields (one slice each, the same split form for every hex), its state inside
+          const cols = fieldColors(n.fields)
+          ctx.save(); ctx.clip()
+          cols.forEach((fc, i) => {
+            const a0 = -Math.PI / 4 + (i * 2 * Math.PI) / cols.length
+            ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, s * 1.2, a0, a0 + (2 * Math.PI) / cols.length); ctx.closePath()
+            ctx.fillStyle = rgba(fc, 0.42); ctx.fill()
+          })
+          ctx.restore()
+          if (lit) {
+            ctx.beginPath(); for (let i = 0; i < 6; i++) { const [px, py] = corner(x, y, i, 0.5); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py) } ctx.closePath()
+            ctx.fillStyle = rgba(c, Math.min(1, lit + 0.25)); ctx.fill()
+          }
+          ctx.beginPath(); for (let i = 0; i < 6; i++) { const [px, py] = corner(x, y, i, 0.94); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py) } ctx.closePath()
+        } else {
+          ctx.fillStyle = rgba(n.c.color, n.state === 'locked' ? 0.07 : 0.17); ctx.fill()
+          if (lit) { ctx.fillStyle = rgba(c, lit); ctx.fill() }
+        }
         if (n.also.length) { ctx.strokeStyle = n.also[0].color; ctx.lineWidth = 1.6 / k; ctx.stroke() }
         if (n === focus || n === sel || matches.has(n.id)) { ctx.strokeStyle = n === sel || n === focus ? col.fg : col.accent; ctx.lineWidth = 2 / k; ctx.stroke() }
         ctx.globalAlpha = 1
@@ -368,14 +430,19 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
       for (const cell of g0.placed) {
         g0.dirs.forEach(([dq, dr], i) => {
           const nb = g0.cells.get(g0.key(cell.q + dq, cell.r + dr))
-          if (nb && nb.owner === cell.owner) return
+          const province = nb && nb.owner === cell.owner && cell.node!.formula && nb.node && provinceOf(nb.node) !== provinceOf(cell.node!)
+          if (nb && nb.owner === cell.owner && !province) return
           const side = [0, 5, 4, 3, 2, 1][i]
           const [ax, ay] = corner(cell.node!.px, cell.node!.py, side), [bx, by] = corner(cell.node!.px, cell.node!.py, (side + 1) % 6)
+          if (province) {  // a thin dashed line between two provinces of the Formulas country
+            ctx.save(); ctx.setLineDash([3 / k, 3 / k]); ctx.lineWidth = 1 / k; ctx.strokeStyle = rgba(col.fg, 0.35)
+            ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.restore(); return
+          }
           ctx.strokeStyle = rgba(cell.owner!.color, 0.85); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke()
         })
       }
       if (focus) lines(1, l => l.s === focus || l.t === focus)
-      for (const c of model.cl) label(c, c.lx ?? 0, c.ly ?? 0)
+      // the country names are in the legend under the map (AreaLegend), not on the land
     }
   }
 
@@ -397,7 +464,7 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
     if (!n) { tip.hidden = true; return }
     tip.hidden = false
     tip.querySelector('strong')!.textContent = n.title
-    tip.querySelector('.mc-tip-state')!.textContent = STATE_LABEL[n.state] ?? n.state
+    tip.querySelector('.mc-tip-state')!.textContent = (n.formula ? 'Formula · ' : '') + (STATE_LABEL[n.state] ?? n.state)
     ;(tip.querySelector('.mc-tip-dot') as HTMLElement).style.background = css(`--st-${n.state === 'pending' ? 'ready' : n.state}`)
     tip.querySelector('.mc-tip-where')!.textContent = [n.c.title, ...n.also.map(c => c.title)].join(' · ') + (n.chapterTitle ? ` — ${n.chapterTitle}` : '')
     tip.style.left = Math.min(size.W - tip.offsetWidth - 8, mx + 14) + 'px'
@@ -425,7 +492,8 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
   }
 
   return (
-    <div className="mc" ref={box}>
+    <div className="mc">
+      <div className="mc-stage" ref={box}>
       <canvas ref={cv} className="mc-canvas" style={{ width: size.W, height: size.H }} aria-label="Knowledge map"
         onPointerDown={e => {
           touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
@@ -464,16 +532,76 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
         }}
         onPointerCancel={e => { touches.current.delete(e.pointerId); pinch.current = null; drag.current = null }}
         onPointerLeave={() => { hover.current = null; showTip(null, 0, 0); drawRef.current() }} />
+      </div>
       <div className="mc-tip" ref={tipRef} hidden>
         <strong />
         <span className="mc-tip-row"><i className="mc-tip-dot" /><span className="mc-tip-state" /></span>
         <span className="mc-tip-where" />
       </div>
+      {view === 'territory' && !compact && <AreaLegend areas={model.cl} fields={fields ?? []} />}
       {!compact && <div className="km-zoom mc-zoom">
         <button className="btn btn-small" onClick={() => zoomBy(1.25)} aria-label="Zoom in">+</button>
         <button className="btn btn-small" onClick={() => zoomBy(0.8)} aria-label="Zoom out">−</button>
         <button className="btn btn-small" onClick={() => { t.current = { x: 0, y: 0, k: 1 }; drawRef.current() }}>Fit</button>
       </div>}
     </div>
+  )
+}
+
+const KNOWN = ['mastered', 'learned', 'rusty']
+const LEGEND_KEY = 'dsc.mapLegendOpen'
+
+/** The countries of the Territories view: each book or goal with its color and how many of its ideas you know. It can be
+ *  collapsed; the choice is kept in this browser. */
+function AreaLegend({ areas, fields }: { areas: C[]; fields: { id: string; title: string }[] }) {
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem(LEGEND_KEY) !== '0' } catch { return true } })
+  const toggle = () => {
+    const next = !open
+    setOpen(next)
+    try { localStorage.setItem(LEGEND_KEY, next ? '1' : '0') } catch { /* no storage: the choice is not kept */ }
+  }
+  const shown = areas.filter(c => c.nodes.length > 0)
+  if (!shown.length) return null
+  return (
+    <div className={`mc-legend${open ? '' : ' closed'}`}>
+      <button className="mc-legend-head small" onClick={toggle} aria-expanded={open}>
+        <span>Countries ({shown.length})</span><span aria-hidden>{open ? '▾' : '▸'}</span>
+      </button>
+      {open && <ul className="mc-legend-list small">
+        {shown.map(c => (
+          <li key={c.id} title={c.title} className={c.kind === 'formulas' ? 'mc-legend-formulas' : undefined}>
+            <span className="mc-legend-row">
+              <i className="mc-legend-swatch" style={{ background: c.color }} />
+              <span className="mc-legend-name">{c.title}</span>
+              <span className="muted mc-legend-count">{c.nodes.filter(n => KNOWN.includes(n.state)).length}/{c.nodes.length}</span>
+            </span>
+            {c.kind === 'formulas' && <Provinces nodes={c.nodes} fields={fields} />}
+          </li>
+        ))}
+      </ul>}
+    </div>
+  )
+}
+
+/** The provinces of the Formulas country in the legend: each field with how many formulas are in it (a formula in two
+ *  fields counts in both; "shared" says how many of them are also in another field), then Essential and Not sorted. */
+function Provinces({ nodes, fields }: { nodes: N[]; fields: { id: string; title: string }[] }) {
+  const title = new Map(fields.map(f => [f.id, f.title]))
+  const rows = FIELD_ORDER.map(f => {
+    const all = nodes.filter(n => n.fields.length < 4 && n.fields.includes(f))
+    return { id: f, title: title.get(f) ?? f, color: FIELD_COLORS[f], n: all.length, shared: all.filter(n => n.fields.length > 1).length }
+  }).filter(r => r.n)
+  const essential = nodes.filter(n => n.fields.length >= 4).length, unsorted = nodes.filter(n => !n.fields.length).length
+  return (
+    <ul className="mc-legend-sub">
+      {rows.map(r => (
+        <li key={r.id}><i className="mc-legend-swatch" style={{ background: r.color }} /><span className="mc-legend-name">{r.title}</span>
+          <span className="muted mc-legend-count">{r.n}{r.shared ? ` · ${r.shared} shared` : ''}</span></li>
+      ))}
+      {essential > 0 && <li><i className="mc-legend-swatch" style={{ background: ESSENTIAL_COLOR }} /><span className="mc-legend-name">Essential (4+ fields)</span>
+        <span className="muted mc-legend-count">{essential}</span></li>}
+      {unsorted > 0 && <li><i className="mc-legend-swatch" style={{ background: UNSORTED_COLOR }} /><span className="mc-legend-name">Not sorted yet</span>
+        <span className="muted mc-legend-count">{unsorted}</span></li>}
+    </ul>
   )
 }
