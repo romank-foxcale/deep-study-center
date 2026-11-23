@@ -15,6 +15,7 @@ concepts does not need to know about nodes. Research can map a new concept to an
 
 from __future__ import annotations
 
+import hashlib
 import re
 from contextlib import contextmanager
 
@@ -225,7 +226,112 @@ def view(db: DB) -> dict:
     clusters, place = _clusters(db, out)
     for n in out:
         n.update(place.get(n["id"], {"cluster": "loose", "also": [], "chapter": 0, "chapterTitle": "", "order": 0.0}))
-    return {"nodes": out, "links": links(db), "goals": goals, "sessions": sessions, "books": books, "clusters": clusters}
+    fx_nodes, fx_links = _formula_items(db, out, nodes)
+    clusters = _formula_country(out + fx_nodes, clusters)
+    base = links(db)
+    have = {(x["src"], x["dst"]) for x in base}  # a formula page is already linked to its lesson in the links table
+    fx_links = [x for x in fx_links if (x["src"], x["dst"]) not in have]
+    return {"nodes": out + fx_nodes, "links": base + fx_links, "goals": goals, "sessions": sessions, "books": books,
+            "clusters": clusters, "formulaFields": [{"id": i, "title": t} for i, t in _fields()]}
+
+
+def _fields() -> list[tuple[str, str]]:
+    from .formula_fields import FIELDS
+    return FIELDS
+
+
+FORMULAS = "formulas"
+FORMULA_COLOR = -2  # the Formulas country's own color (areaColors.ts), not one of the book colors
+
+
+def _formula_country(nodes: list[dict], clusters: list[dict]) -> list[dict]:
+    """Every formula (formula pages and formulas met in lessons) goes to one country of its own, "Formulas" (SPEC §41):
+    most lessons have formulas, so inside the books they would cover the land. Inside it, each field of mathematics
+    (``fields``, see formula_fields) is a province; the map places a formula in 2 or 3 fields where those provinces
+    meet, and one in 4 or more in the middle ("Essential"). ``chapter`` is the province (for the Cells and Wheel views),
+    ``chapterTitle`` names its fields."""
+    from .formula_fields import FIELDS, IDS
+    name = dict(FIELDS)
+    fs = [n for n in nodes if n["kind"] == "formula"]
+    if not fs:
+        return clusters
+
+    def province(n: dict) -> int:
+        f = n.get("fields") or []
+        return 0 if len(f) >= 4 else IDS.index(f[0]) + 1 if f else len(IDS) + 1
+
+    fs.sort(key=lambda n: (province(n), len(n.get("fields") or []), n["title"]))
+    for i, n in enumerate(fs):
+        f = n.get("fields") or []
+        n.update({"cluster": FORMULAS, "also": [], "chapter": province(n),
+                  "chapterTitle": "Essential: " + " · ".join(name[x] for x in f) if len(f) >= 4
+                  else " · ".join(name[x] for x in f) or "Not sorted yet",
+                  "order": round(i / max(1, len(fs) - 1), 4)})
+    count: dict[str, int] = {}
+    for n in nodes:
+        count[n["cluster"]] = count.get(n["cluster"], 0) + 1
+    out = [dict(c, size=count[c["id"]]) for c in clusters if count.get(c["id"])]
+    out.append({"id": FORMULAS, "kind": FORMULAS, "title": "Formulas", "size": count[FORMULAS], "color": FORMULA_COLOR})
+    return sorted(out, key=lambda c: -c["size"])
+
+
+_RANK = {"mastered": 6, "learned": 5, "rusty": 4, "learning": 3, "ready": 2, "pending": 1, "locked": 0}
+
+
+def _formula_items(db: DB, out: list[dict], nodes: dict[str, str]) -> tuple[list[dict], list[dict]]:
+    """The formulas on the map (SPEC §41). A formula with a formula page is that page's node (marked ``kind`` "formula",
+    with its form). Every other formula met in a lesson (a formula note, not a derivation step) is a map item of its
+    own: id ``fx:<hash of its form>``, in the country of the first lesson it is in, linked to each lesson that uses it,
+    with the best state of those lessons (a formula is learned with its lesson). Not stored: made for each map."""
+    by = {n["id"]: n for n in out}
+    page = {r["id"]: nodes.get(r["id"], r["id"]) for r in db.q("SELECT id FROM formula_lessons")}
+    tex_of: dict[str, str] = {}
+    for r in db.q("SELECT formula_id, tex FROM formula_forms ORDER BY added_at"):
+        tex_of.setdefault(r["formula_id"], r["tex"])
+    from . import formula_fields
+    tagged = formula_fields.tags(db)
+    key_of: dict[str, str] = {}
+    for r in db.q("SELECT formula_id, key FROM formula_forms ORDER BY added_at"):
+        key_of.setdefault(r["formula_id"], r["key"])
+    for fid, nid in page.items():
+        if nid in by:
+            by[nid].update({"kind": "formula", "tex": tex_of.get(fid, ""), "fields": tagged.get(key_of.get(fid, ""), [])})
+    groups: dict[str, list[dict]] = {}
+    for r in db.q("SELECT concept_id, key, tex, body, formula_id FROM formula_notes WHERE kind != 'step' ORDER BY created_at, concept_id"):
+        groups.setdefault(r["key"], []).append(r)
+    items: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    edges: list[dict] = []
+
+    def link(src: str, dst: str) -> None:
+        if src != dst and (src, dst) not in seen:
+            seen.add((src, dst))
+            edges.append({"src": src, "dst": dst, "origin": "formula"})
+
+    for key, rows in groups.items():
+        hosts = [by[h] for h in dict.fromkeys(nodes.get(r["concept_id"], r["concept_id"]) for r in rows) if h in by]
+        fid = next((r["formula_id"] for r in rows if r["formula_id"] in page), None)
+        if fid:  # the formula has a page: its node stands for it
+            for h in hosts:
+                link(page[fid], h["id"])
+            continue
+        if not hosts:
+            continue
+        body = loads(rows[0]["body"], {})
+        best = max(hosts, key=lambda h: (_RANK.get(h["state"], 0), h["mastery"]))
+        first = hosts[0]
+        nid = "fx:" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+        items.append({
+            "id": nid, "title": (body.get("name") or "A formula").strip(), "statement": (body.get("meaning") or "").strip(),
+            "kind": "formula", "tex": rows[0]["tex"], "fields": tagged.get(key, []), "state": best["state"], "mastery": best["mastery"],
+            "goals": sorted({g for h in hosts for g in h["goals"]}), "concepts": [],
+            "sessions": sorted({x for h in hosts for x in h["sessions"]}), "lessons": [x for h in hosts for x in h["lessons"]],
+            "books": sorted({b for h in hosts for b in h["books"]}),
+            "cluster": first["cluster"], "also": sorted({h["cluster"] for h in hosts} - {first["cluster"]}),
+            "chapter": first["chapter"], "chapterTitle": first["chapterTitle"], "order": first["order"] + 1e-5})
+        for h in hosts:
+            link(nid, h["id"])
+    return items, edges
 
 
 def area_colors(db: DB) -> dict[str, int]:

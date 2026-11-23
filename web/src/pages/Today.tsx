@@ -35,9 +35,9 @@ export default function Today() {
         <div className="card continue-card">
           <div className="eyebrow">Continue{c.kind === 'session' && c.book ? ` · ${c.book.title}` : c.kind === 'lesson' ? ` · ${c.bookTitle} · ${c.chapterTitle}` : ''}</div>
           <h2><Markdown inline>{c.title}</Markdown></h2>
-          {c.kind === 'session' && c.next && <p className="muted">Next idea: <strong className="text"><Markdown inline>{c.next}</Markdown></strong></p>}
+          {c.kind === 'session' && c.next && <div className="muted">Next idea: <strong className="text"><Markdown inline>{c.next}</Markdown></strong></div>}
           {c.kind === 'session' && !c.next && <p className="muted">{c.status === 'probing' ? 'A few quick questions find what you already know.' : 'Your plan is ready.'}</p>}
-          {c.kind === 'lesson' && <p className="muted">{c.pages[0] === c.pages[1] ? `p. ${c.pages[0]}` : `pp. ${c.pages[0]}–${c.pages[1]}`}{c.summary ? ' · ' : ''}<Markdown inline>{c.summary}</Markdown></p>}
+          {c.kind === 'lesson' && <div className="muted">{c.pages[0] === c.pages[1] ? `p. ${c.pages[0]}` : `pp. ${c.pages[0]}–${c.pages[1]}`}{c.summary ? ' · ' : ''}<Markdown inline>{c.summary}</Markdown></div>}
           {c.kind === 'lesson' && <p className="muted small">{c.chapterTitle}: {c.done} of {c.total} lessons known</p>}
           {c.total > 0 && <div className="bar"><span style={{ width: `${Math.round((c.done / c.total) * 100)}%` }} /></div>}
           <div className="row">

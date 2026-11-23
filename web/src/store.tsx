@@ -2,7 +2,7 @@
 // /api/action and return the next snapshot. While agent jobs run, the snapshot is polled.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Angle, BookView, ReasoningEntry, FormulaTreeView, TodayView, FeedbackKind, IdeaDetail, FeedbackRef, GraphView, LessonDiff, LessonView, Plan, PracticeDue, PracticeView, RunResult, SearchHit, SessionView, SourceDoc, State, Verdict } from './types'
+import type { Angle, BookView, ReasoningEntry, FormulaTreeView, TodayView, FeedbackKind, IdeaDetail, FeedbackRef, GraphView, LessonDiff, LessonPlanView, LessonView, Plan, PracticeDue, PracticeView, RunResult, SearchHit, SessionView, SourceDoc, State, Verdict } from './types'
 
 export type Action =
   | { type: 'answer'; conceptId: string; checkId: string; angle?: Angle; choice?: number; correct?: boolean; thinking?: string; confidence?: number | null }
@@ -64,6 +64,9 @@ export type Action =
   | { type: 'deleteBook'; bookId: string }
   | { type: 'bookReplan'; bookId: string }
   | { type: 'openFormula'; node: string }
+  | { type: 'planLesson'; conceptId: string }
+  | { type: 'lessonPlanNote'; conceptId: string; kind: 'cut' | 'other' | 'note' | 'plan' | 'steer'; text?: string; node?: string }
+  | { type: 'approveLessonPlan'; conceptId: string }
   | { type: 'makeFormulaPage'; node: string }
   | { type: 'setMapView'; view: import('./types').MapViewId }
   | { type: 'setDictation'; mode?: 'browser' | 'local'; model?: string }
@@ -165,7 +168,9 @@ export const runLocal = (body: { conceptId: string; itemId: string; code: string
   api<RunResult>('/api/run', { method: 'POST', body: JSON.stringify(body) })
 export const getLessonDiff = (id: string, a: number, b: number) =>
   api<LessonDiff>(`/api/lesson/${encodeURIComponent(id)}/diff?a=${a}&b=${b}`)
-export const openLesson = (id: string) => api<LessonView>(`/api/lesson/${encodeURIComponent(id)}/open`, { method: 'POST' })
+export const openLesson = (id: string, noplan = false) =>
+  api<LessonView>(`/api/lesson/${encodeURIComponent(id)}/open${noplan ? '?noplan=true' : ''}`, { method: 'POST' })
+export const getLessonPlan = (id: string) => api<LessonPlanView>(`/api/lesson/${encodeURIComponent(id)}/plan`)
 
 interface Ctx {
   s: State

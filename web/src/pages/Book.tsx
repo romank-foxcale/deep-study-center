@@ -15,6 +15,9 @@ const EMPTY = new Set<string>()
 
 /** The book page (SPEC §31): chapters you can open and close, each with its summary and its lessons, the lesson to
  * continue with, and the book's own map. Every lesson stays open, whatever you already know. */
+/** A lesson's plan status on the book page (SPEC §42). */
+const PLAN_LABEL: Record<string, string> = { planning: 'Planning…', ready: 'Plan ready · review it', approved: 'Writing from your plan', failed: 'Plan failed' }
+
 export default function Book() {
   const { id = '' } = useParams()
   const { s, dispatch } = useStore()
@@ -207,6 +210,7 @@ export function LessonList({ lessons, next, full }: { lessons: BookLesson[]; nex
             </div>
             <span className="book-lesson-side">
               <span className={`pill small state-pill-${x.state}`}><i className={`state-dot state-${x.state}`} /> {STATE_LABEL[x.state] ?? x.state}</span>
+              {!x.carded && x.plan && <span className={`pill small lp-pill lp-pill-${x.plan}`}>{PLAN_LABEL[x.plan]}</span>}
               {x.shared && !x.carded
                 ? <>
                   <Link className={`btn btn-small${x.conceptId === next ? ' btn-primary' : ''}`} to={`/lesson/${x.shared.conceptId}`}

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { getLesson, jobActive, openLesson, postActivity, useStore } from '../store'
 import type { Angle, LessonSectionView, LessonView } from '../types'
 import Markdown from '../components/Markdown'
+import LessonPlanner from '../components/LessonPlanner'
 import InlineCheck from '../components/InlineCheck'
 import CodeExercise from '../components/CodeExercise'
 import ExplainBack from '../components/ExplainBack'
@@ -183,7 +184,7 @@ export default function Lesson() {
         )}
         <header className="lesson-head">
           <h1>{concept.title}</h1>
-          <p className="lead"><Markdown inline>{concept.objective}</Markdown></p>
+          <div className="lead"><Markdown inline>{concept.objective}</Markdown></div>
           <div className="row">
             <StateBadge state={concept.state} />
             <MasteryBar value={concept.mastery} />
@@ -309,14 +310,28 @@ export default function Lesson() {
           </div>
         )}
 
-        {view && !view.card && book && (
+        {view && !view.card && book && view.lessonPlan && view.lessonPlan.status !== 'approved' && (
+          <>
+            <LessonPlanner conceptId={id} onWrite={() => getLesson(id).then(setView, () => {})} />
+            <p className="small muted lp-skip">In a hurry? <button className="link small"
+              onClick={() => openLesson(id, true).then(setView, () => {})}>Write it now without a plan</button> (the old way: the
+              chapter's lessons are written together).</p>
+          </>
+        )}
+        {view && !view.card && book && (!view.lessonPlan || view.lessonPlan.status === 'approved') && (
           <div className="placeholder">
             {view.writingCards
-              ? <p><strong>Writing this lesson from the book</strong> (pp. {book.pages[0]}–{book.pages[1]}). The other lessons of this
-                  chapter are written at the same time. The lesson is saved: it opens at once next time.</p>
+              ? <p><strong>Writing this lesson from {view.lessonPlan ? 'your plan and ' : ''}the book</strong> (pp. {book.pages[0]}–{book.pages[1]}).
+                  {view.lessonPlan ? '' : ' The other lessons of this chapter are written at the same time.'} The lesson is saved: it opens at once next time.</p>
               : <><p><strong>Not written yet.</strong></p>
                   <button className="btn btn-primary" onClick={() => openLesson(id).then(setView, () => {})}>Write it now</button></>}
           </div>
+        )}
+        {view?.card && view.lessonPlan?.status === 'approved' && (
+          <details className="lp-approved">
+            <summary className="small">The plan you approved (v{view.lessonPlan.version})</summary>
+            <LessonPlanner conceptId={id} readOnly />
+          </details>
         )}
         {view && !view.card && !book && (
           <div className="placeholder">

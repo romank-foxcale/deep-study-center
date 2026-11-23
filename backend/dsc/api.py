@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from fastapi.responses import Response
 
-from . import actions, backup, bookstudy, dictation, today, graph, lesson, library, planner, practice, progress, providers, runner, session, sources, state, versions
+from . import actions, backup, bookstudy, dictation, formula_fields, lesson_graph, today, graph, lesson, library, planner, practice, progress, providers, runner, session, sources, state, versions
 from .db import DB, workspace
 from .jobs import Jobs
 from .seed import ensure_routes, init_empty
@@ -93,6 +93,7 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
     @app.get("/api/graph")
     def get_graph() -> dict:
         """The knowledge graph: every node with the learner's state and goals, and the links (SPEC §21)."""
+        formula_fields.ensure(db, jobs)  # formulas with no fields yet are sorted in the background (SPEC §41)
         return graph.view(db)
 
     @app.get("/api/state")
@@ -125,9 +126,15 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
         return lesson.view(db, cid)
 
     @app.post("/api/lesson/{cid}/open")
-    def open_lesson(cid: str) -> dict:
+    def open_lesson(cid: str, noplan: bool = False) -> dict:
         _require_concept(db, cid)
-        return lesson.open_lesson(db, jobs, cid)
+        return lesson.open_lesson(db, jobs, cid, plan=not noplan)
+
+    @app.get("/api/lesson/{cid}/plan")
+    def get_lesson_plan(cid: str) -> dict:
+        """The lesson's plan graph, its versions, the learner's notes and the running plan job (SPEC §42)."""
+        _require_concept(db, cid)
+        return lesson_graph.view(db, cid)
 
     @app.post("/api/run")
     def run_code(body: dict = Body(...)) -> dict:

@@ -1048,3 +1048,78 @@ What it is for: the learner's review of 0.4 (navigation, the source library, the
   `formula_open`; a formula lesson gets its blocks, a formula with no page gets `formula_parts`). "Make a formula page"
   makes a page for any formula node (placed before the nearest formula page above it; its parts become its blocks).
   Formula and notation pages look different (a tinted background, "Formula page") and have no multiple-choice quiz.
+
+## 41. Formulas on the map, and the Territories legend (2026-11-23)
+
+What it is for: formulas are knowledge too, so the map shows them next to the ideas they belong to.
+
+- **Formulas on the map.** Every formula met in a lesson (a formula note that is not a derivation step) is on the map.
+  - A formula with a formula page is that page's node, marked as a formula with its form.
+  - Any other formula is a map item made for each map (not stored): id `fx:<hash of its form>`. It is linked to each
+    lesson that uses it. The same formula in two lessons is one item.
+  - All formulas (pages too) are one country of their own, "Formulas", with its own color (not a book color): most
+    lessons have formulas, so inside the books they would cover the land (`_formula_country`).
+  - **Provinces by field.** A model job (`formula_fields`) tags each formula once with 1 to 4 fields of mathematics from
+    a fixed list, most important first, judged on the formula itself (not the book it came from). The tags are kept per
+    form in `formula_fields` (key = `formulas.key`), so a formula in two lessons has one set of fields. The job starts
+    after new formula notes or a new formula page, and when the map loads with untagged formulas (not again within 10
+    minutes after a failure).
+    - Fields, in ring order (neighbours are related, so their provinces touch): Algebra & functions, Probability &
+      statistics, Information theory, Machine learning, Calculus & optimization, Linear algebra, Geometry &
+      trigonometry, Physics, Algorithms & complexity, Discrete math & logic.
+    - Territories: each field present is a province of the Formulas country, seeded on a ring around its middle. A
+      formula in 1 field is in its province; in 2 or 3 fields it sits where those provinces meet, and its hex is split
+      into 2 or 3 slices (the same split form for every hex); in 4 or more fields it is gray ("Essential"), in the middle.
+      A formula with no fields yet is "Not sorted yet" (dark gray). Its learning state is a smaller hex inside, so the
+      field colors stay visible. Thin dashed lines separate the provinces.
+    - The legend lists the provinces under Formulas: each field with its formulas (a formula in two fields counts in
+      both; "shared" says how many), then Essential and Not sorted. Cells and Wheel group formulas by province
+      (``chapter``); the tooltip names the fields.
+  - Its state is the best state of those lessons: a formula is learned with its lesson.
+  - A formula has no special mark: its country shows what it is. The tooltip says "Formula"; the panel shows its rendered
+    math and meaning.
+    A formula with no page has no "Practise".
+  - `graph.view` adds them (`_formula_items`); the map's "Everything" counts ideas and formulas apart.
+- **Territories** is the default view, also in the UI when no view is saved.
+- **Country names** are no longer drawn on the land. They are in a legend under the map ("Countries"): each book or
+  goal with its color and its known/all count. The legend can be collapsed; the choice is kept in this browser.
+- The map page fits the window under "Back" (no page scroll).
+
+## 42. Lessons you approve before they are written: the plan graph (2026-11-23)
+
+What it is for: the learner sees and changes how a lesson will teach before it is written, also while the plan is
+being made. Phase 1 of the lessons rework (the study of LearnHarness and the mock screens are in the proposal of
+2026-11-23; LearnHarness is AGPL-3.0, so its ideas are used, not its text).
+
+- **When.** Opening a book lesson that is not written yet makes its plan (job `lesson_graph`, prompt `lesson_plan.md`)
+  instead of writing the chapter's lessons. "Write it now without a plan" keeps the old way (`/open?noplan=true`): the
+  chapter's lessons without a plan are written together. A lesson that has a plan is never written in that batch; it
+  waits for its approval. Lessons written before stay as they are.
+- **The plan** is a small graph from what the learner holds to the lesson's one idea. Node kinds: `held` (the learner
+  holds it: built on, not taught again; `linksTo` its map idea), `foundation` (needed, not derivable from what is held,
+  true with no "but"), `step` (one new fact by one move of reasoning), `formula`, `goal` (exactly one). Each node
+  except held ones has a form: example, interactive, figure, text (at most three short sentences), derivation, and why.
+  Edges mean "hold this first". With the plan: `approach` (2-4 sentences) and `goal` (one sentence).
+  - Input: the lesson (title, what it covers, key ideas, pages), the book's pages, what the learner may hold (its
+    prerequisites and the closest map ideas with their states, and the formulas met in lessons), the version before,
+    and the learner's notes.
+  - Code checks the model's plan: unique keys, known kinds and forms, edges only between nodes, an edge that would
+    close a cycle is dropped, one goal (`lesson_graph.clean`).
+- **Versions and notes.** `lesson_graphs` keeps one row per version (status planning, ready, approved, failed).
+  `lesson_graph_notes` keeps the learner's notes: on a node "I know this" (`cut`, pressed again to take back), "Show it
+  another way" (`other`), a node note, a note on the whole plan, or a note sent while planning (`steer`). "Re-plan with
+  my notes" makes the next version from the notes not used yet; the planner changes only what they ask for and keeps
+  the node keys, so the screen marks new and changed nodes and lists the ones left out.
+- **Steering.** A note sent while a version is being made is used by the next version, which starts by itself when
+  the running one ends.
+- **Approve and write** marks the version approved and writes only this lesson (`research_module` with `only`); the
+  book-cards prompt gets the plan: one section per step, foundation and formula, in the plan's order, in each node's
+  form, and nothing the plan says the learner holds. The written lesson shows "The plan you approved".
+- **Screen.** The plan is drawn with the goal at the top and what you hold at the bottom; click a node for what it
+  adds, its form and the note buttons. While planning: the job's steps and the steer box. The book page shows a plan
+  pill per lesson (Planning…, Plan ready · review it, Writing from your plan, Plan failed).
+- **Robust.** Two opens at once make one version (one transaction). A version left "planning" when the app stopped
+  shows as failed ("interrupted") with "Try again".
+- API: `GET /api/lesson/{cid}/plan`; actions `planLesson`, `lessonPlanNote`, `approveLessonPlan`.
+- Next phases: steps written one at a time (predict, step, check, repair) with the plan beside the lesson; practice
+  from a lesson, chapter, field or the weakest items; later, generated interactive demos.

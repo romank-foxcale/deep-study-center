@@ -228,6 +228,18 @@ CREATE TABLE IF NOT EXISTS formula_parts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, node TEXT NOT NULL, ord INTEGER NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL,
   tex TEXT NOT NULL DEFAULT '', meaning TEXT NOT NULL DEFAULT '', basic INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS formula_opened (node TEXT PRIMARY KEY, at TEXT NOT NULL);
+-- The fields of mathematics of each formula, by its form (SPEC §41): a JSON list of field ids, most important first.
+CREATE TABLE IF NOT EXISTS formula_fields (key TEXT PRIMARY KEY, fields TEXT NOT NULL, at TEXT NOT NULL);
+-- The lesson plan graph (SPEC §42): a book lesson is planned and approved before it is written. One row per version;
+-- status planning | ready | approved | failed. nodes/edges are JSON. The learner's notes on a plan are kept apart;
+-- used_in is the version that used them (NULL: not used yet).
+CREATE TABLE IF NOT EXISTS lesson_graphs (
+  concept_id TEXT NOT NULL, version INTEGER NOT NULL, status TEXT NOT NULL, approach TEXT NOT NULL DEFAULT '',
+  goal TEXT NOT NULL DEFAULT '', nodes TEXT NOT NULL DEFAULT '[]', edges TEXT NOT NULL DEFAULT '[]',
+  error TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, approved_at TEXT, PRIMARY KEY (concept_id, version));
+CREATE TABLE IF NOT EXISTS lesson_graph_notes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, concept_id TEXT NOT NULL, version INTEGER NOT NULL, node TEXT NOT NULL DEFAULT '',
+  kind TEXT NOT NULL, text TEXT NOT NULL DEFAULT '', at TEXT NOT NULL, used_in INTEGER);
 CREATE TABLE IF NOT EXISTS book_cuts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL, ord INTEGER NOT NULL, source_id TEXT NOT NULL,
   chapter TEXT NOT NULL, pages TEXT NOT NULL DEFAULT '', rank TEXT NOT NULL, why TEXT NOT NULL DEFAULT '',

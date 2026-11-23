@@ -558,6 +558,37 @@ def study_book(db: DB, jobs: Jobs, a: dict) -> None:
     db.set_meta("last_book", bookstudy.start(db, jobs, str(a["sourceId"])))
 
 
+def _plan(fn):
+    """Lesson plan actions (SPEC §42): a PlanError is a 400 for the learner."""
+    def wrapped(db: DB, jobs: Jobs, a: dict) -> None:
+        from . import lesson_graph
+        try:
+            fn(db, jobs, a)
+        except lesson_graph.PlanError as e:
+            raise ActionError(str(e)) from e
+    return wrapped
+
+
+@_plan
+def plan_lesson(db: DB, jobs: Jobs, a: dict) -> None:
+    """Make the next version of a lesson's plan (the first one, or a re-plan with the learner's notes)."""
+    from . import lesson_graph
+    lesson_graph.start(db, jobs, str(a.get("conceptId") or ""))
+
+
+@_plan
+def lesson_plan_note(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import lesson_graph
+    lesson_graph.note(db, jobs, str(a.get("conceptId") or ""), str(a.get("kind") or ""), str(a.get("text") or ""),
+                      str(a.get("node") or ""))
+
+
+@_plan
+def approve_lesson_plan(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import lesson_graph
+    lesson_graph.approve(db, jobs, str(a.get("conceptId") or ""))
+
+
 @_book
 def book_retry(db: DB, jobs: Jobs, a: dict) -> None:
     bookstudy.retry(db, jobs, str(a["bookId"]))
@@ -960,6 +991,7 @@ ACTIONS = {
     "learnBlocksFirst": learn_blocks_first, "bookRemapChapter": book_remap_chapter, "bookReplan": book_replan,
     "openFormula": open_formula, "makeFormulaPage": make_formula_page, "bookHomework": book_homework,
     "deleteBook": delete_book, "setMapView": set_map_view,
+    "planLesson": plan_lesson, "lessonPlanNote": lesson_plan_note, "approveLessonPlan": approve_lesson_plan,
     "setDictation": set_dictation, "downloadDictationModel": download_dictation_model,
     "removeDictationModel": remove_dictation_model,
 }
