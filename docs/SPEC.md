@@ -1310,3 +1310,25 @@ cells" was chosen).
 - **Also:** "Show names", search, zoom (wheel, buttons, Fit), drag to pan. Today and the book page show the same hex
   map, small. The book page shows only that book's ideas.
 - Next: gaps (open space where an idea is missing), then goals as a direction on the map.
+
+## 51. Gaps: open space where an idea is missing (2026-11-24)
+
+What it is for: the map shows not only what the learner holds, but where something is missing between two ideas,
+so they can "conquer the territory" step by step. Phase 4 of the one-map redesign.
+
+- **A gap** sits on an arrow A -> B of the map when B needs 1-3 ideas that are on no cell (`gaps` table: status open,
+  filled or dismissed; the ideas with title, what each says, and whether it was added).
+- **Finding gaps** (job `find_gaps`, prompt `gap_find.md`, role "Research"): after a book finishes mapping (meta
+  `auto_gaps`, on by default), and with "Find gaps" on the map. The agent sees the arrows near ideas the learner has
+  started or learned (at most 160) and the ideas of the map, and returns at most 6 gaps.
+- **Code checks** every gap: both ends are ideas of the map and differ; no proposed idea has the title of an idea
+  already on the map; an arrow the learner said is not missing is never proposed again; an open gap on the same arrow
+  gets the new ideas instead of a second gap; at most 3 ideas per gap.
+- **On the map:** a gap takes one empty, dashed hex per missing idea, between its two cells. Point at it: what is
+  missing and between what. Click it: the gap panel.
+- **The learner's choices** (actions `acceptGap`, `findGaps` with `gapId`, `dismissGap`):
+  - "Add to map": the idea becomes a cell (not explored yet), linked A -> new -> B; what is still missing moves to
+    sit between the new cell and B; the gap closes when nothing is left. The panel then opens the new cell
+    ("Teach me this").
+  - "Find more": the agent looks at that arrow again; the gap grows (at most 3 ideas).
+  - "Not missing": the gap closes and that arrow is not proposed again.

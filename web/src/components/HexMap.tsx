@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Markdown from './Markdown'
-import type { GraphNode } from '../types'
+import type { GraphNode, MapGap } from '../types'
 
 // The map of ideas (SPEC §50): one hex per idea (one cell per idea, §49), no countries. Ideas that build on each other
 // sit next to each other: a small force layout (links pull, cells push apart), then every cell snaps to the nearest
 // free hex, the most linked first. Colors: learned (green), known but not learned yet (blue-gray: you started it),
-// not explored (dark). Point at a cell for what it is; click it for its sources (the page's panel).
+// not explored (dark). Point at a cell for what it is; click it for its sources (the page's panel). A gap (§51) takes
+// one empty, dashed hex per missing idea, between its two cells: point at it for what is missing, click it to add.
 
 export type CellState = 'learned' | 'known' | 'unexplored'
 export const cellState = (state: string): CellState => (state === 'learned' ? 'learned' : state === 'learning' ? 'known' : 'unexplored')
@@ -29,8 +30,14 @@ function roundHex(x: number, y: number): [number, number] {
 }
 const hash = (s: string) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0 }
 
-/** Positions for every idea: deterministic (the same map gives the same picture), linked ideas side by side. */
-export function layoutCells(ids: string[], links: Link[]): Map<string, Cell> {
+/** Positions for every idea: deterministic (the same map gives the same picture), linked ideas side by side. A gap is
+ *  laid out as one more cell linked to its two ideas, then takes one free hex per missing idea. */
+export function layoutCells(ids: string[], links: Link[], gaps: MapGap[] = []): { cells: Map<string, Cell>; gapCells: Map<string, Cell[]> } {
+  const known = new Set(ids)
+  const gs = gaps.filter(g => known.has(g.between[0]) && known.has(g.between[1]))
+  links = [...links, ...gs.flatMap(g => [{ src: g.between[0], dst: g.id }, { src: g.id, dst: g.between[1] }])]
+  ids = [...ids, ...gs.map(g => g.id)]
+  const size = new Map(gs.map(g => [g.id, g.ideas.length]))
   const order = [...ids].sort((a, b) => hash(a) - hash(b))
   const at = new Map<string, number>(order.map((id, i) => [id, i]))
   const n = order.length
@@ -59,7 +66,7 @@ export function layoutCells(ids: string[], links: Link[]): Map<string, Cell> {
     }
     for (let i = 0; i < n; i++) { X[i] *= 1 - 0.012 * alpha; Y[i] *= 1 - 0.012 * alpha }  // one piece of land
   }
-  const used = new Set<string>(), out = new Map<string, Cell>()
+  const used = new Set<string>(), out = new Map<string, Cell>(), gapCells = new Map<string, Cell[]>()
   const key = (q: number, r: number) => `${q},${r}`
   const free = (q: number, r: number): [number, number] => {
     if (!used.has(key(q, r))) return [q, r]
@@ -74,9 +81,16 @@ export function layoutCells(ids: string[], links: Link[]): Map<string, Cell> {
     const [q, r] = free(...roundHex(X[i], Y[i]))
     used.add(key(q, r))
     const [x, y] = toPix(q, r)
-    out.set(order[i], { id: order[i], q, r, x, y })
+    const k = size.get(order[i])
+    if (k === undefined) { out.set(order[i], { id: order[i], q, r, x, y }); continue }
+    const mine: Cell[] = [{ id: order[i], q, r, x, y }]  // a gap: this hex and free neighbours, one per missing idea
+    for (const [dq, dr] of DIRS) {
+      if (mine.length >= k) break
+      if (!used.has(key(q + dq, r + dr))) { used.add(key(q + dq, r + dr)); const [px, py] = toPix(q + dq, r + dr); mine.push({ id: order[i], q: q + dq, r: r + dr, x: px, y: py }) }
+    }
+    gapCells.set(order[i], mine)
   }
-  return out
+  return { cells: out, gapCells }
 }
 
 const CORNERS = Array.from({ length: 6 }, (_, i) => { const a = Math.PI / 180 * (60 * i - 30); return [S * 0.95 * Math.cos(a), S * 0.95 * Math.sin(a)] })
@@ -85,14 +99,18 @@ const hexPoints = (x: number, y: number) => CORNERS.map(([a, b]) => `${(x + a).t
 interface Props {
   nodes: GraphNode[]; links: Link[]; selected: string | null; matches: Set<string>
   onSelect: (id: string | null) => void
+  /** Open gaps (SPEC §51) and what to do when one is clicked. */
+  gaps?: MapGap[]; onGap?: (id: string) => void; selectedGap?: string | null
   /** Pan to this idea (n changes every time it is asked for). */
   center?: { id: string; n: number } | null
   compact?: boolean; names?: boolean
 }
 
-export default function HexMap({ nodes, links, selected, matches, onSelect, center, compact, names }: Props) {
+const NO_GAPS: MapGap[] = []
+
+export default function HexMap({ nodes, links, selected, matches, onSelect, center, compact, names, gaps = NO_GAPS, onGap, selectedGap }: Props) {
   const box = useRef<HTMLDivElement>(null)
-  const cells = useMemo(() => layoutCells(nodes.map(n => n.id), links), [nodes, links])
+  const { cells, gapCells } = useMemo(() => layoutCells(nodes.map(n => n.id), links, gaps), [nodes, links, gaps])
   const byId = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes])
   const near = useMemo(() => {
     const m = new Map<string, string[]>()
@@ -101,6 +119,8 @@ export default function HexMap({ nodes, links, selected, matches, onSelect, cent
   }, [links])
   const [view, setView] = useState({ x: 0, y: 0, k: 1 })
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null)
+  const [hoverGap, setHoverGap] = useState<{ id: string; x: number; y: number } | null>(null)
+  const title = (id: string) => byId.get(id)?.title ?? id
   const drag = useRef<{ x: number; y: number; vx: number; vy: number; moved: boolean } | null>(null)
 
   const fit = () => {
@@ -150,6 +170,14 @@ export default function HexMap({ nodes, links, selected, matches, onSelect, cent
             const a = cells.get(focus)!, b = cells.get(o)
             return b ? <line key={o} className="hm-link" x1={a.x} y1={a.y} x2={b.x} y2={b.y} /> : null
           })}
+          {!compact && gaps.map(g => (gapCells.get(g.id) ?? []).map((c, i) => (
+            <g key={`${g.id}-${i}`} className={`hm-gap${g.id === selectedGap ? ' hm-gap-selected' : ''}`}
+              onPointerEnter={e => { const r = box.current!.getBoundingClientRect(); setHoverGap({ id: g.id, x: e.clientX - r.left, y: e.clientY - r.top }) }}
+              onPointerLeave={() => setHoverGap(null)}
+              onClick={e => { e.stopPropagation(); onGap?.(g.id) }}>
+              <polygon points={hexPoints(c.x, c.y)} />
+              {i === 0 && <text x={c.x} y={c.y + 4}>+</text>}
+            </g>)))}
           {nodes.map(n => {
             const c = cells.get(n.id)
             if (!c) return null
@@ -175,6 +203,16 @@ export default function HexMap({ nodes, links, selected, matches, onSelect, cent
         <button className="btn btn-small" onClick={() => zoom(0.8)} aria-label="Zoom out">−</button>
         <button className="btn btn-small" onClick={fit}>Fit</button>
       </div>}
+      {hoverGap && (() => {
+        const g = gaps.find(x => x.id === hoverGap.id)
+        return g ? (
+          <div className="hm-tip" style={{ left: Math.min(hoverGap.x + 14, (box.current?.clientWidth ?? 600) - 270), top: hoverGap.y + 14 }}>
+            <b>Something is missing here</b>
+            <span className="muted">Between <Markdown inline>{title(g.between[0])}</Markdown> and <Markdown inline>{title(g.between[1])}</Markdown>:{' '}
+              {g.ideas.map(i => i.title).join(', ')}.</span>
+            <span className="small muted">Click to add it to your map.</span>
+          </div>) : null
+      })()}
       {h && hover && (
         <div className="hm-tip" style={{ left: Math.min(hover.x + 14, (box.current?.clientWidth ?? 600) - 270), top: hover.y + 14 }}>
           <b><Markdown inline>{h.title}</Markdown></b>

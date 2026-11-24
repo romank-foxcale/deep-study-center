@@ -258,7 +258,8 @@ def view(db: DB) -> dict:
     base = links(db)
     have = {(x["src"], x["dst"]) for x in base}  # a formula page is already linked to its lesson in the links table
     fx_links = [x for x in fx_links if (x["src"], x["dst"]) not in have]
-    return {"nodes": out + fx_nodes, "links": base + fx_links, "goals": goals, "sessions": sessions, "books": books,
+    from . import gaps
+    return {"nodes": out + fx_nodes, "links": base + fx_links, "gaps": gaps.open_gaps(db), "goals": goals, "sessions": sessions, "books": books,
             "clusters": clusters, "formulaFields": [{"id": i, "title": t} for i, t in _fields()]}
 
 

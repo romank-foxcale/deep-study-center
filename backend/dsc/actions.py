@@ -683,6 +683,35 @@ def delete_book(db: DB, jobs: Jobs, a: dict) -> None:
 MAP_VIEWS = ("hex", "tree")  # SPEC §50: the hex map of ideas; the country views were removed
 
 
+def _gap(fn):
+    """Gap actions (SPEC §51): a GapError is a 400 for the learner."""
+    def wrapped(db: DB, jobs: Jobs, a: dict) -> None:
+        from . import gaps
+        try:
+            fn(db, jobs, a)
+        except gaps.GapError as e:
+            raise ActionError(str(e)) from e
+    return wrapped
+
+
+@_gap
+def find_gaps(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import gaps
+    gaps.find(db, jobs, str(a.get("gapId") or ""))  # with a gap: "find more" for it
+
+
+@_gap
+def accept_gap(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import gaps
+    db.set_meta("last_gap_idea", gaps.accept(db, str(a["gapId"]), int(a.get("index") or 0)))
+
+
+@_gap
+def dismiss_gap(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import gaps
+    gaps.dismiss(db, str(a["gapId"]))
+
+
 def set_map_view(db: DB, jobs: Jobs, a: dict) -> None:
     """The learner's choice of knowledge-map view (SPEC §29), kept in the workspace."""
     if a.get("view") not in MAP_VIEWS:
@@ -1042,6 +1071,7 @@ ACTIONS = {
     "learnBlocksFirst": learn_blocks_first, "bookRemapChapter": book_remap_chapter, "bookReplan": book_replan,
     "openFormula": open_formula, "makeFormulaPage": make_formula_page, "bookHomework": book_homework,
     "deleteBook": delete_book, "setMapView": set_map_view,
+    "findGaps": find_gaps, "acceptGap": accept_gap, "dismissGap": dismiss_gap,
     "planLesson": plan_lesson, "predictStep": predict_step, "rewriteStep": rewrite_step, "demoResult": demo_result, "lessonPlanNote": lesson_plan_note, "approveLessonPlan": approve_lesson_plan,
     "setDictation": set_dictation, "downloadDictationModel": download_dictation_model,
     "removeDictationModel": remove_dictation_model,

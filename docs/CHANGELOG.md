@@ -3,8 +3,11 @@
 The history of Deep Study Center, newest first. The full design and the decisions are in [SPEC.md](SPEC.md); the
 work still open is in [TODO.md](TODO.md).
 
-## Unreleased: lesson steps on the map, teach from a link, no schedule, one lesson per idea, the hex map (SPEC §46-§50)
+## Unreleased: lesson steps on the map, teach from a link, no schedule, one lesson per idea, the hex map, gaps (SPEC §46-§51)
 
+- **Gaps** (SPEC §51): open, dashed hexes where an idea is missing between two of yours. Point at a gap to see
+  what is missing; add it to your map, ask for more, or say it is not missing. Gaps are found after a book is mapped,
+  and when you press "Find gaps".
 - **The hex map** (SPEC §50): the map is one hex per idea, from all your sources, with no book countries. Green is
   learned, blue-gray is started, dark is not explored. Point at a cell to see what it is; click it to see its sources
   and open its lesson. The Territories, Skill wheel and Cells views are removed; the Tree stays.
