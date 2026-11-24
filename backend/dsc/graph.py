@@ -44,10 +44,13 @@ def _writing(db: DB):
 
 
 def sync(db: DB) -> int:
-    """Give every concept without a node its own node (node id = concept id). Returns how many were added."""
+    """Give every concept without a node its own node (node id = concept id), and keep the step ideas of planned
+    lessons in step (plan_nodes, SPEC §46). Returns how many concept nodes were added."""
+    from . import plan_nodes
     rows = db.q("""SELECT c.id, c.title, c.objective FROM concepts c LEFT JOIN concept_nodes n ON n.concept_id = c.id
                    WHERE n.concept_id IS NULL""")
     if not rows:
+        plan_nodes.sync(db, _writing)
         return 0
     ts = now()
     with _writing(db):
@@ -57,6 +60,7 @@ def sync(db: DB) -> int:
             if db.conn.execute("SELECT changes()").fetchone()[0]:
                 db.conn.execute("INSERT INTO node_fts(node_id, text) VALUES(?,?)", (r["id"], f'{r["title"]} {r["objective"]}'))
             db.conn.execute("INSERT OR IGNORE INTO concept_nodes(concept_id, node_id) VALUES(?,?)", (r["id"], r["id"]))
+    plan_nodes.sync(db, _writing)
     return len(rows)
 
 
@@ -81,6 +85,8 @@ def prune(db: DB) -> None:
             db.conn.execute("DELETE FROM nodes WHERE id=?", (nid,))
             db.conn.execute("DELETE FROM node_fts WHERE node_id=?", (nid,))
             db.conn.execute("DELETE FROM links WHERE src=? OR dst=?", (nid, nid))
+        from . import plan_nodes
+        plan_nodes.prune(db)
 
 
 def evidence_for(db: DB, concept_ids: list[str]) -> list[dict]:
@@ -177,18 +183,31 @@ def states(db: DB) -> dict[str, engine.ConceptState]:
     for link in links(db):
         prereqs.setdefault(link["dst"], set()).add(link["src"])
     started = {r["id"] for r in db.q("SELECT id FROM concepts WHERE started=1")}
+    from . import plan_nodes
+    steps = plan_nodes.rows(db)  # step ideas of planned lessons (SPEC §46)
     all_nodes = [r["id"] for r in db.q("SELECT id FROM nodes")]  # also nodes without a concept (study sessions)
     pseudo = [{"id": nid, "p_init": 0.1, "prereqs": sorted(prereqs.get(nid, ())),
-               "started": any(c in started for c in concepts_of.get(nid, [])),
+               "started": any(c in started for c in concepts_of.get(nid, [])),  # a step idea: started by its first answer
                "explain_items": sorted({i for c in concepts_of.get(nid, []) for i in explain.get(c, [])})}
               for nid in all_nodes]
     known_nodes = set(all_nodes)
+    item_node = plan_nodes.item_nodes(db)
     ev = []
     for r in db.q("SELECT * FROM evidence ORDER BY id"):
         nid = nodes.get(r["concept_id"]) or (r["concept_id"] if r["concept_id"] in known_nodes else None)
         if nid:
             ev.append(dict(r, concept_id=nid))
-    return engine.derive_concepts(pseudo, ev)
+        step = item_node.get((r["concept_id"], r["item_id"]))
+        if step:  # a step's check is evidence on the step's idea too
+            ev.append(dict(r, concept_id=step))
+    out = engine.derive_concepts(pseudo, ev)
+    for nid, s in steps.items():  # one check alone never makes an idea learned: a step of a learned lesson shares it
+        lesson, mine = out.get(nodes.get(s["conceptId"], s["conceptId"])), out.get(nid)
+        if lesson and mine and lesson.state in ("learned", "mastered") and mine.state not in ("rusty", "learned", "mastered"):
+            own = [e for e in ev if e["concept_id"] == nid and not e.get("voided")]
+            if not own or (own[-1]["score"] if own[-1].get("score") is not None else float(own[-1]["correct"])) >= engine.PASS_SCORE:
+                out[nid] = lesson
+    return out
 
 
 def view(db: DB) -> dict:
@@ -212,6 +231,11 @@ def view(db: DB) -> dict:
     books_of: dict[str, list[str]] = {}
     for r in db.q("SELECT book_id, node_id FROM book_nodes"):
         books_of.setdefault(r["node_id"], []).append(r["book_id"])
+    from . import plan_nodes
+    steps = plan_nodes.rows(db)
+    lesson_title = {r["id"]: r["title"] for r in db.q("SELECT id, title FROM concepts")}
+    for nid, s in steps.items():  # a step idea is in its lesson's books
+        books_of[nid] = list(books_of.get(nodes.get(s["conceptId"], s["conceptId"]), []))
     out = []
     for n in db.q("SELECT * FROM nodes ORDER BY created_at, id"):
         s = st.get(n["id"])
@@ -220,6 +244,9 @@ def view(db: DB) -> dict:
                     "goals": sorted(goals_of.get(n["id"], ())), "concepts": sorted(concepts_of.get(n["id"], [])),
                     "sessions": sorted(sessions_of.get(n["id"], [])), "lessons": lessons_of.get(n["id"], []),
                     "books": sorted(books_of.get(n["id"], []))})
+        if n["id"] in steps:
+            s = steps[n["id"]]
+            out[-1]["step"] = {"conceptId": s["conceptId"], "lesson": lesson_title.get(s["conceptId"], ""), "sectionId": s["sectionId"]}
     goals = [{"id": g["id"], "title": g["title"]} for g in db.q("SELECT id, title FROM goals WHERE kind != 'bookstudy' ORDER BY created_at")]
     sessions = [{"id": r["id"], "title": r["title"]} for r in db.q("SELECT id, title FROM sessions ORDER BY created_at")]
     books = [{"id": r["id"], "title": r["title"]} for r in db.q("SELECT id, title FROM books ORDER BY created_at")]
@@ -360,12 +387,17 @@ def _clusters(db: DB, nodes: list[dict]) -> tuple[list[dict], dict[str, dict]]:
     in_goals: dict[str, list[dict]] = {}
     for r in goal_rows:
         in_goals.setdefault(r["node_id"], []).append(r)
+    from . import plan_nodes
+    of = node_of(db)
+    steps = plan_nodes.rows(db)
     for n in nodes:
         nid = n["id"]
-        bs, gs = in_books.get(nid, []), in_goals.get(nid, [])
+        host = of.get(steps[nid]["conceptId"], steps[nid]["conceptId"]) if nid in steps else nid  # a step idea: its lesson
+        bs, gs = in_books.get(host, []), in_goals.get(host, [])
         if bs:
             b = bs[0]
-            key, chapter, title, rank = f"book:{b['book_id']}", b["chapter"], b["chapter_title"], (b["pord"], b["ord"])
+            sub = (-1, steps[nid]["ord"]) if nid in steps else (0, 0)  # the steps just before their lesson
+            key, chapter, title, rank = f"book:{b['book_id']}", b["chapter"], b["chapter_title"], (b["pord"], b["ord"], *sub)
         elif gs:
             g = gs[0]
             key, chapter, title, rank = f"goal:{g['goal_id']}", g["tord"] + 1, g["ttitle"], (g["seq"], g["mord"], g["cord"])
@@ -416,6 +448,14 @@ def node_detail(db: DB, nid: str) -> dict | None:
                for r in db.q("""SELECT c.id, c.title, t.goal_id FROM concept_nodes cn JOIN concepts c ON c.id = cn.concept_id
                                 JOIN modules m ON m.id = c.module_id JOIN tracks t ON t.id = m.track_id
                                 JOIN goals g ON g.id = t.goal_id WHERE cn.node_id=? AND g.kind != 'bookstudy'""", (nid,))]
+    from . import plan_nodes
+    step = plan_nodes.rows(db).get(nid)
+    if step:  # a step idea (SPEC §46) is in its lesson's book
+        host = node_of(db).get(step["conceptId"], step["conceptId"])
+        books = [{"id": r["book_id"], "title": r["title"], "part": r["part"], "pages": r["pages"], "conceptId": r["concept_id"]}
+                 for r in db.q("""SELECT bn.book_id, b.title, p.title AS part, bn.pages, p.concept_id FROM book_nodes bn
+                                  JOIN books b ON b.id = bn.book_id JOIN book_parts p ON p.id = bn.part_id
+                                  WHERE bn.node_id=?""", (host,))]
     return {"id": nid, "title": n["title"], "statement": n["statement"], "kind": n["kind"],
             "state": s.state if s else "pending", "mastery": s.mastery if s else 0.0,
             "buildsOn": [brief(lk["src"]) for lk in ls if lk["dst"] == nid],

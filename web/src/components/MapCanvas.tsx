@@ -20,7 +20,7 @@ const STATE_LABEL: Record<string, string> = {
 interface C { id: string; title: string; kind: string; color: string; nodes: N[]; maxDepth: number; cx: number; cy: number; a0?: number; a1?: number; lx?: number; ly?: number }
 interface N {
   id: string; title: string; state: string; mastery: number; c: C; also: C[]; chapter: number; chapterTitle: string; order: number
-  idx: number; depth: number; prereqs: N[]; next: N[]; px: number; py: number; pr: number; formula: boolean; fields: string[]
+  idx: number; depth: number; prereqs: N[]; next: N[]; px: number; py: number; pr: number; formula: boolean; step: string | null; fields: string[]
 }
 interface L { s: N; t: N; cross: boolean }
 interface Props {
@@ -48,7 +48,7 @@ function build(nodes: GraphNode[], links: { src: string; dst: string }[], cluste
   const ns: N[] = nodes.map(g => {
     const c = cs.get(g.cluster) ?? loose(g.cluster || 'loose')
     const n: N = { id: g.id, title: g.title, state: g.state, mastery: g.mastery, c, also: (g.also ?? []).map(a => cs.get(a)).filter((x): x is C => !!x),
-      chapter: g.chapter ?? 0, chapterTitle: g.chapterTitle ?? '', order: g.order ?? 0, idx: 0, depth: 0, prereqs: [], next: [], px: 0, py: 0, pr: 4, formula: g.kind === 'formula', fields: (g.fields ?? []).filter(f => FIELD_COLORS[f]) }
+      chapter: g.chapter ?? 0, chapterTitle: g.chapterTitle ?? '', order: g.order ?? 0, idx: 0, depth: 0, prereqs: [], next: [], px: 0, py: 0, pr: 4, formula: g.kind === 'formula', step: g.step?.lesson ?? null, fields: (g.fields ?? []).filter(f => FIELD_COLORS[f]) }
     c.nodes.push(n)
     return n
   })
@@ -464,7 +464,7 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
     if (!n) { tip.hidden = true; return }
     tip.hidden = false
     tip.querySelector('strong')!.textContent = n.title
-    tip.querySelector('.mc-tip-state')!.textContent = (n.formula ? 'Formula · ' : '') + (STATE_LABEL[n.state] ?? n.state)
+    tip.querySelector('.mc-tip-state')!.textContent = (n.formula ? 'Formula · ' : n.step ? `Step of “${n.step}” · ` : '') + (STATE_LABEL[n.state] ?? n.state)
     ;(tip.querySelector('.mc-tip-dot') as HTMLElement).style.background = css(`--st-${n.state === 'pending' ? 'ready' : n.state}`)
     tip.querySelector('.mc-tip-where')!.textContent = [n.c.title, ...n.also.map(c => c.title)].join(' · ') + (n.chapterTitle ? ` — ${n.chapterTitle}` : '')
     tip.style.left = Math.min(size.W - tip.offsetWidth - 8, mx + 14) + 'px'

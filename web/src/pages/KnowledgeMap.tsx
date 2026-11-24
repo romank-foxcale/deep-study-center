@@ -243,6 +243,7 @@ function NodePanel({ n, g, onPick, onClose }: { n: GraphNode; g: GraphView; onPi
         <button className="link small" onClick={onClose} aria-label="Close">Close</button>
       </div>
       {n.kind === 'formula' && <div className="eyebrow">Formula</div>}
+      {n.step && <div className="eyebrow">A step of a lesson</div>}
       <h2 className="h-small"><Markdown inline>{n.title}</Markdown></h2>
       {n.tex && <Markdown>{`$$${n.tex}$$`}</Markdown>}
       {n.statement && <div className="small"><Markdown>{n.statement}</Markdown></div>}
@@ -255,6 +256,8 @@ function NodePanel({ n, g, onPick, onClose }: { n: GraphNode; g: GraphView; onPi
           <li key={l.id}><button className="link" onClick={() => openLesson(l.id, l.goalId)}>{l.title}</button>
             <span className="muted small"> · {goalTitle(l.goalId)}</span></li>
         ))}</ul></>}
+      {n.step && <><div className="eyebrow">Taught in</div>
+        <ul className="km-list"><li><Link to={`/lesson/${n.step.conceptId}`}><Markdown inline>{n.step.lesson}</Markdown></Link></li></ul></>}
       {n.books.length > 0 && <><div className="eyebrow">Books</div>
         <ul className="km-list">{n.books.map(id => <li key={id}><Link to={`/book/${id}`}>{g.books.find(x => x.id === id)?.title ?? id}</Link></li>)}</ul></>}
       {n.sessions.length > 0 && <><div className="eyebrow">Study sessions</div>

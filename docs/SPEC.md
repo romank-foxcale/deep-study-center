@@ -1150,7 +1150,7 @@ and every step is checked before the next one builds on it. Phase 2 of the lesso
 - **Explain differently** on a step writes it again with the learner's note (`rewriteStep`); its answers stay.
 - **Screen.** A sticky bar with the plan's steps (done, current, to come) and what the lesson builds on; the steps so far,
   each a card; "You finished the lesson" at the end.
-- Next: plan nodes as ideas and formulas in the knowledge map; practice (Phase 3).
+- The steps are also ideas on the map (§46).
 
 ## 44. Practice, back from hold: pick what to practise, a hint ladder, a pause, retests (2026-11-24)
 
@@ -1202,3 +1202,26 @@ and no built-in widget can show it, the learner still gets something to move. Ph
   (`demoResult`), and shows at once from then on. Errors: the server fixes it once with those errors (at most 2 builds
   in all); if it fails again it is left out, and the step's text stands alone. A result for an old version is ignored.
 - Stored in the step's section: `demo = {status, brief, html, title, watch, version, tries, errors, tested}`.
+
+## 46. The steps of a planned lesson as ideas on the map (2026-11-24)
+
+What it is for: a step lesson teaches several small ideas (foundations and reasoning steps). The map shows each one,
+so the learner sees what the lesson is built from, what holds, and can practise one step on its own.
+
+- **Which.** Each taught foundation and step of a step lesson (§43) becomes an idea of the map: id
+  `pn-<lesson>-<key>`, kind "step", origin "plan", with the step's title and what it adds. Held nodes, formula nodes
+  and the goal are not new ideas: a held node is its map idea, a formula is in the Formulas country, and the goal is
+  the lesson's own idea.
+- **A step that is already on the map.** When the plan links a step to an idea already on the map (`linksTo`), the
+  step is that idea: no copy is made.
+- **Place.** A step idea is in its lesson's book and chapter, just before the lesson.
+- **Links** come from the plan's edges ("hold this first", origin "plan"). A formula node is joined across: a -> formula
+  -> b becomes a -> b.
+- **State.** A step's check and explain-back count on the step's idea (or on the linked idea), and on the lesson. One
+  check alone does not make an idea learned, so a step whose last answer was right shares its lesson's state when the
+  lesson is learned or mastered. A step idea starts with its first answer. "Practise" works on a step idea.
+- **Kept in step.** `plan_nodes.sync` (from `graph.sync`) maps each step lesson's newest card once
+  (`plan_nodes`, `plan_maps`). A new card replaces the lesson's step ideas: after a re-plan, or without steps after
+  "Write it now without a plan". Step ideas that no lesson owns are removed.
+- **Screen.** The hover card says "Step of <lesson>". The side panel says "A step of a lesson" and links the lesson
+  under "Taught in".

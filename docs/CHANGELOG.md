@@ -3,6 +3,12 @@
 The history of Deep Study Center, newest first. The full design and the decisions are in [SPEC.md](SPEC.md); the
 work still open is in [TODO.md](TODO.md).
 
+## Unreleased: lesson steps on the map (SPEC §46)
+
+- **The steps of a planned lesson are ideas on the map.** Each foundation and step that a lesson teaches is an idea of
+  its own, next to its lesson, linked as the plan says. A step's check counts on it. You can practise one step. A step
+  the plan links to an idea already on the map uses that idea.
+
 ## 0.5.0 (2026-11-24): lessons planned and taught step by step, practice, demos, formulas on the map (SPEC §41-§45)
 
 - **Interactive demos** (SPEC §45): when no built-in widget can show a step, a small demo is built for it, checked, run

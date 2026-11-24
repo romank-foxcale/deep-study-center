@@ -175,6 +175,8 @@ export interface GraphNode {
   tex?: string
   /** A formula's fields of mathematics, most important first (SPEC §41). */
   fields?: string[]
+  /** A step of a planned lesson, as an idea of its own (SPEC §46): ``kind`` "step", ids "pn-…". */
+  step?: { conceptId: string; lesson: string; sectionId: string }
   /** Map views (SPEC §29): the idea's cluster ("book:<id>", "goal:<id>", "session:<id>" or "loose"), the other books and
    *  goals it is in, its chapter there and its reading order (0..1). */
   cluster: string; also: string[]; chapter: number; chapterTitle: string; order: number

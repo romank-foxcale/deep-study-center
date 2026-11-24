@@ -237,6 +237,13 @@ CREATE TABLE IF NOT EXISTS lesson_graphs (
   concept_id TEXT NOT NULL, version INTEGER NOT NULL, status TEXT NOT NULL, approach TEXT NOT NULL DEFAULT '',
   goal TEXT NOT NULL DEFAULT '', nodes TEXT NOT NULL DEFAULT '[]', edges TEXT NOT NULL DEFAULT '[]',
   error TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, approved_at TEXT, PRIMARY KEY (concept_id, version));
+-- The steps of a planned lesson as ideas on the map (SPEC §46): one node per taught foundation or step;
+-- plan_maps keeps which card version of each step lesson is mapped.
+-- own = 0: the step is an idea already on the map (the plan linked it), so no node was made for it.
+CREATE TABLE IF NOT EXISTS plan_nodes (
+  concept_id TEXT NOT NULL, node_key TEXT NOT NULL, node_id TEXT NOT NULL, section_id TEXT NOT NULL, ord INTEGER NOT NULL,
+  own INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (concept_id, node_key));
+CREATE TABLE IF NOT EXISTS plan_maps (concept_id TEXT PRIMARY KEY, card_version INTEGER NOT NULL);
 -- Step lessons (SPEC §43): the learner's prediction before a step (not graded evidence: guessing is the point).
 CREATE TABLE IF NOT EXISTS step_predictions (
   id INTEGER PRIMARY KEY AUTOINCREMENT, concept_id TEXT NOT NULL, section_id TEXT NOT NULL, choice INTEGER NOT NULL,
