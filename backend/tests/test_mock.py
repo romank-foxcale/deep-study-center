@@ -33,7 +33,7 @@ def test_the_mock_has_every_state_books_sessions_and_lessons(mocked):
     dot = lesson.view(db, "c-dot")
     assert any(sec.get("viz") for sec in dot["card"]["sections"])
     assert db.one("SELECT COUNT(*) AS n FROM node_reviews")["n"] == 0  # no schedule (SPEC §48)
-    assert (folder / "MOCK").exists() and db.meta("map_view") == "territory"
+    assert (folder / "MOCK").exists() and db.meta("map_view") == "hex"
 
 
 def test_clusters_give_chapters_and_reading_order(mocked):
@@ -56,11 +56,13 @@ def test_the_mock_never_writes_into_a_real_workspace(tmp_path):
 
 def test_the_map_view_is_saved(env):
     db, jobs, _ = env
-    assert state.snapshot(db)["mapView"] == "territory"  # the default (SPEC §30)
-    actions.dispatch(db, jobs, {"type": "setMapView", "view": "cells"})
-    assert state.snapshot(db)["mapView"] == "cells"
-    db.set_meta("map_view", "globe")  # a view removed in 0.5
-    assert state.snapshot(db)["mapView"] == "territory"
+    assert state.snapshot(db)["mapView"] == "hex"  # the default (SPEC §50)
+    actions.dispatch(db, jobs, {"type": "setMapView", "view": "tree"})
+    assert state.snapshot(db)["mapView"] == "tree"
+    db.set_meta("map_view", "territory")  # a country view, removed with the hex map
+    assert state.snapshot(db)["mapView"] == "hex"
+    with pytest.raises(actions.ActionError):
+        actions.dispatch(db, jobs, {"type": "setMapView", "view": "cells"})
     with pytest.raises(actions.ActionError):
         actions.dispatch(db, jobs, {"type": "setMapView", "view": "spiral"})
 

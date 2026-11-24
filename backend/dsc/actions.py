@@ -680,7 +680,7 @@ def delete_book(db: DB, jobs: Jobs, a: dict) -> None:
     bookstudy.delete(db, str(a["bookId"]))
 
 
-MAP_VIEWS = ("tree", "wheel", "cells", "territory")  # graph, nebula and globe were removed in 0.5
+MAP_VIEWS = ("hex", "tree")  # SPEC §50: the hex map of ideas; the country views were removed
 
 
 def set_map_view(db: DB, jobs: Jobs, a: dict) -> None:

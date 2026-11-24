@@ -75,3 +75,19 @@ def test_the_home_moves_to_the_lesson_that_is_further_along(book):  # noqa: F811
     db.x("INSERT INTO cards(concept_id, version, body, fact_check, checked_at) VALUES(?,?,?,?,?)", (other, 1, dumps({"sections": []}), "skipped", "x"))
     assert cells.home(db, att) == other  # the second book's lesson was written (before this change): it is further along
     assert db.one("SELECT concept_id FROM cell_homes")["concept_id"] == other
+
+
+def test_an_ideas_details_give_its_sources_and_its_one_lesson(book):  # noqa: F811
+    """SPEC §50: the map's panel shows every source of an idea and opens its one lesson."""
+    from dsc import graph
+    db, jobs, runner = book
+    actions.dispatch(db, jobs, {"type": "studyBook", "sourceId": "src-1"})
+    att = lessons(db, db.meta("last_book"))["Attention"]["conceptId"]
+    add_second_book(db)
+    runner.responses["Book map"] = lambda call: {"summary": "s", "lessons": [
+        {"key": "a2", "title": "Attention as lookup", "covers": "c", "pages": "1-3", "ideas": [], "prereq_keys": [], "same_as": att}]} \
+        if "Second Book" in call.prompt else map_reply(call)
+    actions.dispatch(db, jobs, {"type": "studyBook", "sourceId": "src-2"})
+    d = graph.node_detail(db, graph.node_of(db)[att])
+    assert d["lesson"] == att and [(x["kind"], x["title"]) for x in d["sources"]] == [("book", "Inference Book"), ("book", "Second Book")]
+    assert d["sources"][1]["pages"] == [1, 3]

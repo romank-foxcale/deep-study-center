@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { getGraph, useStore } from '../store'
+import { getGraph, getIdea, useStore } from '../store'
 import Markdown from '../components/Markdown'
 import { ancestors, layout } from '../components/graphLayout'
-import MapCanvas, { type CanvasView } from '../components/MapCanvas'
-import type { GraphNode, GraphView, MapViewId } from '../types'
+import HexMap, { CELL_LABEL, cellState } from '../components/HexMap'
+import type { GraphNode, GraphView, IdeaDetail, MapViewId } from '../types'
 
 const R = 13
 const LIT = new Set(['learned'])
@@ -14,10 +14,8 @@ const STATE_LABEL: Record<string, string> = {
 const LEGEND = ['learned', 'learning', 'ready', 'locked']
 /** The map views the learner can choose from (SPEC §29). */
 const VIEWS: { id: MapViewId; label: string; hint: string }[] = [
-  { id: 'territory', label: 'Territories', hint: 'Every hex is an idea and every book a country; learning lights the land.' },
+  { id: 'hex', label: 'Map', hint: 'One hex per idea, from all your sources. Ideas that build on each other sit side by side.' },
   { id: 'tree', label: 'Tree', hint: 'Basics at the bottom; an arrow points to the idea it helps you reason toward.' },
-  { id: 'wheel', label: 'Skill wheel', hint: 'Your goal’s basics in the core; each book a sector, each chapter a spoke from basics to advanced.' },
-  { id: 'cells', label: 'Cells', hint: 'Books hold chapters, chapters hold ideas; sizes follow the number of ideas.' },
 ]
 
 /** Two short lines for a node label; the full title is in the tooltip. */
@@ -36,7 +34,8 @@ function labelLines(title: string): string[] {
 /** The knowledge map (SPEC §23): every idea you know or need, as one skill tree. Basics at the bottom. */
 export default function KnowledgeMap() {
   const { s, dispatch } = useStore()
-  const mode: MapViewId = VIEWS.some(v => v.id === s.mapView) ? s.mapView : 'territory'  // the default; also for a removed view (graph, nebula, globe)
+  const mode: MapViewId = VIEWS.some(v => v.id === s.mapView) ? s.mapView : 'hex'  // the default; also for a removed view
+  const [names, setNames] = useState(false)
   const [center, setCenter] = useState<{ id: string; n: number } | null>(null)
   const location = useLocation()
   const asked = location.state as { focus?: string; select?: string } | null
@@ -145,7 +144,7 @@ export default function KnowledgeMap() {
       <div className="km-bar">
         <h1 className="km-title">Knowledge map</h1>
         <Link className="link small" to="/formulas" title="Every formula lesson and the blocks it is built from">Formula tree</Link>
-        <select className="input input-small" value={focus} onChange={e => { setFocus(e.target.value); setSelected(null) }} aria-label="Show">
+        <select className="input input-small" value={focus} onChange={e => { setFocus(e.target.value); setSelected(null) }} aria-label="Show" hidden={mode === 'hex'}>
           <option value="all">Everything ({nodes.filter(n => n.kind !== 'formula').length} ideas, {nodes.filter(n => n.kind === 'formula').length} formulas)</option>
           {g.goals.length > 0 && <optgroup label="Goals">{g.goals.map(x => <option key={x.id} value={`goal:${x.id}`}>{x.title}</option>)}</optgroup>}
           {g.books.length > 0 && <optgroup label="Books">{g.books.map(x => <option key={x.id} value={`book:${x.id}`}>{x.title}</option>)}</optgroup>}
@@ -171,15 +170,16 @@ export default function KnowledgeMap() {
         </div>}
       </div>
       <div className="km-legend small muted">
-        {LEGEND.map(st => <span key={st} className="km-legend-item"><i className={`km-swatch km-swatch-${st}`} />{STATE_LABEL[st]}</span>)}
-        {mode !== 'tree' && <span className="km-legend-item">A second ring: the idea is also in another book.</span>}
+        {mode === 'hex'
+          ? <>{(['learned', 'known', 'unexplored'] as const).map(st => <span key={st} className="km-legend-item"><i className={`hm-swatch hm-${st}`} />{CELL_LABEL[st]}</span>)}
+              <label className="km-legend-item"><input type="checkbox" checked={names} onChange={e => setNames(e.target.checked)} /> Show names</label></>
+          : LEGEND.map(st => <span key={st} className="km-legend-item"><i className={`km-swatch km-swatch-${st}`} />{STATE_LABEL[st]}</span>)}
         <span className="km-legend-item">{VIEWS.find(v => v.id === mode)?.hint}</span>
       </div>
 
       <div className="km-canvas" ref={box}>
         {nodes.length === 0 && <p className="muted km-empty">No ideas yet. Research a goal or <Link to="/study">study something</Link>.</p>}
-        {mode !== 'tree' && <MapCanvas view={mode as CanvasView} nodes={shown} links={links} clusters={g.clusters ?? []} fields={g.formulaFields}
-          selected={selected} matches={matches} center={center} onSelect={setSelected} />}
+        {mode === 'hex' && <HexMap nodes={shown} links={links} selected={selected} matches={matches} center={center} names={names} onSelect={setSelected} />}
         {mode === 'tree' && <svg width="100%" height="100%" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => { drag.current = null }}
           onClick={e => { if (!(e.target as Element).closest('.km-node')) setSelected(null) }}>
           <defs>
@@ -225,9 +225,18 @@ export default function KnowledgeMap() {
   )
 }
 
+const KIND_ICON: Record<string, string> = { book: '📘', article: '📄', web: '🌐', video: '▶️', custom: '✎', session: '💬' }
+
 function NodePanel({ n, g, onPick, onClose }: { n: GraphNode; g: GraphView; onPick: (id: string) => void; onClose: () => void }) {
   const { s, dispatch } = useStore()
   const navigate = useNavigate()
+  const [d, setD] = useState<IdeaDetail | null>(null)
+  useEffect(() => {  // the idea's sources and its one lesson (SPEC §49, §50); a formula without a page has none
+    let live = true
+    setD(null)
+    if (!n.id.startsWith('fx:')) getIdea(n.id).then(x => live && setD(x), () => {})
+    return () => { live = false }
+  }, [n.id])
   const title = (id: string) => g.nodes.find(x => x.id === id)?.title ?? id
   const before = g.links.filter(l => l.dst === n.id).map(l => l.src)
   const after = g.links.filter(l => l.src === n.id).map(l => l.dst)
@@ -239,7 +248,7 @@ function NodePanel({ n, g, onPick, onClose }: { n: GraphNode; g: GraphView; onPi
   return (
     <aside className="km-panel card">
       <div className="row row-between">
-        <span className={`pill km-pill-${n.state}`}>{STATE_LABEL[n.state] ?? n.state}{n.state === 'learning' ? ` · ${Math.round(n.mastery * 100)}%` : ''}</span>
+        <span className={`pill hm-pill hm-${cellState(n.state)}`}>{CELL_LABEL[cellState(n.state)]}{n.state === 'learning' ? ` · ${Math.round(n.mastery * 100)}%` : ''}</span>
         <button className="link small" onClick={onClose} aria-label="Close">Close</button>
       </div>
       {n.kind === 'formula' && <div className="eyebrow">Formula</div>}
@@ -251,19 +260,26 @@ function NodePanel({ n, g, onPick, onClose }: { n: GraphNode; g: GraphView; onPi
         <ul className="km-list">{before.map(id => <li key={id}><button className="link" onClick={() => onPick(id)}><Markdown inline>{title(id)}</Markdown></button></li>)}</ul></>}
       {after.length > 0 && <><div className="eyebrow">Leads to</div>
         <ul className="km-list">{after.map(id => <li key={id}><button className="link" onClick={() => onPick(id)}><Markdown inline>{title(id)}</Markdown></button></li>)}</ul></>}
-      {n.lessons.length > 0 && <><div className="eyebrow">Lessons</div>
+      {n.step && <><div className="eyebrow">Taught in</div>
+        <ul className="km-list"><li><Link to={`/lesson/${n.step.conceptId}`}><Markdown inline>{n.step.lesson}</Markdown></Link></li></ul></>}
+      {d && d.sources.length > 0 && <><div className="eyebrow">Sources ({d.sources.length})</div>
+        <ul className="km-list hm-sources">{d.sources.map((x, i) => (
+          <li key={i}><span className="hm-src-icon" aria-hidden>{KIND_ICON[x.kind] ?? '📘'}</span>
+            {'sessionId' in x
+              ? <span><Link to={`/study/${x.sessionId}`}>{x.title}</Link><div className="muted small">study session</div></span>
+              : <span><Link to={`/book/${x.bookId}`}>{x.title}</Link>
+                  <div className="muted small">{x.part} · {x.pages[0] === x.pages[1] ? `p. ${x.pages[0]}` : `pp. ${x.pages[0]}–${x.pages[1]}`}</div></span>}
+          </li>))}</ul>
+        {d.sources.length > 1 && <p className="small muted">One lesson: the tutor picks from these sources when it writes it.</p>}</>}
+      {!d && n.lessons.length > 0 && <><div className="eyebrow">Lessons</div>
         <ul className="km-list">{n.lessons.map(l => (
           <li key={l.id}><button className="link" onClick={() => openLesson(l.id, l.goalId)}>{l.title}</button>
             <span className="muted small"> · {goalTitle(l.goalId)}</span></li>
         ))}</ul></>}
-      {n.step && <><div className="eyebrow">Taught in</div>
-        <ul className="km-list"><li><Link to={`/lesson/${n.step.conceptId}`}><Markdown inline>{n.step.lesson}</Markdown></Link></li></ul></>}
-      {n.books.length > 0 && <><div className="eyebrow">Books</div>
-        <ul className="km-list">{n.books.map(id => <li key={id}><Link to={`/book/${id}`}>{g.books.find(x => x.id === id)?.title ?? id}</Link></li>)}</ul></>}
-      {n.sessions.length > 0 && <><div className="eyebrow">Study sessions</div>
-        <ul className="km-list">{n.sessions.map(id => <li key={id}><Link to={`/study/${id}`}>{g.sessions.find(x => x.id === id)?.title ?? id}</Link></li>)}</ul></>}
       <div className="row">
-        {!LIT.has(n.state) && (
+        {d?.lesson && <Link className={`btn btn-small${LIT.has(n.state) ? '' : ' btn-primary'}`} to={`/lesson/${d.lesson}`}>
+          {LIT.has(n.state) ? 'Open the lesson' : n.state === 'learning' ? 'Continue the lesson' : 'Start the lesson'}</Link>}
+        {!LIT.has(n.state) && !d?.lesson && (
           <button className="btn btn-primary btn-small" onClick={() => navigate('/study', { state: { topic: `Teach me: ${n.title}. ${n.statement}`.slice(0, 400) } })}>
             Teach me this</button>
         )}

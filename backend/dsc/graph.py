@@ -424,8 +424,8 @@ def _clusters(db: DB, nodes: list[dict]) -> tuple[list[dict], dict[str, dict]]:
 
 
 def node_detail(db: DB, nid: str) -> dict | None:
-    """One idea for a hover card (SPEC §28): its state, where the learner met it (books with pages, sessions, goal
-    lessons), and the ideas it builds on and leads to."""
+    """One idea for a hover card (SPEC §28) and the map's panel (SPEC §50): its state, its sources (every book, article
+    or video part, and the study sessions that taught it), its one lesson (§49), and the ideas it builds on and leads to."""
     n = db.one("SELECT * FROM nodes WHERE id=?", (nid,))
     if not n:
         return None
@@ -456,8 +456,15 @@ def node_detail(db: DB, nid: str) -> dict | None:
                  for r in db.q("""SELECT bn.book_id, b.title, p.title AS part, bn.pages, p.concept_id FROM book_nodes bn
                                   JOIN books b ON b.id = bn.book_id JOIN book_parts p ON p.id = bn.part_id
                                   WHERE bn.node_id=?""", (host,))]
+    from . import cells
+    mine = [r["concept_id"] for r in db.q("SELECT concept_id FROM concept_nodes WHERE node_id=?", (nid,))]
+    lesson = step["conceptId"] if step else (cells.home(db, mine[0]) if mine else None)
+    srcs = [{"kind": x["kind"], "title": x["title"], "bookId": x["bookId"], "url": x["url"], "part": x["part"],
+             "pages": x["pages"], "chapter": x["chapter"]} for x in (cells.sources(db, lesson) if lesson else [])]
+    srcs += [{"kind": "session", "title": x["title"], "sessionId": x["id"], "status": x["status"]} for x in sessions]
     return {"id": nid, "title": n["title"], "statement": n["statement"], "kind": n["kind"],
             "state": s.state if s else "pending", "mastery": s.mastery if s else 0.0,
             "buildsOn": [brief(lk["src"]) for lk in ls if lk["dst"] == nid],
             "leadsTo": [brief(lk["dst"]) for lk in ls if lk["src"] == nid],
-            "books": books, "sessions": sessions, "lessons": lessons}
+            "books": books, "sessions": sessions, "lessons": lessons, "sources": srcs, "lesson": lesson,
+            "step": step and {"conceptId": step["conceptId"], "sectionId": step["sectionId"]}}

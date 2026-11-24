@@ -2,14 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getBook, getGraph, useStore } from '../store'
 import Markdown from '../components/Markdown'
-import MapCanvas from '../components/MapCanvas'
+import HexMap, { CELL_LABEL } from '../components/HexMap'
 import RemapChapter from '../components/RemapChapter'
 import type { BookChapter, BookLesson, BookView, GraphView } from '../types'
 
 export const STATE_LABEL: Record<string, string> = {
   learned: 'learned', learning: 'learning', ready: 'ready to learn', locked: 'new', pending: 'new',
 }
-const LEGEND = ['learned', 'learning', 'ready']
 export const KNOWN = new Set(['learned'])
 const EMPTY = new Set<string>()
 
@@ -44,7 +43,6 @@ export default function Book() {
     : { ...n, cluster: `book:${id}`, also: [n.cluster, ...n.also.filter(a => a !== `book:${id}`)] }) : []), [g, id])
   const mineIds = useMemo(() => new Set(mine.map(n => n.id)), [mine])
   const myLinks = useMemo(() => (g ? g.links.filter(l => mineIds.has(l.src) && mineIds.has(l.dst)) : []), [g, mineIds])
-  const myClusters = useMemo(() => g?.clusters ?? [], [g])
 
   // the chapter of the next lesson starts open
   const nextChapter = v?.chapters.find(c => c.lessons.some(x => x.conceptId === v.next))?.chapter
@@ -169,13 +167,12 @@ export default function Book() {
         <aside className="book-right">
           <div className="book-map">
             {mine.length > 0
-              ? <MapCanvas view="territory" nodes={mine} links={myLinks} clusters={myClusters} selected={null} matches={EMPTY} center={null} compact
-                  onSelect={nid => navigate('/map', { state: { focus: `book:${v.id}`, select: nid } })} />
+              ? <HexMap nodes={mine} links={myLinks} selected={null} matches={EMPTY} compact
+                  onSelect={nid => { if (nid) navigate('/map', { state: { select: nid } }) }} />
               : <p className="muted small book-map-empty">The book's lessons appear here once a chapter is mapped.</p>}
           </div>
-          <div className="legend small">{LEGEND.map(st => <span key={st}><i className={`state-dot state-${st}`} /> {STATE_LABEL[st]}</span>)}</div>
-          <p className="small muted">Each hex is one lesson. Lit hexes are what you have learned. A second-color edge
-            marks a lesson that another book also teaches.</p>
+          <div className="legend small">{(['learned', 'known', 'unexplored'] as const).map(st => <span key={st}><i className={`hm-swatch hm-${st}`} /> {CELL_LABEL[st]}</span>)}</div>
+          <p className="small muted">Each hex is one idea of this book. An idea other sources also explain is the same cell on your map.</p>
         </aside>
       </div>
     </div>

@@ -178,7 +178,8 @@ export interface GraphNode {
    *  goals it is in, its chapter there and its reading order (0..1). */
   cluster: string; also: string[]; chapter: number; chapterTitle: string; order: number
 }
-export type MapViewId = 'tree' | 'wheel' | 'cells' | 'territory'
+/** SPEC §50: the hex map of ideas (the default) or the tree. The country views were removed. */
+export type MapViewId = 'hex' | 'tree'
 /** ``color``: the area's fixed color number (see areaColors.ts); -1 for "Other ideas". */
 export interface MapCluster { id: string; kind: 'book' | 'goal' | 'session' | 'loose' | 'formulas'; title: string; size: number; color: number }
 /** The knowledge graph (SPEC §21, §23). */
@@ -260,7 +261,13 @@ export interface IdeaDetail {
   buildsOn: { id: string; title: string; state: string }[]; leadsTo: { id: string; title: string; state: string }[]
   books: { id: string; title: string; part: string; pages: string; conceptId?: string | null }[]
   sessions: { id: string; title: string; status: string }[]; lessons: { id: string; title: string; goalId: string }[]
+  /** Every source of the idea (SPEC §49, §50): book, article, web page or video parts, and study sessions. */
+  sources: IdeaSource[]
+  /** The idea's one lesson (a step idea: the lesson that teaches it), or null. */
+  lesson: string | null
 }
+export type IdeaSource = { kind: 'session'; title: string; sessionId: string; status: string }
+  | { kind: string; title: string; bookId: string; url: string; part: string; pages: [number, number]; chapter: number }
 
 export interface SessionQuestion {
   id: number; idea: string; phase: 'probe' | 'predict' | 'check'; round: number; prompt: string; options: string[]

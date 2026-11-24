@@ -1288,3 +1288,25 @@ learner gets one lesson of it, written from both, not two lessons. Phase 2 of th
 - **Old data:** nothing is deleted or moved. Lessons of one idea written before this stay as earlier versions on the
   lesson page. Evidence was already counted per idea (§21).
 - Next phases: the hex map without countries (§29 replaced), gaps between cells, and goals as a direction on the map.
+
+## 50. The hex map of ideas: one hex per idea, no countries (2026-11-24)
+
+What it is for: the map shows one mind, not a shelf of books. Every idea is one hex (one cell per idea, §49), whatever
+its sources; ideas that build on each other sit side by side. Phase 3 of the one-map redesign (the mock "A · Hex
+cells" was chosen).
+
+- **Views:** "Map" (the hex map, the default) and "Tree". The country views (Territories, Skill wheel, Cells) are
+  removed; `map_view` is `hex` or `tree`, and an old value opens the hex map.
+- **Layout** (`HexMap.layoutCells`, in the page, deterministic): a small force layout (links pull two ideas one hex
+  apart; near cells push apart; a weak pull to the middle keeps one piece of land), then every idea snaps to the
+  nearest free hex, the most linked first.
+- **Colors:** learned (green), known but not learned yet (blue-gray: the learner started it), not explored (dark).
+  Formulas and lesson steps are cells too.
+- **Point at a cell:** its name, what it is (a formula, a step of a lesson), its state, one line on what it says, and
+  how many sources it has. Its links are drawn to its neighbours; other cells dim.
+- **Click a cell:** the panel shows what it builds on and leads to, its sources (`node_detail.sources`: every book,
+  article, web page or video part with pages, and the study sessions that taught it), and "Start / Continue / Open the
+  lesson" for the idea's one lesson (`node_detail.lesson`).
+- **Also:** "Show names", search, zoom (wheel, buttons, Fit), drag to pan. Today and the book page show the same hex
+  map, small. The book page shows only that book's ideas.
+- Next: gaps (open space where an idea is missing), then goals as a direction on the map.
