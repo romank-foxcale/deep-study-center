@@ -9,7 +9,7 @@ import type { GraphView, TodayView } from '../types'
 
 const EMPTY = new Set<string>()
 
-/** Today (SPEC §30): pick up where you stopped, recall what is due, see the week. */
+/** Today (SPEC §30): pick up where you stopped, see the week. No schedule (SPEC §48). */
 export default function Today() {
   const { s } = useStore()
   const navigate = useNavigate()
@@ -59,12 +59,10 @@ export default function Today() {
       )}
 
       <div className="today-grid">
-        {/* "Due for recall" is hidden while Practice is on hold (SPEC §40). */}
         <div className="card">
           <div className="eyebrow">This week</div>
           <div className="row stats">
             <div className="stat"><b>+{t?.week.learned ?? 0}</b><span className="muted small">ideas learned</span></div>
-            <div className="stat"><b>{t?.week.strong ?? 0}</b><span className="muted small">known strongly</span></div>
             <div className="stat"><b>{t?.week.sessions ?? 0}</b><span className="muted small">sessions done</span></div>
           </div>
           <span className="muted small">{t?.week.answers ?? 0} answers this week</span>

@@ -52,9 +52,9 @@ def offer(db: DB, cid: str) -> dict | None:
     if not gid or not state.latest_card(db, cid):
         return None
     _, states = state.concept_states(db, gid)
-    if cid not in states or states[cid].state in ("learned", "mastered"):
+    if cid not in states or states[cid].state == "learned":
         return None
-    if any(states.get(x["id"]) and states[x["id"]].state not in ("learned", "mastered") for x in extra_lessons(db, cid)
+    if any(states.get(x["id"]) and states[x["id"]].state != "learned" for x in extra_lessons(db, cid)
            if x["id"] != cid):
         return None  # an extra lesson for this is still open: do that one first
     s = signals(db, cid)

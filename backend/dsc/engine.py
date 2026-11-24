@@ -1,15 +1,14 @@
 """Deterministic engine: no LLM calls, no I/O. Everything here is derived by replaying logs.
 
 - Playbook (knowledge center #2's "how to teach this person") from the signal log.
-- Mastery per concept (BKT + gate) from the evidence log, plus spaced-review state.
+- Mastery per concept (BKT + gate) from the evidence log. There is no schedule: the learner studies and the state
+  shows progress (SPEC §48).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-
-from fsrs import Card, Rating, Scheduler
+from datetime import datetime, timezone
 
 ANGLES = ("geometric", "algebraic", "computational")
 ADJUST_KEYS = ("pace", "depth", "rigor")
@@ -21,7 +20,6 @@ WORKS, AVOID, MIN_EVIDENCE = 0.68, 0.32, 1.5
 SLIP, GUESS, TRANSIT = 0.10, 0.25, 0.15
 GATE_P, GATE_CORRECT = 0.95, 3
 PASS_SCORE = 0.8          # a graded answer at or above this counts as correct
-CONFIRM_AFTER = timedelta(hours=20)
 
 
 def clamp(v: float, lo: float, hi: float) -> float:
@@ -177,9 +175,9 @@ def derive_concepts(concepts: list[dict], evidence: list[dict]) -> dict[str, Con
     """Replay evidence (oldest first) into per-concept state.
 
     learned: P(learned) >= 0.95 and >= 3 distinct items answered correctly, plus an explain-back
-    passed when the card has one (``explain_items``).
-    mastered: a correct spaced review at least 20 h after learning. rusty: the latest review failed.
+    passed when the card has one (``explain_items``). Once learned, it stays learned (SPEC §48: no schedule, no decay).
     locked/ready from prerequisites; learning once the learner has started or answered anything.
+    Evidence of the old kind "review" counts as any other answer.
     """
     by_concept: dict[str, list[dict]] = {}
     for ev in evidence:
@@ -194,26 +192,17 @@ def derive_concepts(concepts: list[dict], evidence: list[dict]) -> dict[str, Con
         for ev in by_concept.get(c["id"], []):
             score = ev["score"] if ev.get("score") is not None else float(ev["correct"])
             ok = score >= PASS_SCORE
-            if ev["kind"] == "review":
-                if learned_at and not ok:
-                    status = "rusty"
-                elif learned_at:
-                    confirmed = status == "mastered" or _ts(ev["ts"]) - _ts(learned_at) >= CONFIRM_AFTER
-                    status = "mastered" if confirmed else "learned"
-                continue
             p = bkt(p, score)
             if ok:
                 items.add(ev["item_id"])
                 explained = explained or ev["item_id"] in explain_items
             if learned_at is None and p >= GATE_P and len(items) >= GATE_CORRECT and explained:
                 learned_at, status = ev["ts"], "learned"
-            if status == "rusty" and ok:
-                status = "learned"
         if status is None:
             status = "learning" if (c.get("started") or by_concept.get(c["id"])) else "pending"
         base[c["id"]] = ConceptState(status, round(p, 3), len(items), learned_at)
 
-    done = {"learned", "mastered", "rusty"}
+    done = {"learned"}
     for c in concepts:
         st = base[c["id"]]
         if st.state == "pending":
@@ -225,31 +214,3 @@ def derive_concepts(concepts: list[dict], evidence: list[dict]) -> dict[str, Con
 def _ts(s: str) -> datetime:
     d = datetime.fromisoformat(s)
     return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
-
-
-# ---------------------------------------------------------------- spaced reviews
-
-SCHEDULER = Scheduler(learning_steps=(), relearning_steps=(), enable_fuzzing=False)
-
-
-def first_review(learned_at: str) -> tuple[str, str]:
-    """(card json, due iso): the first review is one day after learning (the confirmation)."""
-    card = Card(due=_ts(learned_at) + timedelta(days=1))
-    return _card_json(card), card.due.isoformat()
-
-
-def new_card(at: str) -> str:
-    """A fresh review card, due now (an idea's first practice result schedules it)."""
-    return _card_json(Card(due=_ts(at)))
-
-
-def review(card_json: str, correct: bool, at: str) -> tuple[str, str]:
-    import json
-    card = Card.from_dict(json.loads(card_json))
-    card, _ = SCHEDULER.review_card(card, Rating.Good if correct else Rating.Again, _ts(at))
-    return _card_json(card), card.due.isoformat()
-
-
-def _card_json(card: Card) -> str:
-    import json
-    return json.dumps(card.to_dict())

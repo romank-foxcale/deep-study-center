@@ -29,6 +29,17 @@ def keep_option_order(monkeypatch):
     monkeypatch.setattr(mcq, "SHUFFLE", False)
 
 
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch):
+    """Tests never fetch a link (SPEC §47); a test that reads one patches these with its own page or captions."""
+    from dsc import links
+
+    def offline(*_a, **_k):
+        raise links.LinkError("no network in tests")
+    monkeypatch.setattr(links, "_fetch", offline)
+    monkeypatch.setattr(links, "transcript", offline)
+
+
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     monkeypatch.setenv("DSC_WORKSPACE", str(tmp_path))

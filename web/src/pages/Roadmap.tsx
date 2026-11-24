@@ -74,7 +74,7 @@ export default function Roadmap() {
           <div className="modules">
             {s.modules.filter(m => m.trackId === t.id).map(m => {
               const cs = m.conceptIds.map(id => s.concepts.find(c => c.id === id)!).filter(Boolean)
-              const done = cs.filter(c => ['learned', 'mastered'].includes(c.state)).length
+              const done = cs.filter(c => c.state === 'learned').length
               return (
                 <div key={m.id} id={`mod-${m.id}`} className="module">
                   <button className="module-head" onClick={() => setOpen(o => ({ ...o, [m.id]: !o[m.id] }))} aria-expanded={!!open[m.id]}>
@@ -150,7 +150,7 @@ function GridDetail({ pick, setPick, prog, showLessons }: {
   if (!pick || pick.kind === 'goal') {
     const fills = s.modules.map(m => prog[m.id].fill)
     const full = fills.filter(f => f >= 1).length
-    const now = s.concepts.find(c => ['ready', 'learning', 'rusty'].includes(c.state))
+    const now = s.concepts.find(c => ['ready', 'learning'].includes(c.state))
     const nowModule = now && s.modules.find(m => m.id === now.moduleId)
     return (
       <>

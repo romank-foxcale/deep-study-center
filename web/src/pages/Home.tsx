@@ -35,9 +35,8 @@ export default function Home() {
   }
   const next = s.concepts.find(c => c.state === 'learning') ?? s.concepts.find(c => c.state === 'ready')
   const total = s.modules.reduce((n, m) => n + (m.conceptIds.length || m.plannedConcepts || 0), 0)
-  const learned = s.concepts.filter(c => ['learned', 'mastered'].includes(c.state)).length
+  const learned = s.concepts.filter(c => c.state === 'learned').length
   const pending = s.diffs.filter(d => d.status === 'pending')
-  const due = s.reviews.filter(r => r.isDue)
   const stale = s.renditions.filter(r => r.stale).length
   const running = s.jobs.filter(j => j.status === 'queued' || j.status === 'running')
 
@@ -72,9 +71,6 @@ export default function Home() {
         <div className="card">
           <div className="eyebrow">Today</div>
           <ul className="plain">
-            <li>Spaced reviews due: <strong>{due.length}</strong> {due.length > 0
-              ? <Link to="/review" className="link">Start reviews →</Link>
-              : <span className="muted">(the first one comes a day after you learn something)</span>}</li>
             <li>Progress: <strong>{learned}</strong> of ~{total} concepts learned</li>
             <li>Lessons waiting to be re-rendered for you: <strong>{stale}</strong></li>
           </ul>
@@ -93,8 +89,8 @@ export default function Home() {
               : today.items.length === 0 ? <p className="muted">Nothing planned yet: research for your next module is still running.</p>
               : <ul className="plain">{today.items.map((it, i) => (
                   <li key={i}>
-                    <span className={`pill ${it.kind === 'review' ? 'pill-warn' : ''}`}>{it.kind}</span>{' '}
-                    <Link to={it.kind === 'review' ? '/review' : `/lesson/${it.conceptId}`}
+                    <span className="pill">{it.kind}</span>{' '}
+                    <Link to={`/lesson/${it.conceptId}`}
                       onClick={() => { if (it.goalId !== s.goal?.id) dispatch({ type: 'setGoal', id: it.goalId }) }}>{it.title}</Link>
                     <span className="muted small"> · {it.minutes} min{it.note ? ` · ${it.note}` : ''}</span>
                   </li>))}</ul>}

@@ -20,7 +20,7 @@ MONDAY = date(2026, 10, 19)
 
 # ---------------------------------------------------------------- weekly plan
 
-def test_plan_fills_study_days_in_roadmap_order_with_reviews_first(env):
+def test_plan_fills_study_days_in_roadmap_order_with_lessons_only(env):
     db, jobs, _ = env
     act(db, jobs, type="setPlanSettings", weeklyHours=5, studyDays=[0, 2, 4], startTime="07:30")
     p = planner.plan_week(db, MONDAY)
@@ -32,10 +32,7 @@ def test_plan_fills_study_days_in_roadmap_order_with_reviews_first(env):
     assert titles[:2] == ["Vectors", "Linear combinations"]  # roadmap order, prerequisites first
     assert titles.index("Span, basis & dimension") > titles.index("Linear combinations")
     assert lessons[0]["note"] == "continue" and any(i["note"] == "needs research" for i in lessons)
-    wed = days["2026-10-21"]["items"]
-    first_lesson = next(i for i, it in enumerate(wed) if it["kind"] == "lesson")
-    assert all(it["kind"] == "review" for it in wed[:first_lesson]) and first_lesson > 0  # confirmations come first
-    assert {it["title"] for it in wed[:first_lesson]} >= {"Vectors", "Linear combinations"}
+    assert all(i["kind"] == "lesson" for d in p["days"] for i in d["items"])  # no spaced reviews (SPEC §48)
     for d in p["days"]:
         assert d["minutes"] <= max(d["budget"] * 1.15, max((i["minutes"] for i in d["items"]), default=0))
     assert p["upcomingResearch"][0]["moduleId"] == "m-calc"

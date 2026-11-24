@@ -71,24 +71,12 @@ def test_mastery_states_from_evidence():
     same_item = [_ev("a", "q0", True, t0 + timedelta(minutes=i)) for i in range(5)]
     assert engine.derive_concepts(concepts, same_item)["a"].state == "learning"  # needs 3 distinct items
 
-    early = ev + [_ev("a", "q0", True, t0 + timedelta(hours=2), "review")]
-    assert engine.derive_concepts(concepts, early)["a"].state == "learned"  # too soon to confirm
-    later = ev + [_ev("a", "q0", True, t0 + timedelta(hours=30), "review")]
-    assert engine.derive_concepts(concepts, later)["a"].state == "mastered"
-    failed = later + [_ev("a", "q1", False, t0 + timedelta(days=9), "review")]
-    assert engine.derive_concepts(concepts, failed)["a"].state == "rusty"
-    fixed = failed + [_ev("a", "q2", True, t0 + timedelta(days=9, hours=1))]
-    assert engine.derive_concepts(concepts, fixed)["a"].state == "learned"
-
-
-def test_fsrs_first_review_is_a_day_later_and_pass_extends():
-    learned = "2026-10-01T10:00:00+00:00"
-    card, due = engine.first_review(learned)
-    assert due.startswith("2026-10-02T10:00")
-    card2, due2 = engine.review(card, True, "2026-10-02T11:00:00+00:00")
-    assert due2 > "2026-10-04"
-    _, due3 = engine.review(card2, False, "2026-10-10T11:00:00+00:00")
-    assert due3 < due2 or due3 < "2026-10-12"
+    # no schedule (SPEC §48): once learned, an idea stays learned; there is no "mastered" or "rusty"
+    later = ev + [_ev("a", "q0", True, t0 + timedelta(hours=30), "review"), _ev("a", "q1", False, t0 + timedelta(days=9))]
+    st = engine.derive_concepts(concepts, later)["a"]
+    assert st.state == "learned" and st.learned_at == ev[-1]["ts"]
+    old_review = [_ev("a", f"q{i}", True, t0 + timedelta(minutes=i), "review") for i in range(3)]
+    assert engine.derive_concepts(concepts, old_review)["a"].state == "learned"  # an old "review" answer counts as any answer
 
 
 def test_choose_angles_mixes_angles_by_fit_and_playbook():

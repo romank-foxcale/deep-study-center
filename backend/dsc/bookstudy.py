@@ -36,7 +36,7 @@ CHAPTER_CHARS = 80_000    # page text sent per chapter, at most
 PAGE_CHARS = 3_000        # one page's text, at most
 LESSON_MINUTES = 15
 GRAPH_LIST_MAX = 400      # up to this many older graph ideas, the mapper sees all their titles; above, a word search
-KNOWN = ("learned", "mastered", "rusty")
+KNOWN = ("learned",)
 _SKIP = re.compile(r"^(table of )?contents$|^index$|^acknowledg|^copyright|^about the author|^also by|^dedication"
                    r"|^title page$|^cover$|^bibliography$|^references$", re.I)
 # Back matter that is looked up, not studied: kept as a chapter (its pages count) but not cut into lessons.
@@ -160,15 +160,14 @@ def _book_of_goal(db: DB, gid: str) -> dict | None:
 
 
 def listing(db: DB) -> list[dict]:
-    """Book studies, newest first, with their lessons: how many, how many known and how many strong (the shelf's rings)."""
+    """Book studies, newest first, with their lessons: how many and how many learned (the shelf's ring)."""
     st = graph.states(db)
     counts: dict[str, dict] = {}
     for r in db.q("SELECT book_id, node_id FROM book_nodes"):
-        c = counts.setdefault(r["book_id"], {"ideas": 0, "known": 0, "strong": 0})
+        c = counts.setdefault(r["book_id"], {"ideas": 0, "known": 0})
         s = st.get(r["node_id"])
         c["ideas"] += 1
         c["known"] += int(bool(s) and s.state in KNOWN)
-        c["strong"] += int(bool(s) and s.state == "mastered")
     out = []
     colors = graph.area_colors(db)
     for b in db.q("SELECT b.*, s.author, s.kind FROM books b LEFT JOIN sources s ON s.id = b.source_id ORDER BY b.updated_at DESC"):

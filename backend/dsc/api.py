@@ -8,12 +8,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from fastapi.responses import Response
 
-from . import actions, backup, bookstudy, dictation, formula_fields, lesson_graph, today, graph, lesson, library, planner, practice, progress, providers, runner, session, sources, state, versions
+from . import actions, backup, bookstudy, dictation, formula_fields, lesson_graph, links, today, graph, lesson, library, planner, practice, progress, providers, runner, session, sources, state, versions
 from .db import DB, workspace
 from .jobs import Jobs
 from .seed import ensure_routes, init_empty
@@ -90,10 +90,6 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
     def get_practice_targets() -> dict:
         """What can be practised: books → chapters → lessons → steps, formula fields, the weakest ideas (SPEC §44)."""
         return practice.targets(db)
-
-    @app.get("/api/practice-due")
-    def get_practice_due() -> dict:
-        return practice.schedule(db)
 
     @app.get("/api/graph")
     def get_graph() -> dict:
@@ -206,11 +202,12 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
     def add_link_source(body: dict) -> dict:
         """A link source (web page or video): kept and opened, not read. The same link twice: 409."""
         try:
-            sources.add_link(db, str(body.get("url") or ""), str(body.get("title") or ""), str(body.get("kind") or ""))
+            sid = sources.add_link(db, str(body.get("url") or ""), str(body.get("title") or ""), str(body.get("kind") or ""))
         except sources.Duplicate as e:
             raise HTTPException(409, str(e)) from e
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
+        jobs.enqueue("read_link", "Read a link", {"source_id": sid})  # its text, for "Teach me this" (SPEC §47)
         return state.snapshot(db)
 
     @app.post("/api/transcribe")
@@ -221,6 +218,14 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
             return await asyncio.to_thread(dictation.transcribe, db, data, request.query_params.get("lang"))
         except dictation.DictationError as e:
             raise HTTPException(400, str(e)) from e
+
+    @app.get("/api/sources/{sid}/open")
+    def source_open(sid: str, page: int | None = None):
+        """Open a citation: a PDF at its page, a web page, or a video at the time its page starts (SPEC §47)."""
+        if not db.one("SELECT 1 FROM sources WHERE id=?", (sid,)):
+            raise HTTPException(404, "no such source")
+        to = links.href(db, sid, page) or f"/api/sources/{sid}/file" + (f"#page={page}" if page else "")
+        return RedirectResponse(to, status_code=307)
 
     @app.get("/api/sources/{sid}/file")
     def source_file(sid: str):

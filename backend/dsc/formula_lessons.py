@@ -107,7 +107,7 @@ def make(db: DB, jobs: Jobs, cid: str, k: str) -> str:
 
 # ---------------------------------------------------------------- the formula tree (SPEC §37)
 
-KNOWN = ("learned", "mastered", "rusty")
+KNOWN = ("learned",)
 BLOCKS_SCHEMA = {"type": "object", "required": ["blocks"], "properties": {"blocks": {"type": "array", "maxItems": 6, "items": {
     "type": "object", "required": ["name", "kind", "tex", "meaning", "ref", "basic"], "properties": {
         "name": {"type": "string"}, "kind": {"enum": ["notation", "formula", "idea"]}, "tex": {"type": "string"},

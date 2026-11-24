@@ -88,7 +88,7 @@ def is_video(url: str) -> bool:
 
 
 def add_link(db: DB, url: str, title: str = "", kind: str = "") -> str:
-    """A link source (a web page or a video). It is kept and opened; its text is not read yet."""
+    """A link source (a web page or a video). Its text is read by the job ``read_link`` (links.py, SPEC §47)."""
     url = url.strip()
     parts = urlparse(url)
     if parts.scheme not in ("http", "https") or not parts.netloc:
@@ -100,7 +100,7 @@ def add_link(db: DB, url: str, title: str = "", kind: str = "") -> str:
     title = " ".join(title.split())[:200] or (parts.netloc + parts.path).rstrip("/")[:200]
     sid = f"src-{secrets.token_hex(4)}"
     db.x("""INSERT INTO sources(id, title, author, kind, filename, bytes, pages, status, outline, added_at, url)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?)""", (sid, title, "", kind, "", 0, 0, "ready", "[]", now(), url))
+            VALUES(?,?,?,?,?,?,?,?,?,?,?)""", (sid, title, "", kind, "", 0, 0, "reading", "[]", now(), url))
     return sid
 
 

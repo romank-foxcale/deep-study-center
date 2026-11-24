@@ -294,7 +294,7 @@ def _graph_context(db: DB, topic: str) -> tuple[list[dict], str]:
     cands = graph.candidates(db, topic, k=30)
     st = graph.states(db)
     learned = [n for n in db.q("SELECT id, title, statement FROM nodes")
-               if st.get(n["id"]) and st[n["id"]].state in ("learned", "mastered")]
+               if st.get(n["id"]) and st[n["id"]].state == "learned"]
     ids = {c["id"] for c in cands}
     rows = cands + [n for n in learned if n["id"] not in ids][:60]
     text = "\n".join(f'- {n["id"]}: {n["title"]} - {n["statement"][:160]} [state: {st[n["id"]].state if n["id"] in st else "new"}]'
@@ -323,7 +323,7 @@ def start_from_ideas(db: DB, jobs: Jobs, topic: str, title: str, ideas: list[dic
     out = []
     for i in ideas:
         ns = st.get(i["node"])
-        level = "known" if ns and ns.state in ("learned", "mastered") else None
+        level = "known" if ns and ns.state == "learned" else None
         out.append({**i, "target": False, "level": level, "fromGraph": bool(i.get("fromGraph"))})
     unknown = [i for i in out if i["level"] != "known"]
     with db.tx():
@@ -368,7 +368,7 @@ def run_sketch(jobs: Jobs, jid: int, d: dict) -> dict:
                 db.conn.execute("INSERT INTO node_fts(node_id, text) VALUES(?,?)", (node, f'{i["title"]} {i["statement"]}'))
             db.conn.execute("INSERT OR IGNORE INTO session_nodes(session_id, node_id, created) VALUES(?,?,?)", (s["id"], node, created))
             ns = st.get(node)
-            level = "known" if ns and ns.state in ("learned", "mastered") else None
+            level = "known" if ns and ns.state == "learned" else None
             ideas.append({"key": i["key"], "title": i["title"][:200], "statement": i["statement"][:600], "node": node,
                           "prereqs": [p for p in i["prereq_keys"] if p in keys and p != i["key"]],
                           "target": i["key"] == out["target_key"], "level": level, "fromGraph": not created})

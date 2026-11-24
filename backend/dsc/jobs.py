@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import bookstudy, demos, dictation, formula_fields, formula_lessons, formulas, lesson_graph, lesson_steps, reasoning, engine, graph, guidelines, library, mcq, ohtani, practice, probe, progress, providers, runner, session, sources, state, versions, viz, writer
+from . import bookstudy, demos, dictation, links, formula_fields, formula_lessons, formulas, lesson_graph, lesson_steps, reasoning, engine, graph, guidelines, library, mcq, ohtani, practice, probe, progress, providers, runner, session, sources, state, versions, viz, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
@@ -838,6 +838,7 @@ HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "tutor": (run_tutor, fallback_tutor),
     "roadmap_review": (run_roadmap_review, fallback_roadmap_review),
     "outline": (run_outline, None),
+    "read_link": (links.read, links.failed),
     "ingest_source": (lambda jobs, jid, d: sources.ingest(jobs.db, d["source_id"], lambda m: jobs.progress(jid, m)),
                       lambda jobs, jid, d: jobs.db.x("UPDATE sources SET status='error' WHERE id=?", (d["source_id"],))),
     "research_module": (run_research_module, fallback_research_module),

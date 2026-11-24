@@ -34,7 +34,7 @@ def guessed(correct: bool, confidence: float | None, n_options: int = 4) -> bool
 def record_evidence(db: DB, cid: str, item_id: str, score: float, *, choice: int | None = None,
                     angle: str | None = None, thinking: str = "", confidence: float | None = None,
                     correct: bool | None = None) -> bool:
-    """Append graded practice evidence; schedule the first review when the concept becomes learned.
+    """Append graded practice evidence.
     Returns True when this answer made the concept learned (the lesson is finished: see ``on_finished``)."""
     gid = state.active_goal(db)
     _, before = state.concept_states(db, gid)
@@ -49,11 +49,7 @@ def record_evidence(db: DB, cid: str, item_id: str, score: float, *, choice: int
             db.x("INSERT INTO signals(ts, kind, dimension, value, delta, evidence, note, bumps) VALUES(?,?,?,?,?,?,?,0)",
                  (now(), "outcome", "angle", angle, delta, 0.3, ""))
     _, after = state.concept_states(db, gid)
-    if cid in after and after[cid].learned_at and not before[cid].learned_at:
-        card, due = engine.first_review(after[cid].learned_at)
-        db.x("INSERT OR REPLACE INTO reviews VALUES(?,?,?,?)", (cid, card, due, after[cid].learned_at))
-        return True
-    return False
+    return bool(cid in after and after[cid].learned_at and not before[cid].learned_at)
 
 
 def next_lesson(db: DB, cid: str) -> str | None:
@@ -67,7 +63,7 @@ def next_lesson(db: DB, cid: str) -> str | None:
         return None
     for nxt in ids[ids.index(cid) + 1:]:
         card = state.latest_card(db, nxt)
-        if card and card.get("sections") and states[nxt].state not in ("learned", "mastered"):
+        if card and card.get("sections") and states[nxt].state != "learned":
             return nxt
     return None
 
@@ -125,7 +121,7 @@ def _research_ahead(db: DB, jobs: Jobs) -> str | None:
     if not modules:
         return None
     concepts, states = state.concept_states(db, gid)
-    done = {"learned", "mastered"}
+    done = {"learned"}
     unfinished = {c["module_id"] for c in concepts if states[c["id"]].state not in done}
     current = next((i for i, m in enumerate(modules) if m["research"] != "ready" or m["id"] in unfinished), None)
     if current is None:

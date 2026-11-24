@@ -5,7 +5,7 @@ import { areaColor } from '../areaColors'
 import { DeleteSource, TrashIcon, kindLabel, matches, sourceUrl, type SourceQuery } from './Sources'
 import type { SourceDoc, StudyBookSummary } from '../types'
 
-/** The shelf (SPEC §30, §40): books being studied (a spine in the book's map color, a ring of known and strong ideas),
+/** The shelf (SPEC §30, §40): books being studied (a spine in the book's map color, a ring of learned ideas),
  *  PDFs not studied yet ("Teach me this book"), links, and "Custom" study topics ("teach me X" with no document).
  *  ``q`` filters the cards; every card has a trash can. */
 export default function BookShelf({ limit, withNew = true, q }: { limit?: number; withNew?: boolean; q?: SourceQuery }) {
@@ -20,7 +20,7 @@ export default function BookShelf({ limit, withNew = true, q }: { limit?: number
   const studied = new Set(s.studyBooks.map(b => b.sourceId))
   const books = s.studyBooks.filter(b => ok(b.kind, b.title, b.author, srcOf.get(b.sourceId)?.filename ?? ''))
   const fresh = withNew ? s.sources.filter(x => !x.url && x.status === 'ready' && !studied.has(x.id) && ok(x.kind, x.title, x.author, x.filename)) : []
-  const links = withNew ? s.sources.filter(x => x.url && ok(x.kind, x.title, x.author, x.url)) : []
+  const links = withNew ? s.sources.filter(x => x.url && !studied.has(x.id) && ok(x.kind, x.title, x.author, x.url)) : []
   const custom = withNew ? s.sessions.filter(x => ok('custom', x.title, x.topic)) : []
   const teach = async (sourceId: string) => {
     setWaiting(s.lastBook)
@@ -45,7 +45,7 @@ export default function BookShelf({ limit, withNew = true, q }: { limit?: number
             {waiting !== undefined ? 'Starting…' : 'Teach me this book'}</button>
         </div>
       ))}
-      {links.map(x => <LinkCard key={x.id} x={x} />)}
+      {links.map(x => <LinkCard key={x.id} x={x} busy={waiting !== undefined} onTeach={() => teach(x.id)} />)}
       {custom.map(x => (
         <Link key={x.id} to={`/study/${x.id}`} className="card shelf-card" style={{ ['--spine' as string]: areaColor(-1) }}>
           <div className="row shelf-head">
@@ -63,22 +63,34 @@ export default function BookShelf({ limit, withNew = true, q }: { limit?: number
   )
 }
 
-function LinkCard({ x }: { x: SourceDoc }) {
+/** A link (web page or video) not taught yet (SPEC §47): its text is read, then "Teach me this" makes its lessons. */
+function LinkCard({ x, busy, onTeach }: { x: SourceDoc; busy: boolean; onTeach: () => void }) {
+  const { dispatch } = useStore()
+  const video = x.kind === 'video'
+  const reading = x.status === 'reading'
   return (
-    <a href={sourceUrl(x)} target="_blank" rel="noreferrer" className="card shelf-card" style={{ ['--spine' as string]: areaColor(-1) }}>
+    <div className="card shelf-card shelf-new" style={{ ['--spine' as string]: areaColor(-1) }}>
       <div className="row shelf-head">
-        <div className="eyebrow">{kindLabel(x.kind)}</div>
+        <div className="eyebrow">{kindLabel(x.kind)} · not studied yet</div>
         <DeleteSource src={x} icon />
       </div>
-      <h3>{x.title}</h3>
+      <h3><a href={sourceUrl(x)} target="_blank" rel="noreferrer" title={`Open ${x.url}`}>{x.title}</a></h3>
       <div className="small muted src-sub">{x.url}</div>
-    </a>
+      {x.status === 'no_text' && <p className="small bad-text">{video ? 'This video has no captions that can be read.' : 'No text was found on this page.'}</p>}
+      {x.status === 'error' && <p className="small bad-text">The link could not be read.</p>}
+      {x.status === 'ready' && x.pages > 0 && <p className="small muted">{video ? 'Captions read' : 'Text read'}: {x.pages} {x.pages === 1 ? 'part' : 'parts'}.</p>}
+      <div className="row">
+        {x.status === 'error' || x.status === 'no_text'
+          ? <button className="btn btn-small" onClick={() => dispatch({ type: 'rereadSource', id: x.id })}>Read again</button>
+          : <button className="btn btn-small btn-primary" disabled={busy || reading} onClick={onTeach}>
+              {reading ? (video ? 'Reading the captions…' : 'Reading the page…') : busy ? 'Starting…' : 'Teach me this'}</button>}
+      </div>
+    </div>
   )
 }
 
 function BookCard({ b, src }: { b: StudyBookSummary; src?: SourceDoc }) {
   const known = b.ideas ? Math.round((b.known / b.ideas) * 100) : 0
-  const strong = b.ideas ? Math.round((b.strong / b.ideas) * 100) : 0
   return (
     <Link to={`/book/${b.id}`} className="card shelf-card" style={{ ['--spine' as string]: areaColor(b.color) }}>
       <div className="row shelf-head">
@@ -87,14 +99,13 @@ function BookCard({ b, src }: { b: StudyBookSummary; src?: SourceDoc }) {
           <h3>{b.title}</h3>
         </div>
         <div className="shelf-side">
-          <span className="ring" style={{ ['--known' as string]: known, ['--strong' as string]: strong }} aria-label={`${known}% known`}>
+          <span className="ring" style={{ ['--known' as string]: known, ['--strong' as string]: 0 }} aria-label={`${known}% known`}>
             <span>{known}%</span></span>
           {src && <DeleteSource src={src} icon />}
         </div>
       </div>
       {b.status === 'ready'
-        ? <div className="row small muted"><span>{b.partsDone}/{b.parts} parts</span><span>{b.known}/{b.ideas} ideas</span>
-            <span className="row-tight"><i className="state-dot state-mastered" /> {b.strong} strong</span></div>
+        ? <div className="row small muted"><span>{b.partsDone}/{b.parts} parts</span><span>{b.known}/{b.ideas} ideas learned</span></div>
         : <div className="small muted">{b.status === 'mapping' ? `Mapping: chapter ${Math.min(b.chaptersDone + 1, b.chapters)} of ${b.chapters}…`
             : `Mapping stopped at chapter ${b.chaptersDone + 1}`}</div>}
     </Link>

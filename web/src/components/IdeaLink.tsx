@@ -18,7 +18,7 @@ const load = (id: string) => {
 }
 
 const STATE: Record<string, string> = {
-  learned: 'pill pill-ok', mastered: 'pill pill-ok', learning: 'pill pill-warn', rusty: 'pill pill-warn',
+  learned: 'pill pill-ok', learning: 'pill pill-warn',
 }
 
 export const IDEA_HREF = /^#idea\/([\w-]+)$/

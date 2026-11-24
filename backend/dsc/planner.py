@@ -1,10 +1,9 @@
 """Weekly plan across all goals (deterministic, no LLM calls).
 
 Each goal gets a share of the weekly study time proportional to its hours/week. Every study day
-gets an equal slice of the week. Within a day: spaced reviews due that day come first (across all
-goals), then lessons, always taken from the goal furthest behind its share. Lessons follow each
-goal's roadmap order; a lesson whose prerequisites are planned earlier in the week can follow
-them. A learned lesson's confirmation review is projected for the next study day.
+gets an equal slice of the week. Within a day: lessons, always taken from the goal furthest behind
+its share. Lessons follow each goal's roadmap order; a lesson whose prerequisites are planned earlier
+in the week can follow them. There are no spaced reviews (SPEC §48).
 """
 
 from __future__ import annotations
@@ -15,7 +14,6 @@ from datetime import date, datetime, timedelta, timezone
 from . import state
 from .db import DB
 
-REVIEW_MINUTES = 3
 DEFAULTS = {"weekly_hours": None, "study_days": "0,1,2,3,4,5", "start_time": "19:00"}  # Mon=0 ... Sun=6
 
 
@@ -52,19 +50,16 @@ def settings(db: DB) -> dict:
     return {"weekly_hours": hours, "study_days": days or [0, 1, 2, 3, 4], "start_time": out["start_time"] or "19:00"}
 
 
-def _goal_queue(db: DB, goal_id: str) -> tuple[list[dict], dict[str, str], list[dict], set[str]]:
-    """(lesson candidates in roadmap order, state per concept, reviews with due dates,
-    concepts in modules placement marked as known)."""
+def _goal_queue(db: DB, goal_id: str) -> tuple[list[dict], dict[str, str], set[str]]:
+    """(lesson candidates in roadmap order, state per concept, concepts in modules placement marked as known)."""
     concepts, states = state.concept_states(db, goal_id)
     known_modules = {m["id"] for m in db.q(
         "SELECT m.id FROM modules m JOIN tracks t ON t.id = m.track_id WHERE t.goal_id = ? AND m.known = 1", (goal_id,))}
     has_card = {r["concept_id"] for r in db.q("SELECT DISTINCT concept_id FROM cards")}
     queue = [{**c, "has_card": c["id"] in has_card} for c in concepts if c["module_id"] not in known_modules
-             and states[c["id"]].state in ("ready", "learning", "locked", "rusty")]
-    ids = [c["id"] for c in concepts]
-    reviews = db.q(f"SELECT concept_id, due FROM reviews WHERE concept_id IN ({','.join('?' * len(ids))})", ids) if ids else []
+             and states[c["id"]].state in ("ready", "learning", "locked")]
     known = {c["id"] for c in concepts if c["module_id"] in known_modules}
-    return queue, {cid: s.state for cid, s in states.items()}, reviews, known
+    return queue, {cid: s.state for cid, s in states.items()}, known
 
 
 def plan_week(db: DB, start: date | None = None) -> dict:
@@ -81,19 +76,14 @@ def plan_week(db: DB, start: date | None = None) -> dict:
     share = {g["id"]: g["hours"] / total_hours for g in goals}
     titles: dict[str, str] = {}
     queues, states, done_or_planned = {}, {}, set()
-    pending_reviews: list[tuple[date, Item]] = []
     for g in goals:
-        queue, st, reviews, known = _goal_queue(db, g["id"])
+        queue, st, known = _goal_queue(db, g["id"])
         queues[g["id"]] = queue
         states.update(st)
         done_or_planned |= known
         for c in state.concepts_raw(db, g["id"]):
             titles[c["id"]] = c["title"]
-        for r in reviews:
-            due = datetime.fromisoformat(r["due"]).date()
-            pending_reviews.append((max(due, start), Item("review", g["id"], r["concept_id"], titles.get(r["concept_id"], ""), REVIEW_MINUTES,
-                                                          "overdue" if due < start else "")))
-    done_or_planned |= {cid for cid, s in states.items() if s in ("learned", "mastered")}
+    done_or_planned |= {cid for cid, s in states.items() if s == "learned"}
     used = {g["id"]: 0 for g in goals}
 
     def next_lesson(goal_id: str) -> dict | None:
@@ -105,13 +95,7 @@ def plan_week(db: DB, start: date | None = None) -> dict:
     for i, d in enumerate(days):
         if d not in study:
             continue
-        # 1. reviews due by today (projected ones included), across goals
-        for due, item in sorted(pending_reviews, key=lambda x: x[0]):
-            if due <= d.date:
-                d.items.append(item)
-                used[item.goal_id] += item.minutes
-        pending_reviews = [(due, it) for due, it in pending_reviews if due > d.date]
-        # 2. lessons from the goal furthest behind its share, until the day is full
+        # lessons from the goal furthest behind its share, until the day is full
         while d.used < d.budget:
             ranked = sorted(goals, key=lambda g: used[g["id"]] / max(1, share[g["id"]] * week_minutes))
             pick = next(((g, c) for g in ranked if (c := next_lesson(g["id"]))), None)
@@ -125,8 +109,6 @@ def plan_week(db: DB, start: date | None = None) -> dict:
             d.items.append(Item("lesson", g["id"], c["id"], c["title"], minutes, note))
             used[g["id"]] += minutes
             done_or_planned.add(c["id"])
-            nxt = next((x.date for x in study if x.date > d.date), d.date + timedelta(1))
-            pending_reviews.append((nxt, Item("review", g["id"], c["id"], c["title"], REVIEW_MINUTES, "confirm")))
 
     # Modules still to be researched before their lessons can be planned (research runs ahead on its own).
     upcoming = []
@@ -165,11 +147,8 @@ def to_ics(plan: dict) -> str:
         begin = datetime(day.year, day.month, day.day, hh, mm)
         end = begin + timedelta(minutes=max(15, d["minutes"]))
         lessons = [i for i in d["items"] if i["kind"] == "lesson"]
-        reviews = [i for i in d["items"] if i["kind"] == "review"]
-        summary = "Study: " + (", ".join(i["title"] for i in lessons[:3]) or f"{len(reviews)} review(s)")
+        summary = "Study: " + ", ".join(i["title"] for i in lessons[:3])
         desc = [f"- {i['title']} ({i['minutes']} min{', ' + i['note'] if i['note'] else ''})" for i in lessons]
-        if reviews:
-            desc.append(f"- {len(reviews)} spaced review(s): " + ", ".join(i["title"] for i in reviews))
         lines += ["BEGIN:VEVENT", f"UID:dsc-{d['date']}@deep-study-center", f"DTSTAMP:{stamp}",
                   f"DTSTART:{begin:%Y%m%dT%H%M%S}", f"DTEND:{end:%Y%m%dT%H%M%S}",
                   _fold(f"SUMMARY:{_ics_escape(summary)}"), _fold(f"DESCRIPTION:{_ics_escape(chr(10).join(desc))}"), "END:VEVENT"]

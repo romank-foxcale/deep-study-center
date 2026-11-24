@@ -1,13 +1,13 @@
-"""The Today page (SPEC §30): where to pick up, what to recall, and this week in numbers. Read-only."""
+"""The Today page (SPEC §30): where to pick up, and this week in numbers. Read-only. No schedule (SPEC §48)."""
 
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from . import bookstudy, graph, practice, session
+from . import bookstudy, graph, session
 from .db import DB
 
-KNOWN = ("learned", "mastered", "rusty")
+KNOWN = ("learned",)
 
 
 def _week_start() -> datetime:
@@ -68,13 +68,10 @@ def view(db: DB) -> dict:
     learned_week = sum(1 for s in st.values() if s.state in KNOWN and (_parse(s.learned_at) or datetime.min.replace(tzinfo=timezone.utc)) >= week)
     answers_week = db.one("SELECT COUNT(*) AS n FROM evidence WHERE ts >= ? AND voided = 0", (week.isoformat(),))["n"]
     sessions_week = db.one("SELECT COUNT(*) AS n FROM sessions WHERE status='done' AND updated_at >= ?", (week.isoformat(),))["n"]
-    due = practice.due(db)
     recent = [{"id": r["id"], "title": r["title"], "status": r["status"], "updatedAt": r["updated_at"]}
               for r in db.q("SELECT id, title, status, updated_at FROM sessions ORDER BY updated_at DESC LIMIT 4")]
     return {
         "continue": _continue(db),
-        "due": {"count": sum(1 for d in due if d["reason"] == "due"), "items": due[:6]},
-        "week": {"learned": learned_week, "strong": sum(1 for s in st.values() if s.state == "mastered"),
-                 "answers": answers_week, "sessions": sessions_week},
+        "week": {"learned": learned_week, "answers": answers_week, "sessions": sessions_week},
         "recent": recent,
     }

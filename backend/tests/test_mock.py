@@ -19,7 +19,7 @@ def test_the_mock_has_every_state_books_sessions_and_lessons(mocked):
     folder, db = mocked
     v = graph.view(db)
     states = Counter(n["state"] for n in v["nodes"])
-    assert {"mastered", "learned", "learning", "rusty", "ready", "locked"} <= set(states)
+    assert {"learned", "learning", "ready", "locked"} <= set(states) and not {"mastered", "rusty"} & set(states)
     kinds = Counter(c["kind"] for c in v["clusters"])
     assert kinds["book"] == 4 and kinds["goal"] == 1
     shared = [n for n in v["nodes"] if n["also"]]
@@ -32,7 +32,7 @@ def test_the_mock_has_every_state_books_sessions_and_lessons(mocked):
     assert any("$$" in b for b in bodies) and any("#idea/" in b for b in bodies)
     dot = lesson.view(db, "c-dot")
     assert any(sec.get("viz") for sec in dot["card"]["sections"])
-    assert db.one("SELECT COUNT(*) AS n FROM node_reviews")["n"] > 0
+    assert db.one("SELECT COUNT(*) AS n FROM node_reviews")["n"] == 0  # no schedule (SPEC §48)
     assert (folder / "MOCK").exists() and db.meta("map_view") == "territory"
 
 
@@ -65,21 +65,21 @@ def test_the_map_view_is_saved(env):
         actions.dispatch(db, jobs, {"type": "setMapView", "view": "spiral"})
 
 
-def test_today_shows_where_to_continue_what_is_due_and_the_books(mocked):
+def test_today_shows_where_to_continue_and_the_books(mocked):
     from dsc import bookstudy, today
     _, db = mocked
     t = today.view(db)
     assert t["continue"]["kind"] in ("session", "lesson")
-    assert t["due"]["count"] > 0 and t["due"]["items"] and {"learned", "strong", "answers", "sessions"} <= set(t["week"])
+    assert "due" not in t and set(t["week"]) == {"learned", "answers", "sessions"}
     assert t["recent"] and len(t["recent"]) <= 4
     shelf = {b["title"]: b for b in bookstudy.listing(db)}
     ie = shelf["Inference Engineering"]
-    assert ie["author"] == "Philip Kiely" and 0 < ie["strong"] <= ie["known"] <= ie["ideas"]
+    assert ie["author"] == "Philip Kiely" and 0 < ie["known"] <= ie["ideas"] and "strong" not in ie
     assert ie["goalId"] not in {g["id"] for g in state.snapshot(db)["goals"]}
     v = bookstudy.view(db, ie["id"])
     assert len(v["chapters"]) == 8 and all(c["summary"] and c["lessons"] for c in v["chapters"])
     nxt = next(x for c in v["chapters"] for x in c["lessons"] if x["conceptId"] == v["next"])
-    assert nxt["state"] not in ("learned", "mastered") and nxt["ready"]  # a lesson whose parts you hold (the outer fringe)
+    assert nxt["state"] != "learned" and nxt["ready"]  # a lesson whose parts you hold (the outer fringe)
 
 
 def test_the_mock_has_a_saved_book_lesson(mocked):

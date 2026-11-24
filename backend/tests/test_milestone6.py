@@ -65,11 +65,10 @@ def test_backups_are_daily_and_capped(env):
 def test_undo_answer_reopens_the_item_and_unlearns_if_needed(env):
     db, jobs, runner_fake = env
     s = learn_vectors(db, jobs, runner_fake)
-    assert {c["id"]: c["state"] for c in s["concepts"]}["c-vectors"] == "learned" and s["reviews"]
+    assert {c["id"]: c["state"] for c in s["concepts"]}["c-vectors"] == "learned"
     s = act(db, jobs, type="undoAnswer", conceptId="c-vectors", itemId="e-ops")
     assert {c["id"]: c["state"] for c in s["concepts"]}["c-vectors"] == "learning"
     assert "c-vectors:e-ops" not in s["answers"] and s["gradings"]["c-vectors:e-ops"]["status"] == "voided"
-    assert not s["reviews"]  # no longer learned: the confirmation review is gone
     s = act(db, jobs, type="undoAnswer", conceptId="c-vectors", itemId="q-ops")
     assert "c-vectors:q-ops" not in s["answers"]
     with pytest.raises(actions.ActionError):

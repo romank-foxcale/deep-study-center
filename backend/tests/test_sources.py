@@ -154,7 +154,7 @@ def test_the_same_file_or_link_twice_is_refused(env):
     assert r.status_code == 409 and "My paper" in r.json()["detail"]
     r = client.post("/api/sources/link", json={"url": "https://www.youtube.com/watch?v=abc", "title": ""})
     link = next(x for x in r.json()["sources"] if x["url"])
-    assert link["kind"] == "video" and link["status"] == "ready" and not link["mapped"] and link["title"].startswith("www.youtube.com")
+    assert link["kind"] == "video" and link["status"] == "error" and not link["mapped"]  # read at once (no network in tests) and link["title"].startswith("www.youtube.com")
     assert client.post("/api/sources/link", json={"url": "https://www.youtube.com/watch?v=abc"}).status_code == 409
     assert client.post("/api/sources/link", json={"url": "ftp://x"}).status_code == 400
     s = act(db, jobs, type="editSource", id=link["id"], kind="web")

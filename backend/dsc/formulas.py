@@ -196,7 +196,7 @@ def _rematch(jobs: Jobs, jid: int, cid: str) -> dict:
     return {"matched": sum(1 for v in found.values() if v)}
 
 
-KNOWN = ("learned", "mastered", "rusty")
+KNOWN = ("learned",)
 
 
 def status(db: DB, cid: str, k: str, kind: str, fid: str | None, st: dict) -> tuple[str, dict | None]:

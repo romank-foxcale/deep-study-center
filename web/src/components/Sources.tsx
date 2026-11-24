@@ -13,11 +13,11 @@ export const kindLabel = (k: string) => KINDS.find(x => x.id === k)?.label ?? k
 
 /** The status the learner sees: error (red), uploading (gray), uploaded (yellow), ready (green: its lessons are made). */
 export function sourceStatus(src: SourceDoc): { label: string; cls: string; title: string } {
-  if (src.status === 'error') return { label: 'error', cls: 'pill pill-bad', title: 'The file could not be read. Click "Read again".' }
-  if (src.status === 'no_text') return { label: 'error: no text', cls: 'pill pill-bad', title: 'A scanned PDF without a text layer. DSC cannot read it.' }
-  if (src.status === 'reading') return { label: 'uploading', cls: 'pill', title: 'The pages are being read' }
-  if (src.mapped) return { label: 'ready', cls: 'pill pill-ok', title: '"Teach me this book" made its lessons' }
-  return { label: 'uploaded', cls: 'pill pill-warn', title: src.url ? 'A link: open it with a click' : 'Read. Use "Teach me this book" to make its lessons.' }
+  if (src.status === 'error') return { label: 'error', cls: 'pill pill-bad', title: src.url ? 'The link could not be read. Click "Read again".' : 'The file could not be read. Click "Read again".' }
+  if (src.status === 'no_text') return { label: 'error: no text', cls: 'pill pill-bad', title: src.url ? 'No text was found on this page, or the video has no captions.' : 'A scanned PDF without a text layer. DSC cannot read it.' }
+  if (src.status === 'reading') return src.url ? { label: 'reading', cls: 'pill', title: 'The page text or the video captions are being read' } : { label: 'uploading', cls: 'pill', title: 'The pages are being read' }
+  if (src.mapped) return { label: 'ready', cls: 'pill pill-ok', title: '"Teach me this" made its lessons' }
+  return { label: src.url ? 'read' : 'uploaded', cls: 'pill pill-warn', title: 'Read. Use "Teach me this" to make its lessons.' }
 }
 
 export function SourceStatus({ src }: { src: SourceDoc }) {
@@ -217,9 +217,9 @@ export function SourcesTable({ q }: { q: SourceQuery }) {
             <td><div className="row src-actions">
               {src.status === 'error' && <button className="btn btn-small" onClick={() => dispatch({ type: 'rereadSource', id: src.id })}>Read again</button>}
               {book && <Link className="btn btn-small btn-primary" to={`/book/${book.id}`}>Open</Link>}
-              {!book && !src.url && src.status === 'ready' && (
+              {!book && (src.url ? src.status !== 'no_text' && src.status !== 'error' : src.status === 'ready') && (
                 <button className="btn btn-small btn-primary" disabled={waiting !== null} onClick={() => teach(src.id)}>
-                  {waiting === src.id ? 'Starting…' : 'Teach me this'}</button>
+                  {waiting === src.id || (src.url && src.status === 'reading') ? 'Reading…' : 'Teach me this'}</button>
               )}
               <button className="btn btn-small" onClick={() => setEditing({ id: src.id, title: src.title })}>Rename</button>
               <DeleteSource src={src} />

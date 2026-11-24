@@ -8,11 +8,10 @@ vector graph, a check and an explain-back) and adds:
   the graph, lessons shared between books, and prerequisite links inside and across books and to the goal; one book
   lesson is written and saved ("Scaled dot-product attention": what the book says, what it means, checks, a worked
   explain-back);
-- every idea state, made from real evidence rows the normal way: know strongly (a passed review), learned, learning,
-  due for review (a failed review), ready and locked;
+- every idea state, made from real evidence rows the normal way: learned, learning, ready and locked (no schedule:
+  SPEC §48);
 - three study sessions over book chapters: one done (explanations with formulas and idea links), one in the middle of
   teaching, one in the probe;
-- review schedules, so "practise what is due" has ideas.
 
 It never touches the real workspace: the folder must be new or already a mock (it has the file ``MOCK``).
 """
@@ -385,36 +384,25 @@ def _descent_lesson(db: DB, by_title: dict[str, str]) -> None:
 
 def _evidence(db: DB, nid: str, state: str, day: float, base: datetime) -> None:
     rows = []
-    if state in ("learned", "mastered", "rusty"):
+    if state == "learned":
         for k in range(5):
             rows.append((_ts(base, day + k * 0.05), nid, f"mock-{nid}-{k}", "practice", 1, 1.0))
-        if state == "mastered":
-            rows.append((_ts(base, day + 2), nid, f"mock-{nid}-r", "review", 1, 1.0))
-        if state == "rusty":
-            rows.append((_ts(base, day + 3), nid, f"mock-{nid}-r", "review", 0, 0.0))
     elif state == "learning":
         rows += [(_ts(base, day), nid, f"mock-{nid}-0", "practice", 1, 1.0), (_ts(base, day + 0.1), nid, f"mock-{nid}-1", "practice", 0, 0.4)]
     for r in rows:
         db.x("INSERT INTO evidence(ts, concept_id, item_id, kind, correct, score) VALUES(?,?,?,?,?,?)", r)
-    if state in ("learned", "mastered", "rusty"):
-        due = base + timedelta(days=day + (36 if state == "mastered" else 41 if state == "learned" else 38))
-        card = engine.new_card(_ts(base, day))
-        db.x("INSERT OR REPLACE INTO node_reviews(node_id, card, due, last_at) VALUES(?,?,?,?)",
-             (nid, card, due.isoformat(timespec="seconds"), _ts(base, day)))
 
 
 def _states(db: DB, rnd: random.Random, base: datetime, by_title: dict[str, str]) -> None:
     goal_nodes = [r["id"] for r in db.q("SELECT id FROM nodes WHERE origin='concept' AND id LIKE 'c-%' ORDER BY id")]
-    for i, nid in enumerate(goal_nodes):  # the goal's basics: mostly known strongly
-        _evidence(db, nid, "mastered" if i < 5 else "learned" if i < 7 else "learning" if i < 8 else "none", 1 + i, base)
+    for i, nid in enumerate(goal_nodes):  # the goal's basics: mostly learned
+        _evidence(db, nid, "learned" if i < 7 else "learning" if i < 8 else "none", 1 + i, base)
     for bi, (_title, _a, progress, rusty, chapters) in enumerate(BOOKS):
         ideas = [t for _, list_ in chapters for t in list_]
         for k, t in enumerate(ideas):
             nid, f, r = by_title[t], k / max(1, len(ideas) - 1), rnd.random()
-            if f < progress * 0.55:
-                state = "rusty" if r < rusty else ("mastered" if r < 0.62 else "learned")
-            elif f < progress:
-                state = "rusty" if r < rusty else ("mastered" if r < 0.3 else "learned")
+            if f < progress:
+                state = "learning" if r < rusty else "learned"
             elif f < progress + 0.09:
                 state = "learning"
             else:

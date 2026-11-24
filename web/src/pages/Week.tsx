@@ -5,7 +5,7 @@ import type { Plan } from '../types'
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-/** One plan across all goals: weekly hours split by goal, each study day filled reviews-first. */
+/** One plan across all goals: weekly hours split by goal, each study day filled with lessons. */
 export default function Week() {
   const { s, dispatch } = useStore()
   const [plan, setPlan] = useState<Plan | null>(null)
@@ -78,9 +78,9 @@ export default function Week() {
               <ul className="plain">
                 {d.items.map((it, i) => (
                   <li key={i} className={`plan-item plan-${it.kind}`}>
-                    <Link to={it.kind === 'review' ? '/review' : `/lesson/${it.conceptId}`}
+                    <Link to={`/lesson/${it.conceptId}`}
                       onClick={() => { if (it.goalId !== s.goal?.id) dispatch({ type: 'setGoal', id: it.goalId }) }}>{it.title}</Link>
-                    <span className="muted small">{it.kind === 'review' ? 'review' : `${it.minutes} min`}{it.note ? ` · ${it.note}` : ''}</span>
+                    <span className="muted small">{`${it.minutes} min`}{it.note ? ` · ${it.note}` : ''}</span>
                   </li>
                 ))}
               </ul>

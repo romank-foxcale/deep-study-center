@@ -39,7 +39,7 @@ def _card_item(db: DB, cid: str, item_id: str) -> dict | None:
     return None
 
 
-# ---------------------------------------------------------------- answers & reviews
+# ---------------------------------------------------------------- answers
 
 def _steps_on(db: DB, jobs: Jobs, cid: str) -> None:
     """After an answer in a step lesson (SPEC §43): write the next steps."""
@@ -147,24 +147,6 @@ def _save_drawing(data: object) -> str | None:
     name = f"{secrets.token_hex(8)}.png"
     (folder / name).write_bytes(raw)
     return name
-
-
-def review(db: DB, jobs: Jobs, a: dict) -> None:
-    cid, item_id = a["conceptId"], a["checkId"]
-    item = _card_item(db, cid, item_id)
-    row = db.one("SELECT * FROM reviews WHERE concept_id=?", (cid,))
-    if not item or item["kind"] != "check" or not row:
-        raise ActionError("nothing to review")
-    correct = a.get("choice") == item["answer"]
-    thinking, conf = progress.reasoning(a)
-    recalled = correct and not progress.guessed(correct, conf, len(item["options"]))  # a lucky guess is not recall
-    ts = now()
-    db.x("""INSERT INTO evidence(ts, concept_id, item_id, kind, choice, correct, score, thinking, confidence)
-            VALUES(?,?,?,?,?,?,?,?,?)""",
-         (ts, cid, item_id, "review", a.get("choice"), int(correct), 1.0 if recalled else (0.5 if correct else 0.0),
-          thinking, conf))
-    card, due = engine.review(row["card"], recalled, ts)
-    db.x("UPDATE reviews SET card=?, due=? WHERE concept_id=?", (card, due, cid))
 
 
 # ---------------------------------------------------------------- feedback
@@ -483,6 +465,11 @@ def edit_source(db: DB, jobs: Jobs, a: dict) -> None:
 def reread_source(db: DB, jobs: Jobs, a: dict) -> None:
     """Read a source again (after a failed read)."""
     row = db.one("SELECT * FROM sources WHERE id=?", (a["id"],))
+    if row and row["url"] and not sources.file_path(a["id"]).exists():  # a link: read its page or captions again (SPEC §47)
+        if not jobs.active("read_link", source_id=a["id"]):
+            db.x("UPDATE sources SET status='reading' WHERE id=?", (a["id"],))
+            jobs.enqueue("read_link", "Read a link", {"source_id": a["id"]})
+        return
     if not row or not sources.file_path(a["id"]).exists():
         raise ActionError("unknown source")
     db.x("UPDATE sources SET status='reading' WHERE id=?", (a["id"],))
@@ -567,7 +554,16 @@ def _book(fn):
 
 @_book
 def study_book(db: DB, jobs: Jobs, a: dict) -> None:
-    db.set_meta("last_book", bookstudy.start(db, jobs, str(a["sourceId"])))
+    sid = str(a["sourceId"])
+    src = db.one("SELECT url, status, pages FROM sources WHERE id=?", (sid,))
+    if src and src["url"] and not (src["status"] == "ready" and src["pages"]):  # a link not read yet: read it, then teach it
+        if src["status"] == "no_text":
+            raise ActionError("No text was found on this link, so there is nothing to teach from.")
+        if not jobs.active("read_link", source_id=sid, teach=True):
+            db.x("UPDATE sources SET status='reading' WHERE id=?", (sid,))
+            jobs.enqueue("read_link", "Read a link and teach it", {"source_id": sid, "teach": True})
+        return
+    db.set_meta("last_book", bookstudy.start(db, jobs, sid))
 
 
 def _plan(fn):
@@ -981,9 +977,6 @@ def undo_answer(db: DB, jobs: Jobs, a: dict) -> None:
         raise ActionError("nothing to undo")
     db.x("UPDATE evidence SET voided=1 WHERE id=?", (row["id"],))
     db.x("UPDATE gradings SET status='voided' WHERE id = (SELECT MAX(id) FROM gradings WHERE concept_id=? AND item_id=?)", (cid, item_id))
-    _, states = state.concept_states(db, state.active_goal(db))
-    if cid in states and not states[cid].learned_at:
-        db.x("DELETE FROM reviews WHERE concept_id=?", (cid,))  # no longer learned: no confirmation review
 
 
 def load_demo(db: DB, jobs: Jobs, a: dict) -> None:
@@ -1024,7 +1017,7 @@ def reset(db: DB, jobs: Jobs, a: dict) -> None:
 
 
 ACTIONS = {
-    "answer": answer, "explain": explain, "review": review,
+    "answer": answer, "explain": explain,
     "startProbe": start_probe, "probeAnswer": probe_answer, "probeAssessNow": probe_assess_now, "applyProbe": apply_probe,
     "resetProbe": reset_probe, "dismissProbe": dismiss_probe,
     "sessionLearnAgain": session_learn_again,

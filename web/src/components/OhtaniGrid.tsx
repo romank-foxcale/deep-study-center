@@ -9,7 +9,7 @@ const RING: GridPos[] = ['TL', 'TM', 'TR', 'MR', 'BR', 'BM', 'BL', 'ML']
 /** Ring index → [row, col] inside a 3×3 block (clockwise from the top-left cell). */
 const RING_CELL: [number, number][] = [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2], [2, 1], [2, 0], [1, 0]]
 const BLOCK: Record<string, [number, number]> = Object.fromEntries([...RING.map((p, i) => [p, RING_CELL[i]]), ['C', [1, 1]]])
-const DONE = new Set(['learned', 'mastered', 'rusty'])
+const DONE = new Set(['learned'])
 
 export type GridPick = { kind: 'goal' } | { kind: 'area'; trackId: string } | { kind: 'step'; moduleId: string }
 
@@ -44,7 +44,7 @@ interface Props {
 export default function OhtaniGrid({ goalTitle, tracks, modules, concepts, pick, onPick }: Props) {
   const prog = useStepProgress(modules, concepts)
   // The step the learner works on now: the module of the first unfinished, unlocked lesson in learning order.
-  const current = concepts.find(c => ['ready', 'learning', 'rusty'].includes(c.state))?.moduleId
+  const current = concepts.find(c => ['ready', 'learning'].includes(c.state))?.moduleId
   const selected = pick?.kind === 'step' ? modules.find(m => m.id === pick.moduleId) : undefined
   const highlighted = new Set(selected?.requires ?? [])
   const total = avg(modules.map(m => prog[m.id].fill))

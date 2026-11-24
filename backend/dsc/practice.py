@@ -3,16 +3,15 @@
 Understanding an idea is not the same as recalling it when a problem calls for it. Recall works from cues, so
 practice widens and strengthens them: a stream of problems that adapt.
 
-- A practice is a short run of problems (default 5) over a set of ideas (graph nodes): what is due, ideas picked on the
-  map, or the learner's own problem (text, or a page of one of their PDFs).
+- A practice is a short run of problems (default 5) over a set of ideas (graph nodes): ideas picked on the map or in
+  the picker, the weakest ideas, or the learner's own problem (text, or a page of one of their PDFs).
 - Difficulty is a level 1-4 (``LEVELS``): how many ideas a problem combines and how new its setting is. A clean solve
   raises it; a hard solve or giving up lowers it.
 - The learner writes their thinking in chunks (typed or dictated). An agent judges each chunk: solved, progress, or
   stuck / wrong direction, with the smallest hint that moves them on, never the solution. The learner can ask for a
   hint or give up (then the worked solution shows).
 - Result per problem: score 1.0 solved without hints, 0.7 with one hint, 0.4 with more, 0 given up. It is evidence on
-  each target idea ("practice", or "review" once the idea is learned, so it can become strong or rusty) and updates
-  the idea's own schedule (``node_reviews``, FSRS, as lesson reviews).
+  each target idea. There is no schedule (SPEC §48): the learner chooses what to practise.
 
 Phase 3 of the lessons rework (SPEC §44):
 - What to practise is picked from a tree (``targets``): books → chapters → lessons → their steps, the fields of the
@@ -36,7 +35,7 @@ if TYPE_CHECKING:
     from .jobs import Jobs
 
 PROBLEMS = 5
-PICK = 6  # ideas in a "what is due" practice
+PICK = 6  # ideas in a practice of the weakest ideas (when nothing is picked)
 RETESTS = 3  # at most this many retests at the end of a run
 SURFACES = ("applied", "formal", "mixed")
 HINT_RUNGS = ("look again at a given", "name the kind of pattern", "name the area of ideas", "name the idea",
@@ -47,7 +46,7 @@ LEVELS = {
     3: "two ideas combined, in a new setting",
     4: "two or three ideas combined, in an unfamiliar setting where the learner must first see which ideas apply",
 }
-LIT = ("learned", "mastered", "rusty")
+LIT = ("learned",)
 
 PROBLEM_SCHEMA = {"type": "object", "required": ["title", "prompt", "node_ids", "solution", "steps"], "properties": {
     "title": {"type": "string"}, "prompt": {"type": "string"}, "mode": {"enum": ["recall", "tell_apart", "combine"]},
@@ -59,33 +58,6 @@ JUDGE_SCHEMA = {"type": "object", "required": ["verdict", "feedback"], "properti
 
 
 # ---------------------------------------------------------------- which ideas
-
-def due(db: DB, at: str | None = None) -> list[dict]:
-    """Ideas to practise, most urgent first: due idea reviews, due lesson reviews (as their ideas), then ideas being
-    learned that were never practised (taught in a session or a lesson)."""
-    at = at or now()
-    nodes = graph.node_of(db)
-    st = graph.states(db)
-    titles = {r["id"]: r["title"] for r in db.q("SELECT id, title FROM nodes")}
-    out: dict[str, dict] = {}
-    for r in db.q("SELECT node_id, due FROM node_reviews WHERE due <= ? ORDER BY due", (at,)):
-        out.setdefault(r["node_id"], {"nodeId": r["node_id"], "reason": "due", "due": r["due"]})
-    for r in db.q("SELECT concept_id, due FROM reviews WHERE due <= ? ORDER BY due", (at,)):
-        nid = nodes.get(r["concept_id"])
-        if nid and not db.one("SELECT 1 FROM node_reviews WHERE node_id=? AND due > ?", (nid, at)):
-            out.setdefault(nid, {"nodeId": nid, "reason": "due", "due": r["due"]})
-    practised = {r["node_id"] for r in db.q("SELECT node_id FROM node_reviews")}
-    fresh = sorted((nid for nid, s in st.items() if s.state == "learning" and s.mastery >= 0.2 and nid not in practised),
-                   key=lambda nid: -st[nid].mastery)
-    for nid in fresh:
-        out.setdefault(nid, {"nodeId": nid, "reason": "new", "due": None})
-    return [{**v, "title": titles.get(v["nodeId"], v["nodeId"]), "state": st[v["nodeId"]].state if v["nodeId"] in st else "pending"}
-            for v in out.values() if v["nodeId"] in titles]
-
-
-def due_count(db: DB) -> int:
-    return sum(1 for d in due(db) if d["reason"] == "due")
-
 
 # ---------------------------------------------------------------- learner actions
 
@@ -117,7 +89,7 @@ def start(db: DB, jobs: Jobs, node_ids: list[str] | None = None, own: str = "", 
             raise ValueError("that page has no text")
         page_text = row["text"][:4000]
     if not ids and not own and not page_text:
-        ids = [d["nodeId"] for d in due(db)[:PICK]]
+        ids = [w["nodeId"] for w in weakest(db)[:PICK]]
     if not ids and not own and not page_text:
         raise ValueError("nothing to practise yet: learn something first")
     count = 1 if (own or page_text) and not ids else max(1, min(30, int(count or PROBLEMS)))
@@ -227,25 +199,18 @@ def score_of(status: str, hints: int) -> float:
 
 
 def _close(db: DB, jobs: Jobs, it: dict, status: str, from_judge: bool = False) -> None:
-    """End a problem: score, evidence and schedule per target idea, the next level, and the next problem."""
+    """End a problem: score and evidence per target idea, the next level, and the next problem."""
     ts = now()
     score = score_of(status, it["hints"])
     problem = loads(it["problem"])
-    st = graph.states(db)
     with db.tx():
         db.conn.execute("UPDATE practice_items SET status=?, score=?, ended_at=? WHERE id=?", (status, score, ts, it["id"]))
         for nid in problem["node_ids"]:
-            lit = nid in st and st[nid].state in LIT
             db.conn.execute("""INSERT INTO evidence(ts, concept_id, item_id, kind, correct, score, thinking)
                                VALUES(?,?,?,?,?,?,?)""",
-                            (ts, nid, f"{it['practice_id']}-{it['id']}", "review" if lit else "practice",
+                            (ts, nid, f"{it['practice_id']}-{it['id']}", "practice",
                              int(score >= engine.PASS_SCORE), score,
                              " / ".join(c["text"] for c in loads(it["chunks"], []) if c["text"])[:1500]))
-            row = db.conn.execute("SELECT card FROM node_reviews WHERE node_id=?", (nid,)).fetchone()
-            card, due_at = engine.review(row[0], score >= engine.PASS_SCORE, ts) if row else \
-                engine.review(engine.new_card(ts), score >= engine.PASS_SCORE, ts)
-            db.conn.execute("INSERT OR REPLACE INTO node_reviews(node_id, card, due, last_at) VALUES(?,?,?,?)",
-                            (nid, card, due_at, ts))
         p = db.conn.execute("SELECT level FROM practices WHERE id=?", (it["practice_id"],)).fetchone()
         level = p[0]
         if status == "solved" and it["hints"] == 0:
@@ -401,14 +366,6 @@ def view(db: DB, pid: str) -> dict | None:
             "ideas": [{"id": n, "title": titles.get(n, n)} for n in loads(p["node_ids"], [])]}
 
 
-def schedule(db: DB) -> dict:
-    """For the page: what is due now and when the next idea comes due."""
-    items = due(db)
-    nxt = db.one("SELECT MIN(due) AS d FROM node_reviews WHERE due > ?", (now(),))
-    return {"due": items[:30], "dueCount": sum(1 for d in items if d["reason"] == "due"),
-            "newCount": sum(1 for d in items if d["reason"] == "new"), "next": (nxt or {}).get("d")}
-
-
 # ---------------------------------------------------------------- what to practise (SPEC §44)
 
 def targets(db: DB) -> dict:
@@ -450,7 +407,7 @@ def targets(db: DB) -> dict:
 
 
 def weakest(db: DB, k: int = 12) -> list[dict]:
-    """Ideas the learner has worked on that hold least: low mastery, recent misses, many hints, or rusty."""
+    """Ideas the learner has worked on that hold least: low mastery, recent misses, many hints."""
     st = graph.states(db)
     nodes = graph.node_of(db)
     titles = {r["id"]: r["title"] for r in db.q("SELECT id, title FROM nodes")}
@@ -463,8 +420,8 @@ def weakest(db: DB, k: int = 12) -> list[dict]:
     for nid, s in st.items():
         if nid not in titles or s.state in ("pending", "locked", "ready") and not misses.get(nid):
             continue
-        weak = (1 - s.mastery) + 0.3 * misses.get(nid, 0) + (0.5 if s.state == "rusty" else 0)
-        if s.state == "mastered" and not misses.get(nid):
+        weak = (1 - s.mastery) + 0.3 * misses.get(nid, 0)
+        if s.state == "learned" and s.mastery >= 0.98 and not misses.get(nid):
             continue
         out.append({"nodeId": nid, "title": titles[nid], "state": s.state, "mastery": round(s.mastery, 2),
                     "misses": misses.get(nid, 0), "weak": round(weak, 2)})

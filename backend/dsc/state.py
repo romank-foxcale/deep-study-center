@@ -201,7 +201,7 @@ def snapshot(db: DB) -> dict:
             "sessions": session.listing(db), "lastSession": db.meta("last_session"),
             "dictation": dictation.status(db),
             "studyBooks": bookstudy.listing(db), "lastBook": db.meta("last_book"), "mapView": db.meta("map_view") if db.meta("map_view") in ("tree", "wheel", "cells", "territory") else "territory",
-            "practices": practice.listing(db), "lastPractice": db.meta("last_practice"), "practiceDue": practice.due_count(db),
+            "practices": practice.listing(db), "lastPractice": db.meta("last_practice"),
             "runner": runner_status(db),
             "backups": {"folder": str(workspace() / "backups"), "last": db.meta("last_backup"), "items": _backups()[:5]},
             "firstRun": db.meta("first_run") == "1" and not db.one("SELECT 1 FROM goals LIMIT 1"),
@@ -254,8 +254,6 @@ def snapshot(db: DB) -> dict:
         "reflections": reflections(db),
         "settings": settings(db),
         "cardProposals": card_proposals(db, ids),
-        "reviews": [{"conceptId": r["concept_id"], "due": r["due"], "isDue": r["due"] <= now}
-                    for r in db.q(f"SELECT * FROM reviews WHERE concept_id IN {in_goal} ORDER BY due", ids)],
     }
 
 
