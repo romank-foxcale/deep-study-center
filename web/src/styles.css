@@ -1230,3 +1230,13 @@ a.shelf-card:hover { text-decoration: none; border-color: var(--border-2); }
 .hm-pill.hm-unexplored { background: var(--surface-2); color: var(--muted); border-color: transparent; }
 .hm-sources li { display: grid; grid-template-columns: 22px 1fr; gap: 4px; padding: 3px 0; }
 .hm-src-icon { font-size: 14px; }
+
+/* gaps (SPEC §51): empty dashed hexes where an idea is missing */
+.hm-gap { cursor: pointer; }
+.hm-gap polygon { fill: var(--bg); stroke: color-mix(in srgb, var(--accent) 75%, transparent); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.hm-gap:hover polygon, .hm-gap-selected polygon { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: var(--accent); }
+.hm-gap text { fill: var(--accent); font: 600 13px system-ui, sans-serif; text-anchor: middle; pointer-events: none; opacity: .8; }
+.hm-gap:hover text, .hm-gap-selected text { opacity: 1; fill: var(--accent); }
+.hm-swatch-gap { background: transparent; border: 1.5px dashed var(--accent); }
+.hm-pill-gap { border-style: dashed; }
+.hm-gap-idea { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; margin: 8px 0; }

@@ -185,11 +185,14 @@ export interface MapCluster { id: string; kind: 'book' | 'goal' | 'session' | 'l
 /** The knowledge graph (SPEC §21, §23). */
 export interface GraphView {
   nodes: GraphNode[]; links: { src: string; dst: string; origin: string }[]
+  /** Open gaps (SPEC §51): ideas missing on the arrow between[0] -> between[1]. */
+  gaps: MapGap[]
   goals: { id: string; title: string }[]; sessions: { id: string; title: string }[]; books: { id: string; title: string }[]
   clusters: MapCluster[]
   /** The fields of mathematics: the provinces of the Formulas country (SPEC §41). */
   formulaFields?: { id: string; title: string }[]
 }
+export interface MapGap { id: string; between: [string, string]; ideas: { title: string; says: string }[]; busy: boolean }
 
 /** Book study (SPEC §28). */
 export interface StudyBookSummary {
@@ -660,7 +663,7 @@ export interface Job {
   progress: string[]
   error: string | null
   updatedAt: string
-  input: { concept_id?: string; module_id?: string }
+  input: { concept_id?: string; module_id?: string; /** find_gaps: the gap looked at again ("" for a whole search). */ focus?: string }
 }
 
 

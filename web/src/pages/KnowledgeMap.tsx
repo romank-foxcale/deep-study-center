@@ -4,7 +4,7 @@ import { getGraph, getIdea, useStore } from '../store'
 import Markdown from '../components/Markdown'
 import { ancestors, layout } from '../components/graphLayout'
 import HexMap, { CELL_LABEL, cellState } from '../components/HexMap'
-import type { GraphNode, GraphView, IdeaDetail, MapViewId } from '../types'
+import type { GraphNode, GraphView, IdeaDetail, MapGap, MapViewId } from '../types'
 
 const R = 13
 const LIT = new Set(['learned'])
@@ -36,6 +36,8 @@ export default function KnowledgeMap() {
   const { s, dispatch } = useStore()
   const mode: MapViewId = VIEWS.some(v => v.id === s.mapView) ? s.mapView : 'hex'  // the default; also for a removed view
   const [names, setNames] = useState(false)
+  const [gapId, setGapId] = useState<string | null>(null)
+  const [added, setAdded] = useState<string | null>(null)  // the title of an idea just added from a gap: select it once it is on the map
   const [center, setCenter] = useState<{ id: string; n: number } | null>(null)
   const location = useLocation()
   const asked = location.state as { focus?: string; select?: string } | null
@@ -52,6 +54,11 @@ export default function KnowledgeMap() {
   useEffect(() => { getGraph().then(setG, e => setError((e as Error).message)) }, [s])
 
   const nodes = useMemo(() => g?.nodes ?? [], [g])
+  useEffect(() => {
+    if (!added || !g) return
+    const n = g.nodes.find(x => x.title === added)
+    if (n) { setSelected(n.id); setAdded(null) }
+  }, [added, g])
   const byId = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes])
   const members = useMemo(() => {
     if (focus === 'all') return null
@@ -172,14 +179,21 @@ export default function KnowledgeMap() {
       <div className="km-legend small muted">
         {mode === 'hex'
           ? <>{(['learned', 'known', 'unexplored'] as const).map(st => <span key={st} className="km-legend-item"><i className={`hm-swatch hm-${st}`} />{CELL_LABEL[st]}</span>)}
-              <label className="km-legend-item"><input type="checkbox" checked={names} onChange={e => setNames(e.target.checked)} /> Show names</label></>
+              <span className="km-legend-item"><i className="hm-swatch hm-swatch-gap" />gap: something is missing here</span>
+              <label className="km-legend-item"><input type="checkbox" checked={names} onChange={e => setNames(e.target.checked)} /> Show names</label>
+              <FindGaps /></>
           : LEGEND.map(st => <span key={st} className="km-legend-item"><i className={`km-swatch km-swatch-${st}`} />{STATE_LABEL[st]}</span>)}
         <span className="km-legend-item">{VIEWS.find(v => v.id === mode)?.hint}</span>
       </div>
 
       <div className="km-canvas" ref={box}>
         {nodes.length === 0 && <p className="muted km-empty">No ideas yet. Research a goal or <Link to="/study">study something</Link>.</p>}
-        {mode === 'hex' && <HexMap nodes={shown} links={links} selected={selected} matches={matches} center={center} names={names} onSelect={setSelected} />}
+        {mode === 'hex' && <HexMap nodes={shown} links={links} selected={selected} matches={matches} center={center} names={names}
+          gaps={g.gaps ?? []} selectedGap={gapId} onGap={id => { setGapId(id); setSelected(null) }}
+          onSelect={id => { setSelected(id); if (id) setGapId(null) }} />}
+        {mode === 'hex' && gapId && (g.gaps ?? []).some(x => x.id === gapId) && (
+          <GapPanel gap={(g.gaps ?? []).find(x => x.id === gapId)!} g={g} onPick={id => { setGapId(null); setSelected(id); centerOn(id) }}
+            onAdded={t => { setGapId(null); setAdded(t) }} onClose={() => setGapId(null)} />)}
         {mode === 'tree' && <svg width="100%" height="100%" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => { drag.current = null }}
           onClick={e => { if (!(e.target as Element).closest('.km-node')) setSelected(null) }}>
           <defs>
@@ -222,6 +236,47 @@ export default function KnowledgeMap() {
         {sel && <NodePanel n={sel} g={g} onPick={id => { setSelected(id); centerOn(id) }} onClose={() => setSelected(null)} />}
       </div>
     </div>
+  )
+}
+
+/** "Find gaps" (SPEC §51): an agent looks at the arrows near what you study for ideas that are missing. */
+function FindGaps() {
+  const { s, dispatch } = useStore()
+  const busy = s.jobs.some(j => j.kind === 'find_gaps' && (j.status === 'queued' || j.status === 'running') && !j.input?.focus)
+  return <button className="btn btn-small" disabled={busy} onClick={() => dispatch({ type: 'findGaps' })}
+    title="An agent looks for ideas missing between the ideas you study">{busy ? 'Looking for gaps…' : 'Find gaps'}</button>
+}
+
+/** One gap (SPEC §51): what is missing between two ideas. Add an idea (it becomes a cell, the gap shrinks), ask for more
+ *  (the gap grows, at most 3), or say it is not missing (the gap closes for good). */
+function GapPanel({ gap, g, onPick, onAdded, onClose }: { gap: MapGap; g: GraphView; onPick: (id: string) => void; onAdded: (title: string) => void; onClose: () => void }) {
+  const { s, dispatch } = useStore()
+  const title = (id: string) => g.nodes.find(x => x.id === id)?.title ?? id
+  const looking = gap.busy || s.jobs.some(j => j.kind === 'find_gaps' && (j.status === 'queued' || j.status === 'running') && j.input?.focus === gap.id)
+  return (
+    <aside className="km-panel card">
+      <div className="row row-between">
+        <span className="pill hm-pill-gap">gap</span>
+        <button className="link small" onClick={onClose} aria-label="Close">Close</button>
+      </div>
+      <h2 className="h-small">Something is missing here</h2>
+      <p className="small">Between <button className="link" onClick={() => onPick(gap.between[0])}><Markdown inline>{title(gap.between[0])}</Markdown></button> and{' '}
+        <button className="link" onClick={() => onPick(gap.between[1])}><Markdown inline>{title(gap.between[1])}</Markdown></button>,
+        the tutor found {gap.ideas.length === 1 ? 'one idea' : `${gap.ideas.length} ideas`} that connect them. Add one to your map: it becomes a cell, and the gap shrinks.</p>
+      {gap.ideas.map((i, n) => (
+        <div key={i.title} className="hm-gap-idea">
+          <div className="row row-between"><b><Markdown inline>{i.title}</Markdown></b>
+            <button className="btn btn-small btn-primary" onClick={async () => { if (await dispatch({ type: 'acceptGap', gapId: gap.id, index: n })) onAdded(i.title) }}>Add to map</button></div>
+          <div className="small muted"><Markdown inline>{i.says}</Markdown></div>
+        </div>
+      ))}
+      <div className="row">
+        <button className="btn btn-small" disabled={looking || gap.ideas.length >= 3} onClick={() => dispatch({ type: 'findGaps', gapId: gap.id })}
+          title={gap.ideas.length >= 3 ? 'At most 3 ideas in one gap' : 'The tutor looks at this place again'}>{looking ? 'Looking…' : 'Find more'}</button>
+        <button className="btn btn-small" onClick={async () => { if (await dispatch({ type: 'dismissGap', gapId: gap.id })) onClose() }}
+          title="Nothing is missing here: the gap closes and is not proposed again">Not missing</button>
+      </div>
+    </aside>
   )
 }
 

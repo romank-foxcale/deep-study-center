@@ -507,6 +507,9 @@ def run_map(jobs: Jobs, jid: int, d: dict) -> dict:
         db.x("UPDATE books SET status='failed', updated_at=? WHERE id=?", (now(), b["id"]))
         raise
     db.x("UPDATE books SET status='ready', plan=?, updated_at=? WHERE id=?", (PLAN, now(), b["id"]))
+    if db.meta("auto_gaps", "1") != "0":  # the new ideas may leave gaps between what you hold (SPEC §51)
+        from . import gaps
+        gaps.find(db, jobs)
     n = db.one("SELECT COUNT(*) AS n FROM book_parts WHERE book_id=? AND concept_id IS NOT NULL", (b["id"],))["n"]
     jobs.progress(jid, f"mapped {len(chapters)} chapter(s), {n} lessons")
     return {"chapters": len(chapters), "lessons": n}

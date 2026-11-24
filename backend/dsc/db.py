@@ -245,6 +245,11 @@ CREATE TABLE IF NOT EXISTS plan_nodes (
   concept_id TEXT NOT NULL, node_key TEXT NOT NULL, node_id TEXT NOT NULL, section_id TEXT NOT NULL, ord INTEGER NOT NULL,
   own INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (concept_id, node_key));
 CREATE TABLE IF NOT EXISTS plan_maps (concept_id TEXT PRIMARY KEY, card_version INTEGER NOT NULL);
+-- Gaps on the map (SPEC §51): ideas missing on the arrow a -> b. status open | filled | dismissed; ideas is JSON
+-- [{title, says, status open|added, nodeId}]; busy = 1 while the agent looks at this gap again.
+CREATE TABLE IF NOT EXISTS gaps (
+  id TEXT PRIMARY KEY, a TEXT NOT NULL, b TEXT NOT NULL, status TEXT NOT NULL, ideas TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL, busy INTEGER NOT NULL DEFAULT 0);
 -- One cell per idea (SPEC §49): the one lesson of an idea that has lessons from several sources.
 CREATE TABLE IF NOT EXISTS cell_homes (node_id TEXT PRIMARY KEY, concept_id TEXT NOT NULL, at TEXT NOT NULL);
 -- Step lessons (SPEC §43): the learner's prediction before a step (not graded evidence: guessing is the point).
