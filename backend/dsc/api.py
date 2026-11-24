@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from fastapi.responses import Response
 
-from . import actions, backup, bookstudy, dictation, formula_fields, lesson_graph, links, today, graph, lesson, library, planner, practice, progress, providers, runner, session, sources, state, versions
+from . import actions, backup, bookstudy, cells, dictation, formula_fields, lesson_graph, links, today, graph, lesson, library, planner, practice, progress, providers, runner, session, sources, state, versions
 from .db import DB, workspace
 from .jobs import Jobs
 from .seed import ensure_routes, init_empty
@@ -122,14 +122,18 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
             raise HTTPException(404, str(e)) from e
 
     @app.get("/api/lesson/{cid}")
-    def get_lesson(cid: str) -> dict:
+    def get_lesson(cid: str, book: str | None = None) -> dict:
         _require_concept(db, cid)
-        return lesson.view(db, cid)
+        h = cells.home(db, cid)  # one cell per idea (SPEC §49): another lesson of the idea opens the one lesson
+        return {"redirect": h} if h != cid else lesson.view(db, cid, book)
 
     @app.post("/api/lesson/{cid}/open")
-    def open_lesson(cid: str, noplan: bool = False) -> dict:
+    def open_lesson(cid: str, noplan: bool = False, book: str | None = None) -> dict:
         _require_concept(db, cid)
-        return lesson.open_lesson(db, jobs, cid, plan=not noplan)
+        h = cells.home(db, cid)
+        if h != cid:
+            return {"redirect": h}
+        return lesson.open_lesson(db, jobs, cid, plan=not noplan, book=book)
 
     @app.get("/api/lesson/{cid}/plan")
     def get_lesson_plan(cid: str) -> dict:

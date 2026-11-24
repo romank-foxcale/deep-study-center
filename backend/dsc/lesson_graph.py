@@ -138,7 +138,7 @@ def _lesson(db: DB, cid: str) -> dict:
 # ---------------------------------------------------------------- the job
 
 def run(jobs, jid: int, d: dict) -> dict:
-    from .bookstudy import _chapter_text
+    from . import cells
     from .jobs import prompt
     from .providers import Call
     db = jobs.db
@@ -149,13 +149,14 @@ def run(jobs, jid: int, d: dict) -> dict:
     earlier = db.q("SELECT * FROM lesson_graph_notes WHERE concept_id=? AND used_in IS NOT NULL ORDER BY id", (cid,))
     prev = db.one("SELECT * FROM lesson_graphs WHERE concept_id=? AND version<? AND status IN ('ready','approved') ORDER BY version DESC LIMIT 1",
                   (cid, version))
-    jobs.progress(jid, f"reading pp. {x['page_from']}-{x['page_to']} of the book")
-    text = _chapter_text(db, x["source_id"], x["page_from"], x["page_to"]) or "(no text)"
+    text, listing = cells.source_text(db, cid)  # every source of this idea (SPEC §49)
+    jobs.progress(jid, f"reading {listing.count(';') + 1} source(s): {listing[:120]}" if listing else "no source text")
+    text = text or "(no text)"
     jobs.progress(jid, "looking up what you hold in your map")
     held = _held(db, cid, f"{x['title']} {x['summary']} {text[:3000]}")
     try:
         out = jobs.call(jid, "Research", Call(
-            prompt=prompt("lesson_plan", book=x["book"], chapter=x["chapter_title"], title=x["title"],
+            prompt=prompt("lesson_plan", book=listing or x["book"], chapter=x["chapter_title"], title=x["title"],
                           covers=x["summary"] or x["objective"] or "", ideas="; ".join(loads(x["ideas"], [])) or "-",
                           pages=f"{x['page_from']}-{x['page_to']}", held=held, previous=_previous_text(prev),
                           notes=_notes_text(notes, prev), earlier=_notes_text(earlier, prev), text=text),
@@ -232,7 +233,7 @@ def clean(out: dict, known_ids: set[str]) -> dict:
         link = str(n.get("links_to") or "")
         nodes.append({"key": key, "kind": kind, "title": str(n["title"]).strip()[:80], "says": str(n.get("says") or "").strip()[:400],
                       "form": n.get("form") if n.get("form") in FORMS else ("none" if kind == "held" else "text"),
-                      "whyForm": str(n.get("why_form") or "").strip()[:200], "pages": str(n.get("pages") or "")[:20],
+                      "whyForm": str(n.get("why_form") or "").strip()[:200], "pages": str(n.get("pages") or "")[:80],
                       "linksTo": link if link in known_ids else ""})
     if not nodes:
         raise PlanError("the plan has no nodes")

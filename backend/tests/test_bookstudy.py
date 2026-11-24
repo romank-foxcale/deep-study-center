@@ -302,29 +302,32 @@ def test_a_goal_lesson_opens_while_a_book_goal_is_active(book):
     assert state.active_goal(db) == goal
 
 
-def test_a_topic_another_lesson_already_teaches_is_one_shared_block(book):
+def test_a_topic_another_lesson_already_teaches_is_one_cell_with_one_lesson(book):
+    """SPEC §49: the book's softmax lesson is the goal's linear-combination idea: one cell, one lesson, two sources."""
+    from dsc import cells
     db, jobs, runner = book
     base = map_reply
 
     def reply(call):
         out = base(call)
-        if "Chapter: Chapter 1" in call.prompt:  # this book's softmax lesson is the goal's linear-combination block
+        if "Chapter: Chapter 1" in call.prompt:
             out["lessons"][0]["same_as"] = "c-lincomb"
         return out
     runner.responses["Book map"] = reply
     bid = act(db, jobs, type="studyBook", sourceId="src-1")["studyBooks"][0]["id"]
     ls = lessons(db, bid)
     sm = ls["Softmax"]
-    assert sm["nodeId"] == "c-lincomb" and sm["shared"]["conceptId"] == "c-lincomb"  # one block, written elsewhere
-    # writing the chapter skips the shared block: this book's version is written only when asked for
+    assert sm["nodeId"] == "c-lincomb" and sm["conceptId"] == "c-lincomb" and sm["ownConceptId"] != "c-lincomb"
+    assert cells.home(db, sm["ownConceptId"]) == "c-lincomb"  # the written goal lesson is the idea's one lesson
+    # writing the chapter never writes a second lesson of the idea
     act(db, jobs, type="bookOpenLesson", conceptId=ls["Attention"]["conceptId"])
     lesson.open_lesson(db, jobs, ls["Attention"]["conceptId"], plan=False)
-    assert not lessons(db, bid)["Softmax"]["carded"] and lessons(db, bid)["KV cache"]["carded"]
-    lesson.open_lesson(db, jobs, sm["conceptId"], plan=False)  # "This book's version"
-    assert lessons(db, bid)["Softmax"]["carded"]
-    vs = lesson.view(db, sm["conceptId"])["blockVersions"]
-    assert {v["conceptId"] for v in vs} == {sm["conceptId"], "c-lincomb"} and all(v["written"] for v in vs)
-    assert next(v for v in vs if v["current"])["where"] == "Inference Book"
+    assert not db.one("SELECT 1 FROM cards WHERE concept_id=?", (sm["ownConceptId"],)) and lessons(db, bid)["KV cache"]["carded"]
+    v = lesson.view(db, "c-lincomb", bid)
+    assert v["blockVersions"] == [] and [x["title"] for x in v["sources"]] == ["Inference Book"]
+    assert v["book"]["bookId"] == bid and v["book"]["pages"] == [sm["pages"][0], sm["pages"][1]]  # its place in this book
+    text, listing = cells.source_text(db, "c-lincomb")
+    assert "=== Source 1: Inference Book" in text and "[Inference Book, p. 4]" in text and listing.startswith("Inference Book")
 
 
 def test_next_is_a_lesson_whose_parts_you_hold(book):

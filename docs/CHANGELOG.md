@@ -3,8 +3,11 @@
 The history of Deep Study Center, newest first. The full design and the decisions are in [SPEC.md](SPEC.md); the
 work still open is in [TODO.md](TODO.md).
 
-## Unreleased: lesson steps on the map, teach from a link, no schedule (SPEC §46-§48)
+## Unreleased: lesson steps on the map, teach from a link, no schedule, one lesson per idea (SPEC §46-§49)
 
+- **One lesson per idea** (SPEC §49): when two books explain the same idea, you get one lesson, written from both.
+  Every book's row of the idea opens it, and the lesson lists all its sources. The tutor picks the clearest source for
+  each step.
 - **No schedule** (SPEC §48): you study and the app shows your progress. The review schedule, "due" lists, the
   Reviews page and the states "know strongly" and "due for review" are removed. A learned idea stays learned. Practice
   is what you pick; with nothing picked, your weakest ideas.

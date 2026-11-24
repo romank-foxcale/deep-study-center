@@ -54,7 +54,7 @@ def is_steps(card: dict | None) -> bool:
 def start(db: DB, jobs, cid: str, plan: dict) -> None:
     """Turn an approved plan into a step lesson: a card with one empty section per node that is not held, then write
     the first steps."""
-    from . import lesson, lesson_graph
+    from . import cells, lesson, lesson_graph
     book = db.one("""SELECT p.*, b.title AS book, b.source_id FROM book_parts p JOIN books b ON b.id = p.book_id
                      WHERE p.concept_id=?""", (cid,))
     obj = (db.one("SELECT objective FROM concepts WHERE id=?", (cid,)) or {}).get("objective", "")
@@ -72,9 +72,8 @@ def start(db: DB, jobs, cid: str, plan: dict) -> None:
     body = {"steps": True, "planVersion": plan["version"], "objective": obj, "core": plan["goal"], "formal": "",
             "why": plan["approach"], "bloom": "understand", "examples": [], "misconceptions": [], "angles": [],
             "held": held, "sections": sections,
-            "sources": [{"title": f'{book["book"]}, pp. {book["page_from"]}-{book["page_to"]}',
-                         "url": f'source:{book["source_id"]}#page={book["page_from"]}', "kind": "book",
-                         "why": "The book this lesson follows"}] if book else []}
+            "sources": [{"title": f'{x["title"]}, {cells.pages_label(x)}', "url": f'source:{x["sourceId"]}#page={x["pages"][0]}',
+                         "kind": x["kind"], "why": "A source of this idea (SPEC §49)"} for x in cells.sources(db, cid) if x["sourceId"]]}
     row = db.one("SELECT MAX(version) AS v FROM cards WHERE concept_id=?", (cid,))
     version = (row["v"] or 0) + 1
     with db.tx():
@@ -197,10 +196,9 @@ def rewrite(db: DB, jobs, cid: str, sid: str, note: str = "") -> None:
 # ---------------------------------------------------------------- the job
 
 def run(jobs, jid: int, d: dict) -> dict:
-    from .bookstudy import _chapter_text
     from .jobs import prompt
     from .providers import Call
-    from . import lesson_graph, writer
+    from . import cells, lesson_graph, writer
     db = jobs.db
     cid, sid = d["concept_id"], d["section_id"]
     card = _card(db, cid)
@@ -216,9 +214,9 @@ def run(jobs, jid: int, d: dict) -> dict:
                (cid,))
     plan = lesson_graph.approved(db, cid)
     jobs.progress(jid, f"writing step {idx + 1} of {len(card['sections'])}: {sec['heading'][:60]}")
-    text = _chapter_text(db, x["source_id"], x["page_from"], x["page_to"]) if x else ""
+    text, listing = cells.source_text(db, cid)  # every source of this idea (SPEC §49)
     out = jobs.call(jid, "Renditions", Call(
-        prompt=prompt("lesson_step", book=x["book"] if x else "", lesson=(x or {}).get("title", sec["heading"]),
+        prompt=prompt("lesson_step", book=listing or (x["book"] if x else ""), lesson=(x or {}).get("title", sec["heading"]),
                       plan=lesson_graph.as_text(plan) if plan else card.get("why", ""),
                       step=f'{idx + 1} of {len(card["sections"])}: [{sec.get("kind", "step")}] {sec["heading"]}. {sec["purpose"]}',
                       form=f'{sec.get("form", "text")}' + (f' ({sec["whyForm"]})' if sec.get("whyForm") else ""),

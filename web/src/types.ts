@@ -222,8 +222,8 @@ export interface BookLesson {
   alsoIn: { id: string; title: string }[]
   /** What it builds on that you do not hold yet (SPEC §37); ready = nothing missing. */
   needs: { id: string; title: string; conceptId: string | null }[]; ready: boolean
-  /** One shared block: another book or goal already has this topic as a written lesson. */
-  shared: { conceptId: string; title: string; where: string; bookId: string | null } | null
+  /** One cell per idea (SPEC §49): ``conceptId`` is the idea's one lesson; ``ownConceptId`` is this book's entry. */
+  ownConceptId: string
 }
 export interface BookChapter {
   chapter: number; title: string; summary: string; pages: [number, number]; moduleId: string; mapped: boolean
@@ -454,8 +454,12 @@ export interface LessonView {
   writingCards: boolean
   /** While the lesson is written: its steps, the step it is on, and the newest progress line. */
   writing: { steps: string[]; at: number; message: string; queued: boolean } | null
-  /** The versions of this shared block: the same idea in other books and goals (SPEC §37). */
+  /** Lessons of this idea written before one cell per idea (SPEC §49): the one lesson and the earlier written ones. */
   blockVersions: { conceptId: string; title: string; where: string; bookId: string | null; written: boolean; current: boolean }[]
+  /** Every source of this idea (SPEC §49): books, articles, web pages, videos, with pages. */
+  sources: CellSource[]
+  /** Another lesson of the idea was asked for: open this one (the idea's one lesson). */
+  redirect?: string
   /** Hover notes for the lesson's formulas, by the formula's TeX without spaces (SPEC §33). */
   formulas: Record<string, FormulaNote>
   formulasPending: boolean
@@ -707,3 +711,9 @@ export interface FormulaTreeNode {
   openable: boolean; opening: boolean
 }
 export interface FormulaTreeView { nodes: FormulaTreeNode[]; links: { src: string; dst: string }[] }
+
+/** One source of an idea's cell (SPEC §49). */
+export interface CellSource {
+  bookId: string; sourceId: string | null; title: string; kind: string; url: string; chapter: number; chapterTitle: string
+  part: string; pages: [number, number]
+}

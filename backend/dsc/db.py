@@ -245,6 +245,8 @@ CREATE TABLE IF NOT EXISTS plan_nodes (
   concept_id TEXT NOT NULL, node_key TEXT NOT NULL, node_id TEXT NOT NULL, section_id TEXT NOT NULL, ord INTEGER NOT NULL,
   own INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (concept_id, node_key));
 CREATE TABLE IF NOT EXISTS plan_maps (concept_id TEXT PRIMARY KEY, card_version INTEGER NOT NULL);
+-- One cell per idea (SPEC §49): the one lesson of an idea that has lessons from several sources.
+CREATE TABLE IF NOT EXISTS cell_homes (node_id TEXT PRIMARY KEY, concept_id TEXT NOT NULL, at TEXT NOT NULL);
 -- Step lessons (SPEC §43): the learner's prediction before a step (not graded evidence: guessing is the point).
 CREATE TABLE IF NOT EXISTS step_predictions (
   id INTEGER PRIMARY KEY AUTOINCREMENT, concept_id TEXT NOT NULL, section_id TEXT NOT NULL, choice INTEGER NOT NULL,

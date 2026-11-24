@@ -1266,3 +1266,25 @@ Phase 1 of the one-map redesign (one cell per idea, no countries; later phases f
 - **Today:** where to continue, and this week (ideas learned, sessions, answers). Book cards show learned ideas only.
 - **Still open:** the weekly plan of goals (on hold: lessons only, no reviews) and the roadmap's coding-problem
   intervals (`roadmap/plan.py`, on hold) are left as they are, for a later decision.
+
+## 49. One cell per idea: one lesson, many sources (2026-11-24)
+
+What it is for: one idea is one understanding. When two books (or a book and a video) explain the same idea, the
+learner gets one lesson of it, written from both, not two lessons. Phase 2 of the one-map redesign.
+
+- **Joining.** Book mapping already joins a lesson to the same idea from another source (`same_as`, §31). The idea is
+  one node of the map and one cell.
+- **Home lesson** (`cells.home`): every cell has one lesson. When an idea has lessons from several sources, the one
+  furthest along wins (a plan, then a written card, then answers, then opened); on a tie the kept one stays
+  (`cell_homes`), then the oldest. Every book row of the idea opens that lesson. Opening another lesson of the idea
+  (an old link, the map) returns `redirect` to it.
+- **Sources** (`cells.sources`): every book part of the idea's lessons, the home's first. The lesson page lists them
+  ("One lesson from N sources"). A lesson opened from a book (`?book=`) shows its place in that book.
+- **Written from all sources** (`cells.source_text`): the planner (§42) and the step writer (§43) get the pages of
+  every source, each block labeled by source and page, with the budget shared between sources. The planner names the
+  source each step follows in the node's `pages`; one notation for the whole lesson. The learner's answers and notes
+  change how the lesson is built, not what it is about.
+- **Writing a chapter** (the older batch): a lesson whose idea has its one lesson elsewhere is not written again.
+- **Old data:** nothing is deleted or moved. Lessons of one idea written before this stay as earlier versions on the
+  lesson page. Evidence was already counted per idea (§21).
+- Next phases: the hex map without countries (§29 replaced), gaps between cells, and goals as a direction on the map.

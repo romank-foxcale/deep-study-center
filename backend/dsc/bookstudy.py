@@ -200,6 +200,8 @@ def _chapter_rows(db: DB, bid: str, st: dict | None = None) -> list[dict]:
     for c, n in nodes.items():
         concepts_of.setdefault(n, []).append(c)
     formula_ids = {r["id"] for r in db.q("SELECT id FROM formula_lessons")}
+    from . import cells
+    home_of = cells.homes(db)  # one cell per idea (SPEC §49): a row opens the idea's one lesson
     plan_of: dict[str, str] = {}  # the newest plan's status per lesson (SPEC §42)
     for r in db.q("SELECT concept_id, status FROM lesson_graphs ORDER BY version"):
         plan_of[r["concept_id"]] = r["status"]
@@ -208,7 +210,8 @@ def _chapter_rows(db: DB, bid: str, st: dict | None = None) -> list[dict]:
         lessons = []
         for p in db.q("SELECT * FROM book_parts WHERE book_id=? AND chapter=? AND concept_id IS NOT NULL ORDER BY ord",
                       (bid, ch["chapter"])):
-            cid = p["concept_id"]
+            own = p["concept_id"]
+            cid = home_of.get(own, own)
             nid = nodes.get(cid, cid)
             s = st.get(nid) or st.get(cid)
             # what it builds on (this book's earlier lessons, and older ideas the map linked to it) that you do not hold yet
@@ -218,23 +221,21 @@ def _chapter_rows(db: DB, bid: str, st: dict | None = None) -> list[dict]:
                     continue
                 ss = st.get(src)
                 if not (ss and ss.state in KNOWN):
-                    needs.append({"id": src, "title": node_titles.get(src, src), "conceptId": (concepts_of.get(src) or [None])[0]})
+                    first = (concepts_of.get(src) or [None])[0]
+                    needs.append({"id": src, "title": node_titles.get(src, src), "conceptId": home_of.get(first, first) if first else None})
             if cid in formula_ids:  # a formula lesson also needs its building blocks (SPEC §37)
                 from .formula_lessons import blocks as formula_blocks
                 for bl in formula_blocks(db, cid, st):
                     if bl["state"] == "new":
                         needs.append({"id": (bl["link"] or {}).get("id") or f"block-{bl['id']}", "title": bl["name"],
                                       "conceptId": (bl["link"] or {}).get("id")})
-            # a shared block: the same idea another book or goal already has as a written lesson (SPEC §37)
-            home = next((c for c in concepts_of.get(nid, []) if c != cid and c in written), None)
-            lessons.append({"id": p["id"], "conceptId": cid, "nodeId": nid, "title": p["title"], "covers": p["summary"],
+            lessons.append({"id": p["id"], "conceptId": cid, "ownConceptId": own, "nodeId": nid, "title": p["title"], "covers": p["summary"],
                             "pages": [p["page_from"], p["page_to"]], "ideas": loads(p["ideas"], []),
                             "state": s.state if s else "pending", "mastery": s.mastery if s else 0.0,
                             "written": cid in rendered, "carded": cid in written, "started": cid in started,
                             "plan": plan_of.get(cid),
                             "alsoIn": [{"id": o, "title": titles.get(o, o)} for o in others.get(nid, [])],
-                            "needs": needs[:5], "ready": not needs,
-                            "shared": _where(db, home) if home else None})
+                            "needs": needs[:5], "ready": not needs})
         out.append({"chapter": ch["chapter"], "title": ch["title"], "summary": ch["summary"], "pages": [ch["page_from"], ch["page_to"]],
                     "moduleId": ch["module_id"], "mapped": bool(ch["mapped"]), "kind": ch["kind"], "lessons": lessons})
     return out
@@ -252,14 +253,16 @@ def _where(db: DB, cid: str) -> dict:
 
 
 def versions_of(db: DB, cid: str) -> list[dict]:
-    """Every lesson of the same idea (one shared block, SPEC §37): this book's version and the other books' and goals'
-    versions, with whether each is written. One mastery for all of them."""
+    """Lessons of the same idea that were written before one cell per idea (SPEC §49): the one lesson and the earlier
+    written ones, so nothing written is lost. Empty when there is only the one lesson."""
+    from . import cells
     node = graph.node_of(db).get(cid, cid)
-    ids = [r["concept_id"] for r in db.q("SELECT concept_id FROM concept_nodes WHERE node_id=? ORDER BY concept_id", (node,))]
-    if len(ids) < 2:
-        return []
+    ids = cells.lessons_of(db, node)
     carded = {r["concept_id"] for r in db.q("SELECT DISTINCT concept_id FROM cards")}
-    return [{**_where(db, i), "written": i in carded, "current": i == cid} for i in ids]
+    h = cells.home(db, cid)
+    if not [i for i in ids if i != h and i in carded]:
+        return []
+    return [{**_where(db, i), "written": i in carded, "current": i == cid} for i in ids if i == h or i in carded]
 
 
 def view(db: DB, bid: str) -> dict | None:
@@ -285,15 +288,22 @@ def view(db: DB, bid: str) -> dict | None:
             "busy": bool(running and running["status"] in ("queued", "running"))}
 
 
-def lesson_book(db: DB, cid: str) -> dict | None:
-    """For a lesson page: the book, chapter and pages of a book lesson, and its neighbours in reading order."""
-    p = db.one("SELECT * FROM book_parts WHERE concept_id=?", (cid,))
+def lesson_book(db: DB, cid: str, book_id: str | None = None) -> dict | None:
+    """For a lesson page: the book, chapter and pages of a book lesson, and its neighbours in reading order. With
+    ``book_id``, the place of this idea in that book (one cell per idea, SPEC §49: one lesson, read from any of its books)."""
+    from . import cells
+    p = None
+    if book_id:
+        p = db.one("""SELECT p.* FROM book_parts p JOIN concept_nodes cn ON cn.concept_id = p.concept_id
+                      WHERE p.book_id=? AND cn.node_id=(SELECT node_id FROM concept_nodes WHERE concept_id=?)""", (book_id, cid))
+    p = p or db.one("SELECT * FROM book_parts WHERE concept_id=?", (cid,))
     if not p:
         return None
     b = get(db, p["book_id"])
-    order = [r["concept_id"] for r in db.q("SELECT concept_id FROM book_parts WHERE book_id=? AND concept_id IS NOT NULL ORDER BY ord",
-                                            (p["book_id"],))]
-    i = order.index(cid)
+    home_of = cells.homes(db)
+    order = [home_of.get(r["concept_id"], r["concept_id"]) for r in db.q(
+        "SELECT concept_id FROM book_parts WHERE book_id=? AND concept_id IS NOT NULL ORDER BY ord", (p["book_id"],))]
+    i = order.index(home_of.get(p["concept_id"], p["concept_id"]))
     title = {r["id"]: r["title"] for r in db.q("SELECT id, title FROM concepts WHERE id IN (%s)" % ",".join("?" * len(order)), order)}
     near = lambda j: {"id": order[j], "title": title.get(order[j], "")} if 0 <= j < len(order) else None  # noqa: E731
     return {"bookId": b["id"], "bookTitle": b["title"], "sourceId": b["source_id"], "chapter": p["chapter"],
@@ -587,14 +597,11 @@ def write_cards(jobs: Jobs, jid: int, d: dict) -> dict:
                       WHERE p.book_id=? AND p.chapter=? ORDER BY p.ord""", (b["id"], ch["chapter"]))
     have = {r["concept_id"] for r in db.q("SELECT DISTINCT concept_id FROM cards")}
     have |= {r["id"] for r in db.q("SELECT id FROM formula_lessons")}  # formula lessons are written by their own job
-    nodes = graph.node_of(db)
-    by_node: dict[str, list[str]] = {}
-    for c, n in nodes.items():
-        by_node.setdefault(n, []).append(c)
-    # a shared block another book or goal already has: this book's version is written only when asked for (SPEC §37)
-    shared = {x["concept_id"] for x in lessons
-              if any(o != x["concept_id"] and o in have for o in by_node.get(nodes.get(x["concept_id"], x["concept_id"]), []))}
-    todo = [x for x in lessons if x["concept_id"] not in have and (x["concept_id"] not in shared or x["concept_id"] == d.get("open"))]
+    from . import cells
+    home_of = cells.homes(db)
+    # one cell per idea (SPEC §49): a lesson whose idea has its one lesson elsewhere is not written again
+    shared = {x["concept_id"] for x in lessons if home_of.get(x["concept_id"], x["concept_id"]) != x["concept_id"]}
+    todo = [x for x in lessons if x["concept_id"] not in have and x["concept_id"] not in shared]
     # a lesson that has a plan is taught from it, step by step (SPEC §42, §43): not written in this batch
     planned = {r["concept_id"] for r in db.q("SELECT DISTINCT concept_id FROM lesson_graphs")}
     todo = [x for x in todo if x["concept_id"] not in planned or x["concept_id"] == d.get("open")]
