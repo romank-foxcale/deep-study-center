@@ -64,7 +64,7 @@ def test_approving_makes_a_step_lesson_and_writes_only_the_first_two_steps(steps
     assert "viz" not in card["sections"][1] or v["sections"][1]["viz"] is None  # the broken widget is dropped
     p = step_reply.prompts[0]
     assert "This step: 1 of 4: [foundation] Scores from dot products." in p and "(none: this is the first step)" in p
-    assert "Its form: example (numbers make it concrete)" in p and "[p. 4]" in p
+    assert "Its form: example (numbers make it concrete)" in p and "[Inference Book, p. 4]" in p
     assert not [c for r, c in runner.calls if r == "Research" and "lesson cards" in c.prompt.lower()]  # no batch writing
     lesson.ensure_prose(db, jobs, cid)
     assert len(step_reply.prompts) == 2  # opening again writes nothing new

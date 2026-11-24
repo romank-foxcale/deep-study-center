@@ -52,7 +52,7 @@ def test_opening_an_unwritten_book_lesson_plans_it_first(planned):
     assert not any(lessons(db, bid)[t]["carded"] for t in ("Softmax", "Attention", "KV cache"))  # nothing written yet
     assert lessons(db, bid)["Attention"]["plan"] == "ready"
     p = prompts[0]
-    assert "[p. 4]" in p and "Attention" in p and "(none: this is the first version)" in p
+    assert "[Inference Book, p. 4]" in p and "Attention" in p and "(none: this is the first version)" in p
     view = lesson_graph.view(db, cid)
     plan = view["plan"]
     assert [n["key"] for n in plan["nodes"]] == ["softmax", "scores", "weights", "weighted-sum", "goal"]  # duplicate dropped

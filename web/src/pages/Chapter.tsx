@@ -42,9 +42,9 @@ export default function Chapter() {
       {!ch.mapped && <p className="muted">This chapter is not cut into lessons yet: the book is being mapped.</p>}
       {ch.mapped && ch.kind === 'reference' && <p className="muted">Reference material: looked up, not studied, so it has no lessons.</p>}
       {ch.writing && <p className="muted">Writing this chapter's lessons from the book's pages…</p>}
-      <LessonList lessons={ch.lessons} next={v.next} full />
+      <LessonList lessons={ch.lessons} next={v.next} full bookId={v.id} />
       <div className="row">
-        {first && <Link className="btn btn-primary" to={`/lesson/${first.conceptId}`}>{KNOWN.has(first.state) ? 'Read it again' : first.started ? 'Continue' : 'Start the chapter'}</Link>}
+        {first && <Link className="btn btn-primary" to={`/lesson/${first.conceptId}?book=${v.id}`}>{KNOWN.has(first.state) ? 'Read it again' : first.started ? 'Continue' : 'Start the chapter'}</Link>}
         {known > 0 && <button className="btn" onClick={() => { setGoing(s.lastPractice); void dispatch({ type: 'bookHomework', bookId: v.id, chapter: ch.chapter }) }}
           title="Recall practice on this chapter's lessons">Homework</button>}
         <span className="spacer" />

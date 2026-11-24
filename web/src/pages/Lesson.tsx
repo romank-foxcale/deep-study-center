@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { getLesson, jobActive, openLesson, postActivity, useStore } from '../store'
 import type { Angle, LessonSectionView, LessonView } from '../types'
 import Markdown from '../components/Markdown'
@@ -21,6 +21,9 @@ import type { FeedbackRef } from '../types'
 
 export default function Lesson() {
   const { id = '' } = useParams()
+  const [search] = useSearchParams()
+  const fromBook = search.get('book')  // one cell per idea (SPEC §49): the book this lesson is read from
+  const navigate = useNavigate()
   const { s, dispatch, reload } = useStore()
   const concept = s.concepts.find(c => c.id === id)
   const module = s.modules.find(m => m.id === concept?.moduleId)
@@ -53,8 +56,9 @@ export default function Lesson() {
   useEffect(() => {
     let live = true
     setView(null)
-    openLesson(id).then(v => {
+    openLesson(id, false, fromBook).then(v => {
       if (!live) return
+      if (v.redirect) { navigate(`/lesson/${v.redirect}${fromBook ? `?book=${fromBook}` : ''}`, { replace: true }); return }
       setView(v)
       if (v.rendering) reload()
       if (v.refreshed) setToast(`Re-rendered for you with playbook v${s.playbook.version}.`)
@@ -66,7 +70,7 @@ export default function Lesson() {
   // Every new snapshot (after an action or a poll while jobs run) re-reads the lesson.
   useEffect(() => {
     let live = true
-    if (view) getLesson(id).then(v => live && setView(v), () => {})
+    if (view) getLesson(id, fromBook).then(v => live && !v.redirect && setView(v), () => {})
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the snapshot
   }, [s])
@@ -177,7 +181,7 @@ export default function Lesson() {
           : <div className="crumbs"><Link to="/roadmap">{track?.title}</Link> › {module?.title}</div>}
         {view && view.blockVersions.length > 1 && (
           <div className="block-versions small" role="navigation" aria-label="Versions of this topic">
-            <span className="muted">One block, {view.blockVersions.length} versions:</span>
+            <span className="muted">Written before one lesson per idea, {view.blockVersions.length} versions:</span>
             {view.blockVersions.map(v => v.current
               ? <span key={v.conceptId} className="pill pill-accent">{v.where || v.title}</span>
               : <Link key={v.conceptId} to={`/lesson/${v.conceptId}`} className="pill"
@@ -186,6 +190,12 @@ export default function Lesson() {
         )}
         <header className="lesson-head">
           <h1>{concept.title}</h1>
+          {view && view.sources.length > 1 && (
+            <div className="small muted lesson-sources">One lesson from {view.sources.length} sources:{' '}
+              {view.sources.map((x, i) => <span key={`${x.bookId}-${x.pages[0]}`}>{i > 0 && ' · '}
+                <Link to={`/book/${x.bookId}`}>{x.title}</Link> {x.pages[0] === x.pages[1] ? `p. ${x.pages[0]}` : `pp. ${x.pages[0]}–${x.pages[1]}`}</span>)}
+            </div>
+          )}
           <div className="lead"><Markdown inline>{concept.objective}</Markdown></div>
           <div className="row">
             <StateBadge state={concept.state} />

@@ -128,7 +128,8 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
-export const getLesson = (id: string) => api<LessonView>(`/api/lesson/${encodeURIComponent(id)}`)
+export const getLesson = (id: string, book?: string | null) =>
+  api<LessonView>(`/api/lesson/${encodeURIComponent(id)}${book ? `?book=${encodeURIComponent(book)}` : ''}`)
 export const postActivity = (conceptId: string, seconds: number) =>
   api<{ ok: boolean }>('/api/activity', { method: 'POST', body: JSON.stringify({ conceptId, seconds }) })
 /** Upload a PDF as the raw request body; the server reads its text in a background job. ``onProgress`` gets 0..1.
@@ -173,8 +174,10 @@ export const runLocal = (body: { conceptId: string; itemId: string; code: string
   api<RunResult>('/api/run', { method: 'POST', body: JSON.stringify(body) })
 export const getLessonDiff = (id: string, a: number, b: number) =>
   api<LessonDiff>(`/api/lesson/${encodeURIComponent(id)}/diff?a=${a}&b=${b}`)
-export const openLesson = (id: string, noplan = false) =>
-  api<LessonView>(`/api/lesson/${encodeURIComponent(id)}/open${noplan ? '?noplan=true' : ''}`, { method: 'POST' })
+export const openLesson = (id: string, noplan = false, book?: string | null) => {
+  const q = [noplan ? 'noplan=true' : '', book ? `book=${encodeURIComponent(book)}` : ''].filter(Boolean).join('&')
+  return api<LessonView>(`/api/lesson/${encodeURIComponent(id)}/open${q ? `?${q}` : ''}`, { method: 'POST' })
+}
 export const getLessonPlan = (id: string) => api<LessonPlanView>(`/api/lesson/${encodeURIComponent(id)}/plan`)
 
 interface Ctx {

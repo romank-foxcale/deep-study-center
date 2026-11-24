@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getGraph, getToday, useStore } from '../store'
 import BookShelf from '../components/BookShelf'
-import MapCanvas from '../components/MapCanvas'
+import HexMap from '../components/HexMap'
 import ApiKeyCard from '../components/ApiKeyCard'
 import Markdown from '../components/Markdown'
 import type { GraphView, TodayView } from '../types'
@@ -71,8 +71,8 @@ export default function Today() {
           <div className="eyebrow">Your map</div>
           <div className="today-map-box">
             {g && g.nodes.length > 0
-              ? <MapCanvas view="territory" nodes={g.nodes} links={links} clusters={g.clusters ?? []} selected={null} matches={EMPTY}
-                  center={null} compact onSelect={id => navigate('/map', { state: { focus: 'all', select: id } })} />
+              ? <HexMap nodes={g.nodes} links={links} selected={null} matches={EMPTY} compact
+                  onSelect={id => { if (id) navigate('/map', { state: { focus: 'all', select: id } }) }} />
               : <p className="muted small">Your ideas appear here as you learn.</p>}
           </div>
           <Link className="small" to="/map">Open the map →</Link>

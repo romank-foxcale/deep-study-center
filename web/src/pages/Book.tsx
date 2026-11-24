@@ -2,14 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getBook, getGraph, useStore } from '../store'
 import Markdown from '../components/Markdown'
-import MapCanvas from '../components/MapCanvas'
+import HexMap, { CELL_LABEL } from '../components/HexMap'
 import RemapChapter from '../components/RemapChapter'
 import type { BookChapter, BookLesson, BookView, GraphView } from '../types'
 
 export const STATE_LABEL: Record<string, string> = {
   learned: 'learned', learning: 'learning', ready: 'ready to learn', locked: 'new', pending: 'new',
 }
-const LEGEND = ['learned', 'learning', 'ready']
 export const KNOWN = new Set(['learned'])
 const EMPTY = new Set<string>()
 
@@ -44,7 +43,6 @@ export default function Book() {
     : { ...n, cluster: `book:${id}`, also: [n.cluster, ...n.also.filter(a => a !== `book:${id}`)] }) : []), [g, id])
   const mineIds = useMemo(() => new Set(mine.map(n => n.id)), [mine])
   const myLinks = useMemo(() => (g ? g.links.filter(l => mineIds.has(l.src) && mineIds.has(l.dst)) : []), [g, mineIds])
-  const myClusters = useMemo(() => g?.clusters ?? [], [g])
 
   // the chapter of the next lesson starts open
   const nextChapter = v?.chapters.find(c => c.lessons.some(x => x.conceptId === v.next))?.chapter
@@ -130,7 +128,7 @@ export default function Book() {
               <div className="eyebrow">{next.started ? 'Continue' : 'Next'} · {nextCh.title}</div>
               <h2><Markdown inline>{next.title}</Markdown></h2>
               <p className="muted small">pp. {pageRange(next.pages)}{next.covers ? ` · ` : ''}<Markdown inline>{next.covers}</Markdown></p>
-              <div className="row"><Link className="btn btn-primary" to={`/lesson/${next.conceptId}`}>{next.started ? 'Continue' : 'Start this lesson'}</Link>
+              <div className="row"><Link className="btn btn-primary" to={`/lesson/${next.conceptId}?book=${v.id}`}>{next.started ? 'Continue' : 'Start this lesson'}</Link>
                 <Link className="btn" to={`/book/${v.id}/chapter/${nextCh.chapter}`}>The chapter</Link></div>
             </div>
           )}
@@ -151,7 +149,7 @@ export default function Book() {
                     {ch.summary && <div className="book-ch-summary"><Markdown>{ch.summary}</Markdown></div>}
                     {ch.kind === 'reference' && <p className="small muted">Reference material (pp. {pageRange(ch.pages)}): looked up, not studied,
                       so it has no lessons. Lessons link the terms you meet elsewhere.</p>}
-                    <LessonList lessons={ch.lessons} next={v.next} />
+                    <LessonList lessons={ch.lessons} next={v.next} bookId={v.id} />
                     <div className="row small">
                       <Link className="btn btn-small" to={`/book/${v.id}/chapter/${ch.chapter}`}>Open the chapter</Link>
                       {k > 0 && <button className="btn btn-small" onClick={() => homework(ch)} title="Recall practice on this chapter's lessons">Practise this chapter</button>}
@@ -169,13 +167,12 @@ export default function Book() {
         <aside className="book-right">
           <div className="book-map">
             {mine.length > 0
-              ? <MapCanvas view="territory" nodes={mine} links={myLinks} clusters={myClusters} selected={null} matches={EMPTY} center={null} compact
-                  onSelect={nid => navigate('/map', { state: { focus: `book:${v.id}`, select: nid } })} />
+              ? <HexMap nodes={mine} links={myLinks} selected={null} matches={EMPTY} compact
+                  onSelect={nid => { if (nid) navigate('/map', { state: { select: nid } }) }} />
               : <p className="muted small book-map-empty">The book's lessons appear here once a chapter is mapped.</p>}
           </div>
-          <div className="legend small">{LEGEND.map(st => <span key={st}><i className={`state-dot state-${st}`} /> {STATE_LABEL[st]}</span>)}</div>
-          <p className="small muted">Each hex is one lesson. Lit hexes are what you have learned. A second-color edge
-            marks a lesson that another book also teaches.</p>
+          <div className="legend small">{(['learned', 'known', 'unexplored'] as const).map(st => <span key={st}><i className={`hm-swatch hm-${st}`} /> {CELL_LABEL[st]}</span>)}</div>
+          <p className="small muted">Each hex is one idea of this book. An idea other sources also explain is the same cell on your map.</p>
         </aside>
       </div>
     </div>
@@ -187,7 +184,8 @@ export function pageRange(p: [number, number]) {
 }
 
 /** A chapter's lessons: what each covers, its pages, its state, links to other books, and Open / Open again. */
-export function LessonList({ lessons, next, full }: { lessons: BookLesson[]; next: string | null; full?: boolean }) {
+export function LessonList({ lessons, next, full, bookId }: { lessons: BookLesson[]; next: string | null; full?: boolean; bookId?: string }) {
+  const to = (cid: string) => `/lesson/${cid}${bookId ? `?book=${bookId}` : ''}`  // the idea's one lesson, read from this book (SPEC §49)
   return (
     <ol className="book-lessons">
       {lessons.map((x, n) => {
@@ -196,13 +194,11 @@ export function LessonList({ lessons, next, full }: { lessons: BookLesson[]; nex
           <li key={x.id} className={`book-lesson${x.conceptId === next ? ' book-lesson-next' : ''}${known ? ' book-lesson-known' : ''}`}>
             <span className="book-lesson-num">{n + 1}</span>
             <div className="book-lesson-main">
-              <Link className="book-lesson-title" to={`/lesson/${x.conceptId}`}><Markdown inline>{x.title}</Markdown></Link>
+              <Link className="book-lesson-title" to={to(x.conceptId)}><Markdown inline>{x.title}</Markdown></Link>
               <span className="muted small"> · pp. {pageRange(x.pages)}</span>
               {x.covers && <div className="small book-lesson-covers"><Markdown inline>{x.covers}</Markdown></div>}
               {full && x.ideas.length > 0 && <div className="small muted book-lesson-ideas"><Markdown inline>{x.ideas.join(' · ')}</Markdown></div>}
-              {x.shared && <div className="small book-lesson-shared">Shared block: you have this topic in{' '}
-                <Link to={`/lesson/${x.shared.conceptId}`}>{x.shared.where || x.shared.title}</Link>. This book's version is written only when you ask.</div>}
-              {!x.shared && x.alsoIn.length > 0 && <div className="small book-lesson-also">Also in {x.alsoIn.map((b, i) => (
+              {x.alsoIn.length > 0 && <div className="small book-lesson-also">One lesson, also from {x.alsoIn.map((b, i) => (
                 <span key={b.id}>{i > 0 && ', '}<Link to={`/book/${b.id}`}>{b.title}</Link></span>))}</div>}
               {!known && x.needs.length > 0 && <div className="small book-lesson-needs">Builds on what you do not hold yet:{' '}
                 {x.needs.map((d, i) => <span key={d.id}>{i > 0 && ', '}{d.conceptId ? <Link to={`/lesson/${d.conceptId}`}>{d.title}</Link> : d.title}</span>)}</div>}
@@ -210,15 +206,9 @@ export function LessonList({ lessons, next, full }: { lessons: BookLesson[]; nex
             <span className="book-lesson-side">
               <span className={`pill small state-pill-${x.state}`}><i className={`state-dot state-${x.state}`} /> {STATE_LABEL[x.state] ?? x.state}</span>
               {!x.carded && x.plan && <span className={`pill small lp-pill lp-pill-${x.plan}`}>{PLAN_LABEL[x.plan]}</span>}
-              {x.shared && !x.carded
-                ? <>
-                  <Link className={`btn btn-small${x.conceptId === next ? ' btn-primary' : ''}`} to={`/lesson/${x.shared.conceptId}`}
-                    title={`The shared lesson, from ${x.shared.where}`}>{known ? 'Open again' : 'Open'}</Link>
-                  <Link className="link small" to={`/lesson/${x.conceptId}`} title="Write this topic from this book's pages too">This book's version</Link>
-                </>
-                : <Link className={`btn btn-small${x.conceptId === next ? ' btn-primary' : ''}`} to={`/lesson/${x.conceptId}`}
-                    title={x.written ? 'The lesson is saved: it opens as you left it' : 'Written from the book when you open it'}>
-                    {known ? 'Open again' : x.started ? 'Continue' : 'Open'}</Link>}
+              <Link className={`btn btn-small${x.conceptId === next ? ' btn-primary' : ''}`} to={to(x.conceptId)}
+                title={x.written ? 'The lesson is saved: it opens as you left it' : 'Written from all its sources when you open it'}>
+                {known ? 'Open again' : x.started ? 'Continue' : 'Open'}</Link>
             </span>
           </li>
         )

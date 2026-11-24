@@ -38,7 +38,7 @@ def ensure_rendition(db: DB, cid: str) -> dict | None:
     if not r:
         pb = state.playbook(db)
         angles = engine.choose_angles(card["sections"], pb, {})
-        db.x("INSERT INTO renditions VALUES(?,?,?,?,?,?,0)",
+        db.x("INSERT OR IGNORE INTO renditions VALUES(?,?,?,?,?,?,0)",  # two opens at once: the first one wins
              (cid, card["version"], pb["version"], engine.style_key(pb["adjust"]), dumps(angles), "{}"))
         r = state.rendition_row(db, cid)
     return r
@@ -57,7 +57,7 @@ def refresh(db: DB, jobs: Jobs, cid: str, by_learner: bool = False) -> None:
     ensure_prose(db, jobs, cid, rewrite=by_learner)
 
 
-def open_lesson(db: DB, jobs: Jobs, cid: str, plan: bool = True) -> dict:
+def open_lesson(db: DB, jobs: Jobs, cid: str, plan: bool = True, book: str | None = None) -> dict:
     from . import bookstudy
     bookstudy.ensure_written(db, jobs, cid, plan=plan)  # a book lesson opened for the first time: plan it, or write it
     r = ensure_rendition(db, cid)
@@ -74,7 +74,7 @@ def open_lesson(db: DB, jobs: Jobs, cid: str, plan: bool = True) -> dict:
                for j in state.jobs(db)):
         formulas.ensure(db, jobs, cid)  # hover notes for formulas written before notes existed
     progress.research_ahead(db, jobs)
-    return {**view(db, cid), "refreshed": refreshed}
+    return {**view(db, cid, book), "refreshed": refreshed}
 
 
 def ensure_prose(db: DB, jobs: Jobs, cid: str, rewrite: bool = False) -> None:
@@ -141,7 +141,7 @@ def writing(db: DB, cid: str) -> dict | None:
             "queued": all(j["status"] == "queued" for j in active)}
 
 
-def view(db: DB, cid: str) -> dict:
+def view(db: DB, cid: str, book: str | None = None) -> dict:
     """Lesson as the page shows it: the head version's text where it fits the rendition, else cached prose.
     Missing prose falls back to the same angle in another style (marked approximate) while a render job runs.
     Complete new prose is snapshotted as the next lesson version first."""
@@ -181,7 +181,7 @@ def view(db: DB, cid: str) -> dict:
         })
     p = writer.current_plan(db, cid, card["version"]) if card else None
     from . import bookstudy, formula_lessons, formulas
-    book = bookstudy.lesson_book(db, cid)
+    book = bookstudy.lesson_book(db, cid, book)
     mod = db.one("SELECT module_id FROM concepts WHERE id=?", (cid,)) if book else None
     writing_cards = bool(mod) and any(j["status"] in ("queued", "running") and j["kind"] == "research_module"
                                 and j["input"].get("module_id") == mod["module_id"] for j in state.jobs(db))
@@ -192,6 +192,7 @@ def view(db: DB, cid: str) -> dict:
         "formulas": formulas.notes(db, cid),
         "formulaLesson": formula_lessons.info(db, cid),
         "blockVersions": bookstudy.versions_of(db, cid),
+        "sources": _sources(db, cid),  # every source of this idea (SPEC §49)
         "formulasPending": any(j["status"] in ("queued", "running") and j["kind"] == "formula_notes"
                                and j["input"].get("concept_id") == cid for j in state.jobs(db)),
         "conceptId": cid, "card": state.public_card(card) if card else None, "sections": sections,
@@ -227,3 +228,9 @@ def _steps(db: DB, cid: str, card: dict | None) -> dict | None:
 def _demo(d: dict | None) -> dict | None:
     from . import demos
     return demos.public(d)
+
+
+def _sources(db: DB, cid: str) -> list[dict]:
+    from . import cells
+    return [{k: x[k] for k in ("bookId", "sourceId", "title", "kind", "url", "chapter", "chapterTitle", "part", "pages")}
+            for x in cells.sources(db, cid)]

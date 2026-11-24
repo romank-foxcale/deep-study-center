@@ -125,7 +125,7 @@ def build(folder: Path) -> Path:
     _states(db, rnd, base, titles)
     _sessions(db, titles)
     _practice(db, titles)
-    db.set_meta("map_view", "territory")
+    db.set_meta("map_view", "hex")
     db.set_meta("auto_research", "0")  # mock pages are not a real book: never spend model calls on them by itself
     db.set_meta("auto_refresh", "0")
     return folder / "study.db"

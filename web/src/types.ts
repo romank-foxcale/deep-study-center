@@ -178,7 +178,8 @@ export interface GraphNode {
    *  goals it is in, its chapter there and its reading order (0..1). */
   cluster: string; also: string[]; chapter: number; chapterTitle: string; order: number
 }
-export type MapViewId = 'tree' | 'wheel' | 'cells' | 'territory'
+/** SPEC §50: the hex map of ideas (the default) or the tree. The country views were removed. */
+export type MapViewId = 'hex' | 'tree'
 /** ``color``: the area's fixed color number (see areaColors.ts); -1 for "Other ideas". */
 export interface MapCluster { id: string; kind: 'book' | 'goal' | 'session' | 'loose' | 'formulas'; title: string; size: number; color: number }
 /** The knowledge graph (SPEC §21, §23). */
@@ -222,8 +223,8 @@ export interface BookLesson {
   alsoIn: { id: string; title: string }[]
   /** What it builds on that you do not hold yet (SPEC §37); ready = nothing missing. */
   needs: { id: string; title: string; conceptId: string | null }[]; ready: boolean
-  /** One shared block: another book or goal already has this topic as a written lesson. */
-  shared: { conceptId: string; title: string; where: string; bookId: string | null } | null
+  /** One cell per idea (SPEC §49): ``conceptId`` is the idea's one lesson; ``ownConceptId`` is this book's entry. */
+  ownConceptId: string
 }
 export interface BookChapter {
   chapter: number; title: string; summary: string; pages: [number, number]; moduleId: string; mapped: boolean
@@ -260,7 +261,13 @@ export interface IdeaDetail {
   buildsOn: { id: string; title: string; state: string }[]; leadsTo: { id: string; title: string; state: string }[]
   books: { id: string; title: string; part: string; pages: string; conceptId?: string | null }[]
   sessions: { id: string; title: string; status: string }[]; lessons: { id: string; title: string; goalId: string }[]
+  /** Every source of the idea (SPEC §49, §50): book, article, web page or video parts, and study sessions. */
+  sources: IdeaSource[]
+  /** The idea's one lesson (a step idea: the lesson that teaches it), or null. */
+  lesson: string | null
 }
+export type IdeaSource = { kind: 'session'; title: string; sessionId: string; status: string }
+  | { kind: string; title: string; bookId: string; url: string; part: string; pages: [number, number]; chapter: number }
 
 export interface SessionQuestion {
   id: number; idea: string; phase: 'probe' | 'predict' | 'check'; round: number; prompt: string; options: string[]
@@ -454,8 +461,12 @@ export interface LessonView {
   writingCards: boolean
   /** While the lesson is written: its steps, the step it is on, and the newest progress line. */
   writing: { steps: string[]; at: number; message: string; queued: boolean } | null
-  /** The versions of this shared block: the same idea in other books and goals (SPEC §37). */
+  /** Lessons of this idea written before one cell per idea (SPEC §49): the one lesson and the earlier written ones. */
   blockVersions: { conceptId: string; title: string; where: string; bookId: string | null; written: boolean; current: boolean }[]
+  /** Every source of this idea (SPEC §49): books, articles, web pages, videos, with pages. */
+  sources: CellSource[]
+  /** Another lesson of the idea was asked for: open this one (the idea's one lesson). */
+  redirect?: string
   /** Hover notes for the lesson's formulas, by the formula's TeX without spaces (SPEC §33). */
   formulas: Record<string, FormulaNote>
   formulasPending: boolean
@@ -707,3 +718,9 @@ export interface FormulaTreeNode {
   openable: boolean; opening: boolean
 }
 export interface FormulaTreeView { nodes: FormulaTreeNode[]; links: { src: string; dst: string }[] }
+
+/** One source of an idea's cell (SPEC §49). */
+export interface CellSource {
+  bookId: string; sourceId: string | null; title: string; kind: string; url: string; chapter: number; chapterTitle: string
+  part: string; pages: [number, number]
+}
