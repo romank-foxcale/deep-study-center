@@ -3,8 +3,11 @@
 The history of Deep Study Center, newest first. The full design and the decisions are in [SPEC.md](SPEC.md); the
 work still open is in [TODO.md](TODO.md).
 
-## Unreleased: lesson steps on the map, teach from a link, no schedule, one lesson per idea, the hex map, gaps (SPEC §46-§51)
+## Unreleased: lesson steps on the map, teach from a link, no schedule, one lesson per idea, the hex map, gaps, the formula flow (SPEC §46-§52)
 
+- **The formula flow** (SPEC §52): a formula's page shows where each part comes from, as boxes and arrows. Drag a
+  value to see it move through every formula; click a box to read what it is and try "what if" forms of its key
+  parts. Normal lessons no longer show the formula widget; they link to the formula's page.
 - **Gaps** (SPEC §51): open, dashed hexes where an idea is missing between two of yours. Point at a gap to see
   what is missing; add it to your map, ask for more, or say it is not missing. Gaps are found after a book is mapped,
   and when you press "Find gaps".

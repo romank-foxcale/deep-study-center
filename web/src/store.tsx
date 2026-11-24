@@ -74,6 +74,7 @@ export type Action =
   | { type: 'makeFormulaPage'; node: string }
   | { type: 'setMapView'; view: import('./types').MapViewId }
   | { type: 'findGaps'; gapId?: string }
+  | { type: 'makeFormulaFlow'; conceptId: string }
   | { type: 'acceptGap'; gapId: string; index: number }
   | { type: 'dismissGap'; gapId: string }
   | { type: 'setDictation'; mode?: 'browser' | 'local'; model?: string }

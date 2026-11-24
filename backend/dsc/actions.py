@@ -657,6 +657,15 @@ def open_formula(db: DB, jobs: Jobs, a: dict) -> None:
         jobs.enqueue("formula_open", "Find what a formula is built from", {"node": node})
 
 
+def make_formula_flow(db: DB, jobs: Jobs, a: dict) -> None:
+    """Build (or build again) the formula flow of a formula page (SPEC §52)."""
+    from . import formula_flow
+    cid = str(a.get("conceptId") or "")
+    if not db.one("SELECT 1 FROM formula_lessons WHERE id=? AND COALESCE(kind, 'formula')='formula'", (cid,)):
+        raise ActionError("only a formula page has a formula flow")
+    formula_flow.request(db, jobs, cid)
+
+
 def make_formula_page(db: DB, jobs: Jobs, a: dict) -> None:
     from . import formula_lessons
     try:
@@ -1069,7 +1078,7 @@ ACTIONS = {
     "studyBook": study_book, "bookRetry": book_retry, "bookOpenLesson": book_open_lesson, "reviewReasoning": review_reasoning,
     "makeFormulaLesson": make_formula_lesson, "addFormulaForm": add_formula_form, "preferFormulaForm": prefer_formula_form,
     "learnBlocksFirst": learn_blocks_first, "bookRemapChapter": book_remap_chapter, "bookReplan": book_replan,
-    "openFormula": open_formula, "makeFormulaPage": make_formula_page, "bookHomework": book_homework,
+    "openFormula": open_formula, "makeFormulaPage": make_formula_page, "makeFormulaFlow": make_formula_flow, "bookHomework": book_homework,
     "deleteBook": delete_book, "setMapView": set_map_view,
     "findGaps": find_gaps, "acceptGap": accept_gap, "dismissGap": dismiss_gap,
     "planLesson": plan_lesson, "predictStep": predict_step, "rewriteStep": rewrite_step, "demoResult": demo_result, "lessonPlanNote": lesson_plan_note, "approveLessonPlan": approve_lesson_plan,

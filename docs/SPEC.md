@@ -1332,3 +1332,31 @@ so they can "conquer the territory" step by step. Phase 4 of the one-map redesig
     ("Teach me this").
   - "Find more": the agent looks at that arrow again; the gap grows (at most 3 ideas).
   - "Not missing": the gap closes and that arrow is not proposed again.
+
+## 52. The formula flow of a formula page; no formula widget in normal lessons (2026-11-24)
+
+What it is for: on a formula's page, the learner sees exactly where each part comes from, changes one value or one
+part, and sees what happens to every part below it. The design is the approved mock "A"
+(`web/public/_mocks/formula-graph-a.html`).
+
+- **The flow** (`formula_flow.py`; table `formula_flows`): inputs (values to drag, with ranges; a constant is
+  `fixed`), input boxes (the inputs they hold), and formula boxes in order. Each formula box: its symbol, a label,
+  `uses` (earlier boxes), `tex` (naming inputs and boxes as `{id}`), `expr` (the calculator form of the widgets; a list
+  for a small vector, whose parts are `id_1`, `id_2`, ...), `say` (what it is and why it is needed), and on 1-3 main
+  boxes 1-3 `whatif` forms (`tex`, `expr`, `why`, `ok`).
+- **Built** by an agent (job `formula_flow`, prompt `formula_flow.md`, role "Lesson assets") when a formula page is
+  written (meta `auto_flow`), or with "Build it" / "Build it again" on the page (action `makeFormulaFlow`).
+- **Checked by code** (`formula_flow.check`), the way the page computes it: short lowercase ids that are not function
+  names; every input in one input box; a box uses only inputs and earlier boxes; every `{ref}` is known; every box
+  computes at the start values and at each input's minimum and maximum; every what-if computes and has the box's
+  shape; at most 10 inputs and 14 boxes. A flow with problems goes back to the agent once with them; then it fails,
+  and the page shows why with "Try again".
+- **On the page** (`FormulaFlow.tsx`): rows from the inputs down, arrows in the color of the value they carry; drag a
+  dotted value (in a formula or a pill) and every formula that really uses it shows numbers in place of letters;
+  "Numbers in every formula"; point at a box to keep only what it comes from and feeds; click a box for its card: the
+  formula, what it is, its value now, "Built from" and "Used by" (click to move), and "What if this part were
+  different?": pick another form, and every box below shows the real value and yours, with why it works or breaks.
+  "Back to the real formula" undoes every what-if.
+- **Normal lessons** no longer show the explorable formula widget: writers are told it is only for formula pages, and
+  a widget in an existing lesson is hidden, with "Explore this formula on its own page" (a link when the formula has a
+  page). Formula pages keep it.

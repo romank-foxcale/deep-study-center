@@ -386,6 +386,8 @@ export interface LessonSectionView {
   code: CodeExercise | null
   explain: ExplainItem | null
   viz: VizSpec | null
+  /** A formula widget a normal lesson does not show (SPEC §52): the formula, and its formula page if it has one. */
+  formulaPage?: { tex: string; pageId: string | null } | null
   /** The graph / quiz question was made for this learner by the lesson writer (not the card's one). */
   vizMine: boolean
   /** What the app had to fix or remove in this graph after computing it (empty when it works as written). */
@@ -484,6 +486,8 @@ export interface LessonView {
       state: 'known' | 'new'; link: { id: string | null; title: string; kind: 'lesson' | 'idea' } | null }[]
     blocksReady: boolean; missing: number
     usedIn: { id: string; title: string; kind: 'formula' | 'lesson' }[]
+    /** The formula flow (SPEC §52): null until it is asked for or built. */
+    flow: { status: 'building' | 'ready' | 'failed'; spec: FlowSpec | null; error: string | null } | null
     source: { id: string; title: string } } | null
   card: SourceCard | null
   sections: LessonSectionView[]
@@ -727,3 +731,14 @@ export interface CellSource {
   bookId: string; sourceId: string | null; title: string; kind: string; url: string; chapter: number; chapterTitle: string
   part: string; pages: [number, number]
 }
+
+/** The formula flow of a formula page (SPEC §52): inputs, input boxes and formula boxes (backend formula_flow.py). */
+export interface FlowInput { id: string; sym: string; label: string; value: number; min: number; max: number; step: number; fixed?: boolean }
+export interface FlowNode {
+  id: string; label: string; tex: string; say: string; sym?: string
+  /** An input box: the inputs it holds. */
+  input?: string[]
+  uses?: string[]; expr?: string | string[]
+  whatif?: { tex: string; expr: string | string[]; why: string; ok: boolean }[]
+}
+export interface FlowSpec { inputs: FlowInput[]; nodes: FlowNode[] }
