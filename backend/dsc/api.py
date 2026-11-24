@@ -95,6 +95,8 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
     def get_graph() -> dict:
         """The knowledge graph: every node with the learner's state and goals, and the links (SPEC §21)."""
         formula_fields.ensure(db, jobs)  # formulas with no fields yet are sorted in the background (SPEC §41)
+        from . import map_goals
+        map_goals.ensure_scores(db, jobs)  # new cells are placed for every goal (SPEC §53)
         return graph.view(db)
 
     @app.get("/api/state")

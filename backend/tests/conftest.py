@@ -49,6 +49,7 @@ def env(tmp_path, monkeypatch):
     db.set_meta("auto_refresh", "0")   # same for card refresh
     db.set_meta("formula_notes", "0")  # same for the formula hover notes
     db.set_meta("auto_gaps", "0")      # same for the gap search after a book is mapped
+    db.set_meta("auto_flow", "0")      # same for the formula flow after a formula page is written
     runner = FakeRunner()
     jobs = Jobs(db, runner=runner, inline=True)
     return db, jobs, runner

@@ -14,6 +14,7 @@ import FeedbackDialog from '../components/FeedbackDialog'
 import LessonHistory from '../components/LessonHistory'
 import FormulaHover from '../components/FormulaHover'
 import FormulaTree from '../components/FormulaTree'
+import FormulaFlow from '../components/FormulaFlow'
 import SidePanel, { SourceCardView, type Tab } from '../components/SidePanel'
 import StateBadge, { MasteryBar } from '../components/StateBadge'
 import { refFromSelection } from '../components/selection'
@@ -178,7 +179,7 @@ export default function Lesson() {
         {book
           ? <div className="crumbs"><Link to={`/book/${book.bookId}`}>{book.bookTitle}</Link> › <Link to={`/book/${book.bookId}/chapter/${book.chapter}`}>
               {book.chapterTitle}</Link> › lesson {book.index} of {book.count} · pp. {book.pages[0]}{book.pages[1] !== book.pages[0] ? `–${book.pages[1]}` : ''}</div>
-          : <div className="crumbs"><Link to="/roadmap">{track?.title}</Link> › {module?.title}</div>}
+          : <div className="crumbs"><Link to="/map">Map</Link> › {track?.title ? `${track.title} › ` : ''}{module?.title}</div>}
         {view && view.blockVersions.length > 1 && (
           <div className="block-versions small" role="navigation" aria-label="Versions of this topic">
             <span className="muted">Written before one lesson per idea, {view.blockVersions.length} versions:</span>
@@ -240,6 +241,7 @@ export default function Lesson() {
           <div className="card formula-forms">
             <div className="row row-between"><div className="eyebrow">{view.formulaLesson.kind === 'notation' ? 'Notation lesson' : view.formulaLesson.forms.length > 1 ? 'Forms of this formula' : 'Formula lesson'}</div>
               <span className="muted small">From <Link to={`/lesson/${view.formulaLesson.source.id}`}>{view.formulaLesson.source.title}</Link></span></div>
+            {view.formulaLesson.kind !== 'notation' && <FlowSection id={id} flow={view.formulaLesson.flow} />}
             <FormulaTree id={id} info={view.formulaLesson} />
             {view.formulaLesson.chosen && <p className="muted small">Lessons written from now on use your form. They show a book's other form
               once and map it to yours.</p>}
@@ -392,6 +394,11 @@ export default function Lesson() {
               {shut ? null : sec.body
                 ? <div className={sec.pending ? 'rendering' : ''}><Markdown runnable={id}>{sec.body}</Markdown></div>
                 : <div className="skeleton" aria-busy={sec.pending}>{sec.pending ? `Writing this section for you (${sec.angle})…` : 'Not rendered yet.'}</div>}
+              {!shut && !sec.viz && sec.formulaPage && (
+                <p className="small muted formula-elsewhere">Explore this formula on its own page{sec.formulaPage.pageId
+                  ? <>: <Link to={`/lesson/${sec.formulaPage.pageId}`}>open the formula page →</Link></>
+                  : ': point at the formula in the text and choose “Make a lesson about this formula”.'}</p>
+              )}
               {!shut && sec.viz && (
                 <div className="viz-block">
                   <Viz key={`${sec.id}-viz`} spec={sec.viz} />
@@ -473,6 +480,24 @@ export default function Lesson() {
       {view && <FormulaHover root={article} notes={view.formulas ?? {}} pending={view.formulasPending} conceptId={id} />}
 
       {toast && <div className="toast" role="status">{toast}</div>}
+    </div>
+  )
+}
+
+/** The formula flow of a formula page (SPEC §52): where every part of the formula comes from, to operate. */
+function FlowSection({ id, flow }: { id: string; flow: NonNullable<LessonView['formulaLesson']>['flow'] }) {
+  const { s, dispatch } = useStore()
+  const busy = flow?.status === 'building' || s.jobs.some(j => j.kind === 'formula_flow' && j.input?.concept_id === id && (j.status === 'queued' || j.status === 'running'))
+  return (
+    <div className="flow-section">
+      <div className="row row-between"><div className="eyebrow">Where every part comes from</div>
+        {flow?.status === 'ready' && <button className="link small" disabled={busy} onClick={() => dispatch({ type: 'makeFormulaFlow', conceptId: id })}>Build it again</button>}</div>
+      {busy && <p className="skeleton small">Building the formula flow…</p>}
+      {!busy && flow?.status === 'ready' && flow.spec && <FormulaFlow spec={flow.spec} />}
+      {!busy && flow?.status === 'failed' && <p className="small error">The flow could not be built: {flow.error}{' '}
+        <button className="link" onClick={() => dispatch({ type: 'makeFormulaFlow', conceptId: id })}>Try again</button></p>}
+      {!busy && !flow && <p className="small muted">See the formula as a flow: every part from where it comes, values you can drag, and
+        “what if” for its key parts. <button className="btn btn-small btn-primary" onClick={() => dispatch({ type: 'makeFormulaFlow', conceptId: id })}>Build it</button></p>}
     </div>
   )
 }

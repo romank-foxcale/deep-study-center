@@ -455,7 +455,13 @@ def info(db: DB, cid: str) -> dict | None:
     return {"forms": forms, "preferred": f["preferred"] or (forms[0]["key"] if forms else None), "chosen": bool(f["preferred"]),
             "source": {"id": f["source_concept"], "title": titles.get(f["source_concept"], "")},
             "kind": f["kind"] or "formula", "blocks": bl, "blocksReady": bool(f["blocks_at"]),
-            "missing": sum(1 for b in bl if b["state"] == "new" and not b["link"]), "usedIn": used_in(db, cid)}
+            "missing": sum(1 for b in bl if b["state"] == "new" and not b["link"]), "usedIn": used_in(db, cid),
+            "flow": _flow(db, cid)}
+
+
+def _flow(db: DB, cid: str) -> dict | None:
+    from . import formula_flow
+    return formula_flow.get(db, cid)
 
 
 def _context(db: DB, cid: str, tex: str) -> str:
@@ -541,6 +547,9 @@ def run(jobs: Jobs, jid: int, d: dict) -> dict:
     db.x("INSERT INTO cards(concept_id, version, body, fact_check, checked_at) VALUES(?,?,?,?,?)",
          (fid, version, dumps(body), "pending", now()))
     jobs.enqueue("fact_check", f"Fact-check {f['name'][:60]}", {"concept_ids": [fid]})
+    if (f["kind"] or "formula") == "formula" and db.meta("auto_flow", "1") != "0":  # the page's formula flow (SPEC §52)
+        from . import formula_flow
+        formula_flow.request(db, jobs, fid)
     if version == 1:
         lesson.ensure_rendition(db, fid)
         lesson.ensure_prose(db, jobs, fid)

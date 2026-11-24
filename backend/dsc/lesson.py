@@ -10,6 +10,8 @@ Rules (docs/SPEC.md §2.3):
 
 from __future__ import annotations
 
+import re
+
 from . import engine, progress, remedial, state, versions, viz, writer
 from .db import DB, dumps
 from .jobs import Jobs
@@ -170,7 +172,8 @@ def view(db: DB, cid: str, book: str | None = None) -> dict:
             "pending": not exact and rendering,
             "check": state.strip_check(s["check"]) if s.get("check") else None, "code": s.get("code"),
             "explain": state.strip_explain(s["explain"]) if s.get("explain") else None,
-            "viz": viz.validate(s.get("viz")),  # re-validated on every read: only safe widget specs reach the page
+            "viz": _viz(db, cid, s),  # re-validated on every read: only safe widget specs reach the page
+            "formulaPage": _formula_page(db, cid, s),  # a hidden formula widget: the formula's page, if it has one
             "vizMine": s["vizMine"], "checkMine": s["checkMine"],
             "vizNotes": _viz_notes(s),
             "book": s.get("book"),  # book lessons: a close summary of what the book says here, and its pages
@@ -234,3 +237,27 @@ def _sources(db: DB, cid: str) -> list[dict]:
     from . import cells
     return [{k: x[k] for k in ("bookId", "sourceId", "title", "kind", "url", "chapter", "chapterTitle", "part", "pages")}
             for x in cells.sources(db, cid)]
+
+
+def _is_formula_page(db: DB, cid: str) -> bool:
+    return bool(db.one("SELECT 1 FROM formula_lessons WHERE id=?", (cid,)))
+
+
+def _viz(db: DB, cid: str, s: dict):
+    """The section's widget. The explorable formula widget is shown only on a formula page (SPEC §52)."""
+    spec = viz.validate(s.get("viz"))
+    if spec and spec.get("type") == "formula" and not _is_formula_page(db, cid):
+        return None
+    return spec
+
+
+def _formula_page(db: DB, cid: str, s: dict) -> dict | None:
+    """For a formula widget hidden in a normal lesson: {tex, pageId?} so the page can link to the formula's page."""
+    spec = s.get("viz") or {}
+    if spec.get("type") != "formula" or _is_formula_page(db, cid):
+        return None
+    from . import formulas
+    tex = re.sub(r"\{\{(\w+)\}\}", lambda m: next((p.get("tex", "") for p in spec.get("parts", []) if p.get("id") == m.group(1)), ""),
+                 str(spec.get("tex") or ""))
+    row = db.one("SELECT formula_id FROM formula_forms WHERE key=?", (formulas.key(tex),)) if tex else None
+    return {"tex": tex, "pageId": row["formula_id"] if row else None}

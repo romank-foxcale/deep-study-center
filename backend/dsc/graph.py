@@ -259,7 +259,13 @@ def view(db: DB) -> dict:
     have = {(x["src"], x["dst"]) for x in base}  # a formula page is already linked to its lesson in the links table
     fx_links = [x for x in fx_links if (x["src"], x["dst"]) not in have]
     from . import gaps
-    return {"nodes": out + fx_nodes, "links": base + fx_links, "gaps": gaps.open_gaps(db), "goals": goals, "sessions": sessions, "books": books,
+    from . import map_goals
+    mgoals = map_goals.view(db)
+    for g in mgoals:  # a formula with no page of its own serves a goal as much as the best lesson that uses it (SPEC §53)
+        for lk in fx_links:
+            if lk["src"].startswith("fx:") and lk["dst"] in g["scores"]:
+                g["scores"][lk["src"]] = max(g["scores"].get(lk["src"], 0.0), g["scores"][lk["dst"]])
+    return {"nodes": out + fx_nodes, "links": base + fx_links, "gaps": gaps.open_gaps(db), "mapGoals": mgoals, "goals": goals, "sessions": sessions, "books": books,
             "clusters": clusters, "formulaFields": [{"id": i, "title": t} for i, t in _fields()]}
 
 

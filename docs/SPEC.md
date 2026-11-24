@@ -1332,3 +1332,59 @@ so they can "conquer the territory" step by step. Phase 4 of the one-map redesig
     ("Teach me this").
   - "Find more": the agent looks at that arrow again; the gap grows (at most 3 ideas).
   - "Not missing": the gap closes and that arrow is not proposed again.
+
+## 52. The formula flow of a formula page; no formula widget in normal lessons (2026-11-24)
+
+What it is for: on a formula's page, the learner sees exactly where each part comes from, changes one value or one
+part, and sees what happens to every part below it. The design is the approved mock "A"
+(`web/public/_mocks/formula-graph-a.html`).
+
+- **The flow** (`formula_flow.py`; table `formula_flows`): inputs (values to drag, with ranges; a constant is
+  `fixed`), input boxes (the inputs they hold), and formula boxes in order. Each formula box: its symbol, a label,
+  `uses` (earlier boxes), `tex` (naming inputs and boxes as `{id}`), `expr` (the calculator form of the widgets; a list
+  for a small vector, whose parts are `id_1`, `id_2`, ...), `say` (what it is and why it is needed), and on 1-3 main
+  boxes 1-3 `whatif` forms (`tex`, `expr`, `why`, `ok`).
+- **Built** by an agent (job `formula_flow`, prompt `formula_flow.md`, role "Lesson assets") when a formula page is
+  written (meta `auto_flow`), or with "Build it" / "Build it again" on the page (action `makeFormulaFlow`).
+- **Checked by code** (`formula_flow.check`), the way the page computes it: short lowercase ids that are not function
+  names; every input in one input box; a box uses only inputs and earlier boxes; every `{ref}` is known; every box
+  computes at the start values and at each input's minimum and maximum; every what-if computes and has the box's
+  shape; at most 10 inputs and 14 boxes. A flow with problems goes back to the agent once with them; then it fails,
+  and the page shows why with "Try again".
+- **On the page** (`FormulaFlow.tsx`): rows from the inputs down, arrows in the color of the value they carry; drag a
+  dotted value (in a formula or a pill) and every formula that really uses it shows numbers in place of letters;
+  "Numbers in every formula"; point at a box to keep only what it comes from and feeds; click a box for its card: the
+  formula, what it is, its value now, "Built from" and "Used by" (click to move), and "What if this part were
+  different?": pick another form, and every box below shows the real value and yours, with why it works or breaks.
+  "Back to the real formula" undoes every what-if.
+- **Normal lessons** no longer show the explorable formula widget: writers are told it is only for formula pages, and
+  a widget in an existing lesson is hidden, with "Explore this formula on its own page" (a link when the formula has a
+  page). Formula pages keep it.
+
+## 53. Goals on the map: each goal a star at its own edge (2026-11-24)
+
+What it is for: a goal shows which way to move. Setting a goal places it at an edge of the learner's land; every cell
+sits closer to the goals it serves and away from the ones it does not. The chosen mock "C · Several goals"
+(`web/public/_mocks/goal-map.html`). The old roadmap goals (`goals`, the "On hold: goals" pages) are not touched.
+
+- **A goal** (`map_goals.py`; tables `map_goals`, `goal_blocks`, `goal_scores`): a title in one line, its direction,
+  a color and an edge (angle; each new goal gets the next edge), its building blocks, and a score 0..1 per idea of the
+  map (how much it moves the learner toward the goal; an idea with no score counts as 0.1).
+- **The goal agent** (job `goal_research`, prompt `goal_research.md`, role "Research"): when a goal is added or
+  renamed, it writes the direction, 6-12 building blocks (a block that is already a cell — by `same_as` or the same
+  title — is "on the map" with score 1; the others are missing), and scores for the ideas that help (1 core, 0.7 on the
+  way, 0.4 a side step). Code clamps scores to 0..1 and drops unknown ids.
+- **New cells** (job `goal_score`, prompt `goal_score.md`): when the map is read, every goal with ideas it has no score
+  for gets them scored (at most 200 at a time, one job per goal). An idea the agent leaves out is scored 0.1, so it is
+  not asked again. A new cell that is a missing block (`block`) fills it.
+- **The map** (`HexMap.layoutCells`): for each goal, every cell gets a strong pull to a place along the goal's
+  direction set by its score (forward for a building block, backward for a side road); links still keep neighbours
+  together. The goal's star sits just past the land's edge in its direction, with a soft glow; its missing blocks are
+  dashed hexes in its color on the way to it; a cell with a score of 0.6 or more has a thin inner ring in the color of
+  the goal it serves most.
+- **The goal panel** (click a star): the direction; building blocks learned / started / on the map / missing; the
+  next moves (cells of the goal next to what is learned); the missing blocks with "Add to map" (a new cell, score 1)
+  and "Teach me this"; Rename (researched again) and Remove (the cells stay). "★ Add a goal" is in the map's legend.
+- **The old goal pages are removed** (2026-11-24): Goal overview, New goal (with the Ohtani table), Roadmap, This week
+  and Probe, with the "On hold: goals" menu. An old address opens Today. Their data stays in the database, and a lesson
+  of an old goal still opens (its breadcrumb starts at the map).

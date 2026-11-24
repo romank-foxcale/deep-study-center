@@ -249,7 +249,10 @@ def test_a_broken_graph_goes_back_to_the_writer_once_and_the_fix_is_kept(env):
     v = lesson.open_lesson(db, jobs, CID)
     sec = next(s for s in v["sections"] if s["id"] == target)
     assert len(seen) == 2 and sec["vizMine"]
-    assert [c["label"] for c in sec["viz"]["checks"]] == ["a = 1 gives 2"]
+    from dsc import writer
+    stored = next(x for x in writer.effective_sections(db, CID, state.latest_card(db, CID)) if x["id"] == target)["viz"]
+    assert [c["label"] for c in stored["checks"]] == ["a = 1 gives 2"]  # the fixed widget is kept for this learner
+    assert sec["viz"] is None and sec["formulaPage"]["tex"] == r"y = a \cdot 2"  # a normal lesson hides it (SPEC §52)
     assert sec["vizNotes"][0].startswith("The app found 1 problem(s) in this graph and the writer fixed 1")
     review = [c for r, c in runner.calls if r == "Lesson review"][0].prompt
     assert "Graph numbers (computed as the page shows them): Start values: a = 1. Result a*2 = 2." in review

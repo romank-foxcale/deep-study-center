@@ -1,16 +1,12 @@
 import { useEffect } from 'react'
-import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from './store'
-import Home from './pages/Home'
 import Today from './pages/Today'
 import Books from './pages/Books'
-import GoalSetup from './pages/GoalSetup'
-import Roadmap from './pages/Roadmap'
 import Lesson from './pages/Lesson'
 import Me from './pages/Me'
 import Library from './pages/Library'
 import Settings from './pages/Settings'
-import Probe from './pages/Probe'
 import Study from './pages/Study'
 import Book from './pages/Book'
 import Chapter from './pages/Chapter'
@@ -18,7 +14,6 @@ import KnowledgeMap from './pages/KnowledgeMap'
 import Formulas from './pages/Formulas'
 import Practice from './pages/Practice'
 import Search from './pages/Search'
-import Week from './pages/Week'
 
 /** Small line icons for the sidebar (24 x 24, drawn with the current text color). */
 const ICON: Record<string, string> = {
@@ -43,13 +38,6 @@ const NAV = [
   { to: '/practice', label: 'Practice', icon: 'practice' },
   { to: '/map', label: 'Map', icon: 'map' },
 ]
-const GOALS = [
-  { to: '/goal', label: 'Goal overview' },
-  { to: '/roadmap', label: 'Roadmap' },
-  { to: '/week', label: 'This week' },
-  { to: '/goal/new', label: '+ New goal' },
-]
-const GOAL_PATHS = ['/goal', '/roadmap', '/week', '/probe', '/placement']
 
 /** Where "Back" goes when there is no earlier page in this tab (a page opened from a link or after a reload). */
 function parentOf(path: string): string | null {
@@ -79,11 +67,10 @@ function BackButton() {
 }
 
 export default function App() {
-  const { s, dispatch, error, clearError } = useStore()
+  const { s, error, clearError } = useStore()
   const { pathname } = useLocation()
   const navigate = useNavigate()
   useEffect(() => { window.scrollTo(0, 0) }, [pathname])
-  const pending = s.diffs.filter(d => d.status === 'pending').length
   const running = s.jobs.filter(j => j.status === 'queued' || j.status === 'running').length
   return (
     <div className="shell">
@@ -103,21 +90,6 @@ export default function App() {
             </NavLink>
           ))}
         </div>
-        <details className="nav-group" open={GOAL_PATHS.some(p => pathname.startsWith(p)) || undefined}>
-          <summary>On hold: goals</summary>
-          {s.goals.length > 1 && (
-            <select className="input input-small sidebar-goal-select" value={s.goal?.id ?? ''} aria-label="Active goal"
-              onChange={e => dispatch({ type: 'setGoal', id: e.target.value })}>
-              {s.goals.map(g => <option key={g.id} value={g.id}>{g.title}</option>)}
-            </select>
-          )}
-          {GOALS.map(n => (
-            <NavLink key={n.to} to={n.to} end className="nav-link nav-sub">
-              <span>{n.label}</span>
-              {n.to === '/roadmap' && pending > 0 && <span className="nav-badge">{pending}</span>}
-            </NavLink>
-          ))}
-        </details>
         <div className="sidebar-foot">
           {running > 0 && <span className="muted small">{running} agent job{running > 1 ? 's' : ''} running…</span>}
           <NavLink to="/library" className="nav-link nav-sub"><span>Sources</span>
@@ -132,10 +104,6 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Today />} />
           <Route path="/books" element={<Books />} />
-          <Route path="/goal" element={<Home />} />
-          <Route path="/goal/new" element={<GoalSetup />} />
-          <Route path="/roadmap" element={<Roadmap />} />
-          <Route path="/probe" element={<Probe />} />
           <Route path="/study" element={<Study />} />
           <Route path="/map" element={<KnowledgeMap />} />
           <Route path="/formulas" element={<Formulas />} />
@@ -144,13 +112,12 @@ export default function App() {
           <Route path="/study/:id" element={<Study />} />
           <Route path="/book/:id" element={<Book />} />
           <Route path="/book/:id/chapter/:n" element={<Chapter />} />
-          <Route path="/placement" element={<Probe />} />
           <Route path="/search" element={<Search />} />
-          <Route path="/week" element={<Week />} />
           <Route path="/lesson/:id" element={<Lesson />} />
           <Route path="/me" element={<Me />} />
           <Route path="/library" element={<Library />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="*" element={<Navigate to="/" replace />} />  {/* old goal pages (removed, SPEC §53) and unknown addresses */}
         </Routes>
       </main>
     </div>

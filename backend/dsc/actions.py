@@ -657,6 +657,15 @@ def open_formula(db: DB, jobs: Jobs, a: dict) -> None:
         jobs.enqueue("formula_open", "Find what a formula is built from", {"node": node})
 
 
+def make_formula_flow(db: DB, jobs: Jobs, a: dict) -> None:
+    """Build (or build again) the formula flow of a formula page (SPEC §52)."""
+    from . import formula_flow
+    cid = str(a.get("conceptId") or "")
+    if not db.one("SELECT 1 FROM formula_lessons WHERE id=? AND COALESCE(kind, 'formula')='formula'", (cid,)):
+        raise ActionError("only a formula page has a formula flow")
+    formula_flow.request(db, jobs, cid)
+
+
 def make_formula_page(db: DB, jobs: Jobs, a: dict) -> None:
     from . import formula_lessons
     try:
@@ -681,6 +690,41 @@ def delete_book(db: DB, jobs: Jobs, a: dict) -> None:
 
 
 MAP_VIEWS = ("hex", "tree")  # SPEC §50: the hex map of ideas; the country views were removed
+
+
+def _goal(fn):
+    """Goals on the map (SPEC §53): a GoalError is a 400 for the learner."""
+    def wrapped(db: DB, jobs: Jobs, a: dict) -> None:
+        from . import map_goals
+        try:
+            fn(db, jobs, a)
+        except map_goals.GoalError as e:
+            raise ActionError(str(e)) from e
+    return wrapped
+
+
+@_goal
+def add_map_goal(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import map_goals
+    db.set_meta("last_map_goal", map_goals.add(db, jobs, str(a.get("title") or "")))
+
+
+@_goal
+def rename_map_goal(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import map_goals
+    map_goals.rename(db, jobs, str(a["goalId"]), str(a.get("title") or ""))
+
+
+@_goal
+def remove_map_goal(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import map_goals
+    map_goals.remove(db, str(a["goalId"]))
+
+
+@_goal
+def add_goal_block(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import map_goals
+    db.set_meta("last_gap_idea", map_goals.add_block(db, str(a["goalId"]), int(a["blockId"])))
 
 
 def _gap(fn):
@@ -1069,9 +1113,10 @@ ACTIONS = {
     "studyBook": study_book, "bookRetry": book_retry, "bookOpenLesson": book_open_lesson, "reviewReasoning": review_reasoning,
     "makeFormulaLesson": make_formula_lesson, "addFormulaForm": add_formula_form, "preferFormulaForm": prefer_formula_form,
     "learnBlocksFirst": learn_blocks_first, "bookRemapChapter": book_remap_chapter, "bookReplan": book_replan,
-    "openFormula": open_formula, "makeFormulaPage": make_formula_page, "bookHomework": book_homework,
+    "openFormula": open_formula, "makeFormulaPage": make_formula_page, "makeFormulaFlow": make_formula_flow, "bookHomework": book_homework,
     "deleteBook": delete_book, "setMapView": set_map_view,
     "findGaps": find_gaps, "acceptGap": accept_gap, "dismissGap": dismiss_gap,
+    "addMapGoal": add_map_goal, "renameMapGoal": rename_map_goal, "removeMapGoal": remove_map_goal, "addGoalBlock": add_goal_block,
     "planLesson": plan_lesson, "predictStep": predict_step, "rewriteStep": rewrite_step, "demoResult": demo_result, "lessonPlanNote": lesson_plan_note, "approveLessonPlan": approve_lesson_plan,
     "setDictation": set_dictation, "downloadDictationModel": download_dictation_model,
     "removeDictationModel": remove_dictation_model,
