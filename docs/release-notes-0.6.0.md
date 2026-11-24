@@ -4,7 +4,7 @@ Deep Study Center is a local study app. AI agents turn your books and goals into
 
 - **Windows:** `Deep.Study.Center_0.6.0_x64-setup.exe`. A per-user install; no admin rights needed.
 - The installer is **not code-signed**. Windows SmartScreen warns on the first run: click "More info", then "Run anyway".
-- SHA-256: `(added when the installer is built)`
+- SHA-256: `45E6360EF3F89FADC65A25933B3C4861754A05383C36BCC2E42DA8B691A286EA`
 - **From 0.4.1 or 0.5.0:** the app offers this update by itself after the start. Click "Install and restart".
 - **From 0.4.0:** install 0.6.0 once by hand. 0.4.0 has no updater.
 - macOS and Linux: there is no installer yet. Run from source with `start.sh` (see the README).
