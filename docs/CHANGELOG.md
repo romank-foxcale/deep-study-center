@@ -8,6 +8,8 @@ work still open is in [TODO.md](TODO.md).
 - **Goals on the map** (SPEC §53): add a goal in one line, and it becomes a star at an edge of your map. The goal agent
   finds its direction and building blocks; every cell moves toward the goals it serves. Click a star for your progress,
   the next moves, and the blocks not on your map yet.
+- **The old goal pages are removed**: Goal overview, New goal, Roadmap, This week and Probe. Goals live on the map now.
+  Nothing is deleted from your workspace.
 - **The formula flow** (SPEC §52): a formula's page shows where each part comes from, as boxes and arrows. Drag a
   value to see it move through every formula; click a box to read what it is and try "what if" forms of its key
   parts. Normal lessons no longer show the formula widget; they link to the formula's page.

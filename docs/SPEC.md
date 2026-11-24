@@ -1385,3 +1385,6 @@ sits closer to the goals it serves and away from the ones it does not. The chose
 - **The goal panel** (click a star): the direction; building blocks learned / started / on the map / missing; the
   next moves (cells of the goal next to what is learned); the missing blocks with "Add to map" (a new cell, score 1)
   and "Teach me this"; Rename (researched again) and Remove (the cells stay). "★ Add a goal" is in the map's legend.
+- **The old goal pages are removed** (2026-11-24): Goal overview, New goal (with the Ohtani table), Roadmap, This week
+  and Probe, with the "On hold: goals" menu. An old address opens Today. Their data stays in the database, and a lesson
+  of an old goal still opens (its breadcrumb starts at the map).

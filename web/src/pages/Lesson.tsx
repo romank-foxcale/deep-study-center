@@ -179,7 +179,7 @@ export default function Lesson() {
         {book
           ? <div className="crumbs"><Link to={`/book/${book.bookId}`}>{book.bookTitle}</Link> › <Link to={`/book/${book.bookId}/chapter/${book.chapter}`}>
               {book.chapterTitle}</Link> › lesson {book.index} of {book.count} · pp. {book.pages[0]}{book.pages[1] !== book.pages[0] ? `–${book.pages[1]}` : ''}</div>
-          : <div className="crumbs"><Link to="/roadmap">{track?.title}</Link> › {module?.title}</div>}
+          : <div className="crumbs"><Link to="/map">Map</Link> › {track?.title ? `${track.title} › ` : ''}{module?.title}</div>}
         {view && view.blockVersions.length > 1 && (
           <div className="block-versions small" role="navigation" aria-label="Versions of this topic">
             <span className="muted">Written before one lesson per idea, {view.blockVersions.length} versions:</span>
