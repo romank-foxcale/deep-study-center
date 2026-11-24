@@ -306,6 +306,7 @@ MIGRATIONS = [
     ("formula_notes", "matched_at", "TEXT"),
     ("sources", "sha256", "TEXT NOT NULL DEFAULT ''"),        # the file's hash, to find a duplicate upload
     ("sources", "url", "TEXT NOT NULL DEFAULT ''"),           # a link source (web page, video): no file
+    ("sources", "marks", "TEXT NOT NULL DEFAULT '[]'"),       # a video: the second each page starts at (SPEC §47)
     ("books", "plan", "INTEGER NOT NULL DEFAULT 1"),         # the lesson plan rule the book was mapped with (2: one idea per lesson)               # last match against the formula lessons  # chapter | reference (glossary, reading list: no lessons)
 ]
 

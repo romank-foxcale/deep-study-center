@@ -20,7 +20,7 @@ export default function BookShelf({ limit, withNew = true, q }: { limit?: number
   const studied = new Set(s.studyBooks.map(b => b.sourceId))
   const books = s.studyBooks.filter(b => ok(b.kind, b.title, b.author, srcOf.get(b.sourceId)?.filename ?? ''))
   const fresh = withNew ? s.sources.filter(x => !x.url && x.status === 'ready' && !studied.has(x.id) && ok(x.kind, x.title, x.author, x.filename)) : []
-  const links = withNew ? s.sources.filter(x => x.url && ok(x.kind, x.title, x.author, x.url)) : []
+  const links = withNew ? s.sources.filter(x => x.url && !studied.has(x.id) && ok(x.kind, x.title, x.author, x.url)) : []
   const custom = withNew ? s.sessions.filter(x => ok('custom', x.title, x.topic)) : []
   const teach = async (sourceId: string) => {
     setWaiting(s.lastBook)
@@ -45,7 +45,7 @@ export default function BookShelf({ limit, withNew = true, q }: { limit?: number
             {waiting !== undefined ? 'Starting…' : 'Teach me this book'}</button>
         </div>
       ))}
-      {links.map(x => <LinkCard key={x.id} x={x} />)}
+      {links.map(x => <LinkCard key={x.id} x={x} busy={waiting !== undefined} onTeach={() => teach(x.id)} />)}
       {custom.map(x => (
         <Link key={x.id} to={`/study/${x.id}`} className="card shelf-card" style={{ ['--spine' as string]: areaColor(-1) }}>
           <div className="row shelf-head">
@@ -63,16 +63,29 @@ export default function BookShelf({ limit, withNew = true, q }: { limit?: number
   )
 }
 
-function LinkCard({ x }: { x: SourceDoc }) {
+/** A link (web page or video) not taught yet (SPEC §47): its text is read, then "Teach me this" makes its lessons. */
+function LinkCard({ x, busy, onTeach }: { x: SourceDoc; busy: boolean; onTeach: () => void }) {
+  const { dispatch } = useStore()
+  const video = x.kind === 'video'
+  const reading = x.status === 'reading'
   return (
-    <a href={sourceUrl(x)} target="_blank" rel="noreferrer" className="card shelf-card" style={{ ['--spine' as string]: areaColor(-1) }}>
+    <div className="card shelf-card shelf-new" style={{ ['--spine' as string]: areaColor(-1) }}>
       <div className="row shelf-head">
-        <div className="eyebrow">{kindLabel(x.kind)}</div>
+        <div className="eyebrow">{kindLabel(x.kind)} · not studied yet</div>
         <DeleteSource src={x} icon />
       </div>
-      <h3>{x.title}</h3>
+      <h3><a href={sourceUrl(x)} target="_blank" rel="noreferrer" title={`Open ${x.url}`}>{x.title}</a></h3>
       <div className="small muted src-sub">{x.url}</div>
-    </a>
+      {x.status === 'no_text' && <p className="small bad-text">{video ? 'This video has no captions that can be read.' : 'No text was found on this page.'}</p>}
+      {x.status === 'error' && <p className="small bad-text">The link could not be read.</p>}
+      {x.status === 'ready' && x.pages > 0 && <p className="small muted">{video ? 'Captions read' : 'Text read'}: {x.pages} {x.pages === 1 ? 'part' : 'parts'}.</p>}
+      <div className="row">
+        {x.status === 'error' || x.status === 'no_text'
+          ? <button className="btn btn-small" onClick={() => dispatch({ type: 'rereadSource', id: x.id })}>Read again</button>
+          : <button className="btn btn-small btn-primary" disabled={busy || reading} onClick={onTeach}>
+              {reading ? (video ? 'Reading the captions…' : 'Reading the page…') : busy ? 'Starting…' : 'Teach me this'}</button>}
+      </div>
+    </div>
   )
 }
 

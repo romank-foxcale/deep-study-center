@@ -483,6 +483,11 @@ def edit_source(db: DB, jobs: Jobs, a: dict) -> None:
 def reread_source(db: DB, jobs: Jobs, a: dict) -> None:
     """Read a source again (after a failed read)."""
     row = db.one("SELECT * FROM sources WHERE id=?", (a["id"],))
+    if row and row["url"] and not sources.file_path(a["id"]).exists():  # a link: read its page or captions again (SPEC §47)
+        if not jobs.active("read_link", source_id=a["id"]):
+            db.x("UPDATE sources SET status='reading' WHERE id=?", (a["id"],))
+            jobs.enqueue("read_link", "Read a link", {"source_id": a["id"]})
+        return
     if not row or not sources.file_path(a["id"]).exists():
         raise ActionError("unknown source")
     db.x("UPDATE sources SET status='reading' WHERE id=?", (a["id"],))
@@ -567,7 +572,16 @@ def _book(fn):
 
 @_book
 def study_book(db: DB, jobs: Jobs, a: dict) -> None:
-    db.set_meta("last_book", bookstudy.start(db, jobs, str(a["sourceId"])))
+    sid = str(a["sourceId"])
+    src = db.one("SELECT url, status, pages FROM sources WHERE id=?", (sid,))
+    if src and src["url"] and not (src["status"] == "ready" and src["pages"]):  # a link not read yet: read it, then teach it
+        if src["status"] == "no_text":
+            raise ActionError("No text was found on this link, so there is nothing to teach from.")
+        if not jobs.active("read_link", source_id=sid, teach=True):
+            db.x("UPDATE sources SET status='reading' WHERE id=?", (sid,))
+            jobs.enqueue("read_link", "Read a link and teach it", {"source_id": sid, "teach": True})
+        return
+    db.set_meta("last_book", bookstudy.start(db, jobs, sid))
 
 
 def _plan(fn):

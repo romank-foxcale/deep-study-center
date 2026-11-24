@@ -153,10 +153,11 @@ export const uploadSource = (file: File, opts: { kind?: string; title?: string; 
 /** A link source (a web page or a video). */
 export const addLinkSource = (body: { url: string; title: string; kind: string }) =>
   api<State>('/api/sources/link', { method: 'POST', body: JSON.stringify(body) })
-/** A card source url "source:<id>#page=N" points into an uploaded PDF; open it at that page. */
+/** A card source url "source:<id>#page=N" points into a source: a PDF opens at that page, a web page opens, a video
+ *  opens at the time that page starts (SPEC §47). */
 export const sourceHref = (url: string) => {
   const m = /^source:([\w-]+)(?:#page=(\d+))?$/.exec(url)
-  return m ? `/api/sources/${m[1]}/file${m[2] ? `#page=${m[2]}` : ''}` : url
+  return m ? `/api/sources/${m[1]}/open${m[2] ? `?page=${m[2]}` : ''}` : url
 }
 export const getPractice = (id: string) => api<PracticeView>(`/api/practice/${encodeURIComponent(id)}`)
 export const getPracticeDue = () => api<PracticeDue>('/api/practice-due')

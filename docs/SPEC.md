@@ -1225,3 +1225,26 @@ so the learner sees what the lesson is built from, what holds, and can practise 
   "Write it now without a plan". Step ideas that no lesson owns are removed.
 - **Screen.** The hover card says "Step of <lesson>". The side panel says "A step of a lesson" and links the lesson
   under "Taught in".
+
+## 47. Teach from a link: a web page or a video (2026-11-24)
+
+What it is for: an article or a lecture video is taught like a book. "Teach me this" on a link makes chapters of
+lessons from its text.
+
+- **Read** (job `read_link`, `links.py`). The job starts when the link is added, or on "Teach me this" (then the book
+  starts by itself when the text is read).
+  - A web page is fetched once. Its main text is kept: scripts, menus, headers, footers, forms, hidden parts and short
+    labels are left out, and an `<article>` or `<main>` part wins when it has enough text.
+  - A YouTube video gives its captions: English first, else the first language it has. Reading videos needs the
+    package `youtube-transcript-api`.
+  - A link to a PDF file is saved and read as a PDF.
+- **Pages.** The text is cut into pages of about 2,500 characters at paragraph ends, so chapters, lessons and citations
+  ("p. N") work as for a PDF.
+  - A web page's headings become chapters of at least 4 pages, with the headings as their sections. A short page is
+    one chapter.
+  - A video's pages are about 3 minutes of captions. `sources.marks` keeps the second each page starts at.
+- **Citations** open through `GET /api/sources/{id}/open?page=N`: a PDF at its page, a web page, or a video at the time
+  its page starts (`&t=<s>s`).
+- **Status.** reading, then read (ready), "error: no text" (too little text, or no captions), or error (the fetch
+  failed). "Read again" reads it again.
+- **Privacy.** The fetch sends no data about the learner. Nothing is sent to a model until the book is mapped.

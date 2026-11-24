@@ -3,8 +3,11 @@
 The history of Deep Study Center, newest first. The full design and the decisions are in [SPEC.md](SPEC.md); the
 work still open is in [TODO.md](TODO.md).
 
-## Unreleased: lesson steps on the map (SPEC §46)
+## Unreleased: lesson steps on the map, teach from a link (SPEC §46, §47)
 
+- **Teach from a link** (SPEC §47): "Teach me this" on a web page or a YouTube video. The app reads the page's main
+  text or the video's captions and makes chapters of lessons from it, as for a PDF. A citation opens the page, or the
+  video at that time.
 - **The steps of a planned lesson are ideas on the map.** Each foundation and step that a lesson teaches is an idea of
   its own, next to its lesson, linked as the plan says. A step's check counts on it. You can practise one step. A step
   the plan links to an idea already on the map uses that idea.
