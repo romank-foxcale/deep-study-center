@@ -5,7 +5,7 @@ import type { FormulaNote } from '../types'
 import Markdown from './Markdown'
 
 const STATE: Record<string, string> = {
-  mastered: 'know strongly', learned: 'learned', learning: 'learning', rusty: 'due for review', ready: 'ready to learn',
+  learned: 'learned', learning: 'learning', ready: 'ready to learn',
   locked: 'new', pending: 'new',
 }
 /** The same key the backend uses: the formula's TeX without any white space. */

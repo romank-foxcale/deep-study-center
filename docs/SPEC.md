@@ -1248,3 +1248,21 @@ lessons from its text.
 - **Status.** reading, then read (ready), "error: no text" (too little text, or no captions), or error (the fetch
   failed). "Read again" reads it again.
 - **Privacy.** The fetch sends no data about the learner. Nothing is sent to a model until the book is mapped.
+
+## 48. No schedule: study and see the progress (2026-11-24)
+
+What it is for: the learner decides what to study and when. The app shows what is learned; it does not plan reviews.
+Phase 1 of the one-map redesign (one cell per idea, no countries; later phases follow).
+
+- **Removed:** the review schedule (FSRS cards in `reviews` and `node_reviews`), the "due" lists (Today, Practice,
+  the navigation badges), the Reviews page and its `review` action, and the states "mastered" (a confirmed review)
+  and "rusty" (a failed review). The `fsrs` package is no longer a dependency.
+- **States now:** locked, ready, learning, learned. Once an idea is learned (the BKT gate: P >= 0.95, 3 distinct right
+  items, and the explain-back when the lesson has one), it stays learned.
+- **Old data:** the `reviews` and `node_reviews` tables stay in the schema so old workspaces open, but nothing reads
+  or writes them. Old answers of kind "review" count as ordinary answers. Nothing is deleted.
+- **Practice** is only what the learner picks (book, chapter, lesson and steps, field of formulas, the weakest ideas,
+  or their own problem). With nothing picked, it practises the weakest ideas. Results are evidence of kind "practice".
+- **Today:** where to continue, and this week (ideas learned, sessions, answers). Book cards show learned ideas only.
+- **Still open:** the weekly plan of goals (on hold: lessons only, no reviews) and the roadmap's coding-problem
+  intervals (`roadmap/plan.py`, on hold) are left as they are, for a later decision.

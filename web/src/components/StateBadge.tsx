@@ -1,7 +1,7 @@
 import type { NodeState } from '../types'
 
 const LABEL: Record<NodeState, string> = {
-  locked: 'Locked', ready: 'Ready', learning: 'Learning', learned: 'Learned', mastered: 'Mastered', rusty: 'Rusty',
+  locked: 'Locked', ready: 'Ready', learning: 'Learning', learned: 'Learned',
 }
 
 export default function StateBadge({ state }: { state: NodeState }) {

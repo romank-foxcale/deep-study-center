@@ -2,11 +2,10 @@
 // /api/action and return the next snapshot. While agent jobs run, the snapshot is polled.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Angle, BookView, ReasoningEntry, FormulaTreeView, TodayView, FeedbackKind, IdeaDetail, FeedbackRef, GraphView, LessonDiff, LessonPlanView, LessonView, Plan, PracticeDue, PracticeTargets, PracticeView, RunResult, SearchHit, SessionView, SourceDoc, State, Verdict } from './types'
+import type { Angle, BookView, ReasoningEntry, FormulaTreeView, TodayView, FeedbackKind, IdeaDetail, FeedbackRef, GraphView, LessonDiff, LessonPlanView, LessonView, Plan, PracticeTargets, PracticeView, RunResult, SearchHit, SessionView, SourceDoc, State, Verdict } from './types'
 
 export type Action =
   | { type: 'answer'; conceptId: string; checkId: string; angle?: Angle; choice?: number; correct?: boolean; thinking?: string; confidence?: number | null }
-  | { type: 'review'; conceptId: string; checkId: string; choice: number; thinking?: string; confidence?: number | null }
   | { type: 'feedback'; conceptId: string; sectionId?: string; angle?: Angle; available?: Angle[]; tags: string[]; text: string; kind?: FeedbackKind; ref?: FeedbackRef; apply?: boolean; worked?: string[] }
   | { type: 'editFeedback'; id: number; tags?: string[]; text?: string; kind?: FeedbackKind }
   | { type: 'deleteFeedback'; id: number }
@@ -160,7 +159,6 @@ export const sourceHref = (url: string) => {
   return m ? `/api/sources/${m[1]}/open${m[2] ? `?page=${m[2]}` : ''}` : url
 }
 export const getPractice = (id: string) => api<PracticeView>(`/api/practice/${encodeURIComponent(id)}`)
-export const getPracticeDue = () => api<PracticeDue>('/api/practice-due')
 export const getPracticeTargets = () => api<PracticeTargets>('/api/practice-targets')
 export const getGraph = () => api<GraphView>('/api/graph')
 export const getSession = (id: string) => api<SessionView>(`/api/session/${encodeURIComponent(id)}`)

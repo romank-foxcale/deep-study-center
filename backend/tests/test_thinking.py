@@ -50,7 +50,7 @@ def test_tutor_and_lesson_planner_see_the_thinking(env):
     assert "maybe you multiply the lengths" in tutor_prompt and "wrong while sure" in tutor_prompt
 
 
-def test_review_guess_is_not_recall_and_explain_keeps_confidence(env):
+def test_explain_keeps_confidence(env):
     db, jobs, runner = env
     for item, choice in (("q-ops", 0), ("q-norm", 1), ("q-misc", 3)):
         act(db, jobs, type="answer", conceptId="c-vectors", checkId=item, choice=choice)
@@ -58,5 +58,3 @@ def test_review_guess_is_not_recall_and_explain_keeps_confidence(env):
     act(db, jobs, type="explain", conceptId="c-vectors", itemId="e-ops", confidence=0.6,
         answer="Moving right doesn't change how far up you are, so each coordinate adds on its own.")
     assert db.one("SELECT confidence FROM gradings")["confidence"] == 0.6
-    s = act(db, jobs, type="review", conceptId="c-vectors", checkId="q-norm", choice=1, confidence=0.2)
-    assert {c["id"]: c["state"] for c in s["concepts"]}["c-vectors"] == "rusty"

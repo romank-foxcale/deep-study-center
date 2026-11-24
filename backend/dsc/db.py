@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS diffs (
 CREATE TABLE IF NOT EXISTS chats (
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, concept_id TEXT NOT NULL, role TEXT NOT NULL,
   text TEXT NOT NULL);
+-- reviews and node_reviews: the old review schedule. Kept so old workspaces open; not used (SPEC §48: no schedule).
 CREATE TABLE IF NOT EXISTS reviews (
   concept_id TEXT PRIMARY KEY, card TEXT NOT NULL, due TEXT NOT NULL, learned_at TEXT NOT NULL);
 
@@ -87,7 +88,7 @@ CREATE INDEX IF NOT EXISTS concept_nodes_node ON concept_nodes(node_id);
 CREATE TABLE IF NOT EXISTS links (
   src TEXT NOT NULL, dst TEXT NOT NULL, why TEXT NOT NULL DEFAULT '', origin TEXT NOT NULL DEFAULT '', PRIMARY KEY (src, dst));
 CREATE VIRTUAL TABLE IF NOT EXISTS node_fts USING fts5(node_id UNINDEXED, text);
--- Recall practice (SPEC §24): problems over ideas, judged from the learner's thinking; a review schedule per idea.
+-- Recall practice (SPEC §24): problems over ideas, judged from the learner's thinking.
 CREATE TABLE IF NOT EXISTS practices (
   id TEXT PRIMARY KEY, title TEXT NOT NULL, node_ids TEXT NOT NULL DEFAULT '[]', own TEXT NOT NULL DEFAULT '{}',
   status TEXT NOT NULL, level INTEGER NOT NULL DEFAULT 1, count INTEGER NOT NULL DEFAULT 5,

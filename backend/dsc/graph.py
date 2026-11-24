@@ -203,7 +203,7 @@ def states(db: DB) -> dict[str, engine.ConceptState]:
     out = engine.derive_concepts(pseudo, ev)
     for nid, s in steps.items():  # one check alone never makes an idea learned: a step of a learned lesson shares it
         lesson, mine = out.get(nodes.get(s["conceptId"], s["conceptId"])), out.get(nid)
-        if lesson and mine and lesson.state in ("learned", "mastered") and mine.state not in ("rusty", "learned", "mastered"):
+        if lesson and mine and lesson.state == "learned" and mine.state != "learned":
             own = [e for e in ev if e["concept_id"] == nid and not e.get("voided")]
             if not own or (own[-1]["score"] if own[-1].get("score") is not None else float(own[-1]["correct"])) >= engine.PASS_SCORE:
                 out[nid] = lesson
@@ -302,7 +302,7 @@ def _formula_country(nodes: list[dict], clusters: list[dict]) -> list[dict]:
     return sorted(out, key=lambda c: -c["size"])
 
 
-_RANK = {"mastered": 6, "learned": 5, "rusty": 4, "learning": 3, "ready": 2, "pending": 1, "locked": 0}
+_RANK = {"learned": 5, "learning": 3, "ready": 2, "pending": 1, "locked": 0}
 
 
 def _formula_items(db: DB, out: list[dict], nodes: dict[str, str]) -> tuple[list[dict], list[dict]]:

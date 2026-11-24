@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from . import mcq, state
+from . import graph, mcq, state
 from .db import DB, dumps, loads, now
 
 if TYPE_CHECKING:
@@ -101,9 +101,11 @@ def answers_text(db: DB, gid: str) -> str:
 
 
 def known_elsewhere(db: DB, gid: str) -> str:
-    """What the learner learned in other goals (concepts with a review = learned)."""
-    rows = db.q("""SELECT c.title, t.goal_id FROM reviews r JOIN concepts c ON c.id = r.concept_id
-                   JOIN modules m ON m.id = c.module_id JOIN tracks t ON t.id = m.track_id WHERE t.goal_id != ?""", (gid,))
+    """What the learner learned in other goals."""
+    st, of = graph.states(db), graph.node_of(db)
+    rows = [r for r in db.q("""SELECT c.id, c.title, t.goal_id FROM concepts c JOIN modules m ON m.id = c.module_id
+                                JOIN tracks t ON t.id = m.track_id WHERE t.goal_id != ?""", (gid,))
+            if st.get(of.get(r["id"], r["id"])) and st[of.get(r["id"], r["id"])].state == "learned"]
     known = db.q("""SELECT m.title FROM modules m JOIN tracks t ON t.id = m.track_id WHERE t.goal_id != ? AND m.known=1""", (gid,))
     out = [f"- learned: {r['title']}" for r in rows[:80]] + [f"- known step: {r['title']}" for r in known[:40]]
     return "\n".join(out) or "(nothing yet)"

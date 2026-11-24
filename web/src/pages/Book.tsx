@@ -7,10 +7,10 @@ import RemapChapter from '../components/RemapChapter'
 import type { BookChapter, BookLesson, BookView, GraphView } from '../types'
 
 export const STATE_LABEL: Record<string, string> = {
-  mastered: 'know strongly', learned: 'learned', learning: 'learning', rusty: 'due for review', ready: 'ready to learn', locked: 'new', pending: 'new',
+  learned: 'learned', learning: 'learning', ready: 'ready to learn', locked: 'new', pending: 'new',
 }
-const LEGEND = ['mastered', 'learned', 'learning', 'rusty', 'ready']
-export const KNOWN = new Set(['learned', 'mastered', 'rusty'])
+const LEGEND = ['learned', 'learning', 'ready']
+export const KNOWN = new Set(['learned'])
 const EMPTY = new Set<string>()
 
 /** The book page (SPEC §31): chapters you can open and close, each with its summary and its lessons, the lesson to
@@ -107,11 +107,10 @@ export default function Book() {
       )}
       <div className="row small muted book-stats">
         <span><b className="text">{known}</b> of {all.length} lessons known</span>
-        <span className="row-tight"><i className="state-dot state-mastered" /> <b className="text">{count('mastered')}</b> strong</span>
         <span>{v.chapterCount} chapters</span>
       </div>
       <div className="bar bar-stack" aria-hidden>
-        {['mastered', 'learned', 'rusty', 'learning'].map(st => <span key={st} className={`state-bg-${st}`} style={{ width: `${all.length ? (count(st) / all.length) * 100 : 0}%` }} />)}
+        {['learned', 'learning'].map(st => <span key={st} className={`state-bg-${st}`} style={{ width: `${all.length ? (count(st) / all.length) * 100 : 0}%` }} />)}
       </div>
 
       {v.status !== 'ready' && (
@@ -175,7 +174,7 @@ export default function Book() {
               : <p className="muted small book-map-empty">The book's lessons appear here once a chapter is mapped.</p>}
           </div>
           <div className="legend small">{LEGEND.map(st => <span key={st}><i className={`state-dot state-${st}`} /> {STATE_LABEL[st]}</span>)}</div>
-          <p className="small muted">Each hex is one lesson. Lit hexes are what you know, gold is what you know strongly. A second-color edge
+          <p className="small muted">Each hex is one lesson. Lit hexes are what you have learned. A second-color edge
             marks a lesson that another book also teaches.</p>
         </aside>
       </div>

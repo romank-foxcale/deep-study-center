@@ -41,11 +41,10 @@ def open_item(db):
     return next(i for i in view(db)["items"] if i["status"] == "open")
 
 
-def test_due_ideas_and_a_full_problem_with_a_hint(env):
+def test_weakest_ideas_by_default_and_a_full_problem_with_a_hint(env):
     db, jobs, runner = env
     setup(db, jobs, runner)
-    due = practice.due(db)
-    assert due[0]["nodeId"] == "c-vectors" and due[0]["reason"] == "new"
+    assert practice.weakest(db)[0]["nodeId"] == "c-vectors"  # nothing picked: the weakest ideas (no schedule)
     s = act(db, jobs, type="startPractice")
     assert s["practices"][0]["id"] == db.meta("last_practice")
     v = view(db)
@@ -74,8 +73,7 @@ def test_due_ideas_and_a_full_problem_with_a_hint(env):
     assert view(db)["items"][1]["status"] == "open" and view(db)["items"][1]["prompt"]
     ev = db.one("SELECT * FROM evidence WHERE item_id=?", (f"{v['id']}-{done['id']}",))
     assert ev["concept_id"] == "c-vectors" and ev["kind"] == "practice" and ev["score"] == 0.7
-    assert db.one("SELECT due FROM node_reviews WHERE node_id='c-vectors'")
-    assert practice.due(db) == [] or practice.due(db)[0]["nodeId"] != "c-vectors"  # scheduled for later now
+    assert not db.q("SELECT 1 FROM node_reviews")  # no schedule (SPEC §48)
 
     # a clean solve raises the level, giving up lowers it again and shows the solution
     VERDICTS[:] = [{"verdict": "solved", "feedback": "Clean."}]
@@ -89,7 +87,7 @@ def test_due_ideas_and_a_full_problem_with_a_hint(env):
     assert v["status"] == "done" and all(i["status"] != "open" or i["chunks"] for i in v["items"])
 
 
-def test_practice_is_evidence_on_the_idea_and_reviews_once_learned(env):
+def test_practice_is_evidence_on_the_idea(env):
     db, jobs, runner = env
     setup(db, jobs, runner)
     act(db, jobs, type="startPractice", nodeIds=["c-vectors"])
@@ -97,7 +95,7 @@ def test_practice_is_evidence_on_the_idea_and_reviews_once_learned(env):
         VERDICTS[:] = [{"verdict": "solved", "feedback": "ok"}]
         act(db, jobs, type="practiceSubmit", itemId=open_item(db)["id"], text="done")
     kinds = [r["kind"] for r in db.q("SELECT kind FROM evidence WHERE item_id LIKE 'p-%' ORDER BY id")]
-    assert kinds[0] == "practice"
+    assert set(kinds) == {"practice"}  # also once learned: there is no "review" kind any more
     st = graph.states(db)["c-vectors"]
     assert st.mastery > 0.5
 
@@ -117,7 +115,7 @@ def test_own_problem_and_errors(env):
     setup(db, jobs, runner)
     act(db, jobs, type="practiceRetry", practiceId=v["id"])
     assert len(view(db)["items"]) == 1 and not view(db)["error"]
-    assert state.snapshot(db)["practiceDue"] == 0
+    assert "practiceDue" not in state.snapshot(db)  # no schedule (SPEC §48)
 
 
 def test_pick_by_lesson_focus_and_formula_switch_ideas_hint_ladder_and_retests(env):

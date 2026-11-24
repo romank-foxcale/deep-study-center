@@ -18,7 +18,7 @@ const BUSY: Record<string, string> = {
   extracting: 'Writing what you learned into your knowledge graph…',
 }
 const NODE_STATE: Record<string, string> = {
-  learned: 'pill pill-ok', mastered: 'pill pill-ok', learning: 'pill pill-warn', rusty: 'pill pill-warn',
+  learned: 'pill pill-ok', learning: 'pill pill-warn',
 }
 
 /** "Teach me X": study anything, with or without a goal (SPEC §22). */

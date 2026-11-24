@@ -1,5 +1,7 @@
 """End-to-end flows through actions, lessons and jobs (with a fake provider)."""
 
+import pytest
+
 from dsc import actions, lesson, state
 from dsc.providers import parse_claude_output
 
@@ -87,7 +89,7 @@ def test_render_failure_is_reported(env):
     assert v["renderError"] and all(s["body"] is None for s in v["sections"])
 
 
-def test_answers_are_graded_on_the_server_and_learning_schedules_a_review(env):
+def test_answers_are_graded_on_the_server_and_learning_needs_the_explain_back(env):
     db, jobs, runner = env
     s = act(db, jobs, type="answer", conceptId="c-vectors", checkId="q-ops", choice=1, angle="geometric")
     assert s["answers"]["c-vectors:q-ops"]["correct"] is False and s["answers"]["c-vectors:q-ops"]["answer"] == 0
@@ -99,9 +101,9 @@ def test_answers_are_graded_on_the_server_and_learning_schedules_a_review(env):
             answer="Moving right doesn't change how far up you are, so each coordinate adds on its own.")
     states = {c["id"]: c["state"] for c in s["concepts"]}
     assert states["c-vectors"] == "learned" and states["c-dot"] == "ready"
-    assert s["reviews"][0]["conceptId"] == "c-vectors" and not s["reviews"][0]["isDue"]
-    s = act(db, jobs, type="review", conceptId="c-vectors", checkId="q-norm", choice=0)
-    assert {c["id"]: c["state"] for c in s["concepts"]}["c-vectors"] == "rusty"
+    assert "reviews" not in s and not db.q("SELECT 1 FROM reviews")  # no schedule (SPEC §48)
+    with pytest.raises(actions.ActionError):
+        actions.dispatch(db, jobs, {"type": "review", "conceptId": "c-vectors", "checkId": "q-norm", "choice": 0})
 
 
 def test_confusion_proposes_a_diff_and_approval_inserts_and_researches_a_concept(env):

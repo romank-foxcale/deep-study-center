@@ -9,7 +9,7 @@ formula is already in the Formulas country, so an edge through one is joined acr
 
 - **State.** A step's check and explain-back count as evidence on the step's idea as well as on the lesson
   (``item_nodes``), and practice can target a step's idea directly. One check alone does not make an idea learned,
-  so a step whose own evidence is not wrong takes its lesson's state when the lesson is learned or mastered.
+  so a step whose own evidence is not wrong takes its lesson's state when the lesson is learned.
 - **Kept in step.** ``sync`` (from ``graph.sync``) maps each step lesson's newest card once per card version; a new
   card (re-plan and approve, or "Write it now without a plan") replaces or removes the lesson's step ideas.
 """

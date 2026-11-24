@@ -5,7 +5,7 @@ import { areaColor } from '../areaColors'
 import { DeleteSource, TrashIcon, kindLabel, matches, sourceUrl, type SourceQuery } from './Sources'
 import type { SourceDoc, StudyBookSummary } from '../types'
 
-/** The shelf (SPEC §30, §40): books being studied (a spine in the book's map color, a ring of known and strong ideas),
+/** The shelf (SPEC §30, §40): books being studied (a spine in the book's map color, a ring of learned ideas),
  *  PDFs not studied yet ("Teach me this book"), links, and "Custom" study topics ("teach me X" with no document).
  *  ``q`` filters the cards; every card has a trash can. */
 export default function BookShelf({ limit, withNew = true, q }: { limit?: number; withNew?: boolean; q?: SourceQuery }) {
@@ -91,7 +91,6 @@ function LinkCard({ x, busy, onTeach }: { x: SourceDoc; busy: boolean; onTeach: 
 
 function BookCard({ b, src }: { b: StudyBookSummary; src?: SourceDoc }) {
   const known = b.ideas ? Math.round((b.known / b.ideas) * 100) : 0
-  const strong = b.ideas ? Math.round((b.strong / b.ideas) * 100) : 0
   return (
     <Link to={`/book/${b.id}`} className="card shelf-card" style={{ ['--spine' as string]: areaColor(b.color) }}>
       <div className="row shelf-head">
@@ -100,14 +99,13 @@ function BookCard({ b, src }: { b: StudyBookSummary; src?: SourceDoc }) {
           <h3>{b.title}</h3>
         </div>
         <div className="shelf-side">
-          <span className="ring" style={{ ['--known' as string]: known, ['--strong' as string]: strong }} aria-label={`${known}% known`}>
+          <span className="ring" style={{ ['--known' as string]: known, ['--strong' as string]: 0 }} aria-label={`${known}% known`}>
             <span>{known}%</span></span>
           {src && <DeleteSource src={src} icon />}
         </div>
       </div>
       {b.status === 'ready'
-        ? <div className="row small muted"><span>{b.partsDone}/{b.parts} parts</span><span>{b.known}/{b.ideas} ideas</span>
-            <span className="row-tight"><i className="state-dot state-mastered" /> {b.strong} strong</span></div>
+        ? <div className="row small muted"><span>{b.partsDone}/{b.parts} parts</span><span>{b.known}/{b.ideas} ideas learned</span></div>
         : <div className="small muted">{b.status === 'mapping' ? `Mapping: chapter ${Math.min(b.chaptersDone + 1, b.chapters)} of ${b.chapters}…`
             : `Mapping stopped at chapter ${b.chaptersDone + 1}`}</div>}
     </Link>

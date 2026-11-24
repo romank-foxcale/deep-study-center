@@ -10,7 +10,6 @@ import Lesson from './pages/Lesson'
 import Me from './pages/Me'
 import Library from './pages/Library'
 import Settings from './pages/Settings'
-import Review from './pages/Review'
 import Probe from './pages/Probe'
 import Study from './pages/Study'
 import Book from './pages/Book'
@@ -48,10 +47,9 @@ const GOALS = [
   { to: '/goal', label: 'Goal overview' },
   { to: '/roadmap', label: 'Roadmap' },
   { to: '/week', label: 'This week' },
-  { to: '/review', label: 'Reviews' },
   { to: '/goal/new', label: '+ New goal' },
 ]
-const GOAL_PATHS = ['/goal', '/roadmap', '/week', '/review', '/probe', '/placement']
+const GOAL_PATHS = ['/goal', '/roadmap', '/week', '/probe', '/placement']
 
 /** Where "Back" goes when there is no earlier page in this tab (a page opened from a link or after a reload). */
 function parentOf(path: string): string | null {
@@ -86,7 +84,6 @@ export default function App() {
   const navigate = useNavigate()
   useEffect(() => { window.scrollTo(0, 0) }, [pathname])
   const pending = s.diffs.filter(d => d.status === 'pending').length
-  const due = s.reviews.filter(r => r.isDue).length
   const running = s.jobs.filter(j => j.status === 'queued' || j.status === 'running').length
   return (
     <div className="shell">
@@ -103,7 +100,6 @@ export default function App() {
           {NAV.map(n => (
             <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `nav-link${isActive || (n.to === '/books' && pathname.startsWith('/book')) ? ' active' : ''}`}>
               <Icon name={n.icon} /><span>{n.label}</span>
-              {n.to === '/practice' && s.practiceDue > 0 && <span className="nav-badge">{s.practiceDue}</span>}
             </NavLink>
           ))}
         </div>
@@ -119,7 +115,6 @@ export default function App() {
             <NavLink key={n.to} to={n.to} end className="nav-link nav-sub">
               <span>{n.label}</span>
               {n.to === '/roadmap' && pending > 0 && <span className="nav-badge">{pending}</span>}
-              {n.to === '/review' && due > 0 && <span className="nav-badge">{due}</span>}
             </NavLink>
           ))}
         </details>
@@ -140,7 +135,6 @@ export default function App() {
           <Route path="/goal" element={<Home />} />
           <Route path="/goal/new" element={<GoalSetup />} />
           <Route path="/roadmap" element={<Roadmap />} />
-          <Route path="/review" element={<Review />} />
           <Route path="/probe" element={<Probe />} />
           <Route path="/study" element={<Study />} />
           <Route path="/map" element={<KnowledgeMap />} />

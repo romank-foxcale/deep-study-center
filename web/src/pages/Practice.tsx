@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { getPractice, getPracticeDue, getPracticeTargets, useStore } from '../store'
+import { getPractice, getPracticeTargets, useStore } from '../store'
 import Markdown from '../components/Markdown'
 import { DictationArea } from '../components/ThinkingInput'
-import type { PracticeDue, PracticeItem, PracticeTargets, PracticeView } from '../types'
+import type { PracticeItem, PracticeTargets, PracticeView } from '../types'
 
 const VERDICT: Record<string, { label: string; cls: string }> = {
   solved: { label: 'Solved', cls: 'ok' }, progress: { label: 'On track', cls: 'ok' },
@@ -24,7 +24,6 @@ function StartPractice() {
   const navigate = useNavigate()
   const location = useLocation()
   const preset = (location.state as { nodeIds?: string[]; title?: string } | null) ?? null
-  const [due, setDue] = useState<PracticeDue | null>(null)
   const [t, setT] = useState<PracticeTargets | null>(null)
   const [tab, setTab] = useState<Tab>('book')
   const [ideas, setIdeas] = useState<Set<string>>(() => new Set(preset?.nodeIds ?? []))
@@ -35,7 +34,6 @@ function StartPractice() {
   const [own, setOwn] = useState('')
   const [src, setSrc] = useState({ id: '', page: '' })
   const [starting, setStarting] = useState<string | null | undefined>(undefined)
-  useEffect(() => { getPracticeDue().then(setDue, () => setDue(null)) }, [s])
   useEffect(() => { getPracticeTargets().then(setT, () => setT({ books: [], fields: [], weakest: [] })) }, [])
   useEffect(() => {
     if (starting !== undefined && s.lastPractice && s.lastPractice !== starting) navigate(`/practice/${s.lastPractice}`)
@@ -78,8 +76,6 @@ function StartPractice() {
     <div className="page page-wide">
       <div className="row row-between">
         <div><div className="eyebrow">Recall</div><h1>Practice</h1></div>
-        {due && due.dueCount > 0 && <button className="pill" disabled={starting !== undefined} onClick={() => start({})}
-          title="Practise what is due now"><i className="state-dot state-rusty" /> {due.dueCount} idea{due.dueCount === 1 ? '' : 's'} due · practise them</button>}
       </div>
       <p className="lead">Pick what to practise. Each problem makes you find the idea yourself: think out loud, ask for a hint
         one step at a time, and read the solution before you go on. Missed problems come back at the end.</p>
@@ -161,7 +157,7 @@ function StartPractice() {
           ))}
           {t && tab === 'weak' && (t.weakest.length === 0 ? <p className="muted">Nothing weak yet: answer some checks first.</p> : (
             <>
-              <p className="muted small">Ideas that hold least: low mastery, recent misses, or rusty.</p>
+              <p className="muted small">Ideas that hold least: low mastery or recent misses.</p>
               <ul className="pk-parts">{t.weakest.map(w => (
                 <li key={w.nodeId}><label><input type="checkbox" checked={ideas.has(w.nodeId)} onChange={e => setLessons([w.nodeId], e.target.checked)} />
                   <i className={`state-dot state-${w.state}`} /> <Markdown inline>{w.title}</Markdown>

@@ -13,7 +13,7 @@ import { areaColor, ESSENTIAL_COLOR, FIELD_COLORS, FIELD_ORDER, fieldColors, UNS
 
 export type CanvasView = Exclude<MapViewId, 'tree'>
 const STATE_LABEL: Record<string, string> = {
-  mastered: 'know strongly', learned: 'learned', learning: 'learning', rusty: 'due for review', ready: 'ready to learn',
+  learned: 'learned', learning: 'learning', ready: 'ready to learn',
   locked: 'needs others first', pending: 'not started',
 }
 
@@ -292,7 +292,7 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
     const { W, H } = size
     const col = { bg: css('--bg'), fg: css('--text'), muted: css('--muted'), surface: css('--surface'), accent: css('--accent'), dark: css('color-scheme').includes('dark') }
     const st: Record<string, string> = {
-      mastered: css('--st-mastered'), learned: css('--st-learned'), learning: css('--st-learning'), rusty: css('--st-rusty'),
+      learned: css('--st-learned'), learning: css('--st-learning'),
       ready: css('--st-ready'), locked: css('--st-locked'), pending: css('--st-ready'),
     }
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0)
@@ -308,11 +308,6 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
     const dot = (n: N, x: number, y: number, r: number, alpha: number) => {
       const c = st[n.state] ?? st.ready
       ctx.globalAlpha = alpha
-      if (n.state === 'mastered') {
-        const g = ctx.createRadialGradient(x, y, 0, x, y, r * 3.2)
-        g.addColorStop(0, rgba(c, col.dark ? 0.55 : 0.4)); g.addColorStop(1, rgba(c, 0))
-        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 3.2, 0, 7); ctx.fill()
-      }
       ctx.beginPath(); ctx.arc(x, y, r, 0, 7)
       if (n.state === 'ready' || n.state === 'pending') { ctx.fillStyle = col.surface; ctx.fill(); ctx.lineWidth = 1.4; ctx.strokeStyle = c; ctx.stroke() }
       else if (n.state === 'learning') {
@@ -332,7 +327,7 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
       screen()
       const sx = x * k + tx, sy = y * k + ty
       ctx.font = `600 ${W < 600 ? 11 : 13}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      const known = c.nodes.filter(n => ['mastered', 'learned', 'rusty'].includes(n.state)).length
+      const known = c.nodes.filter(n => n.state === 'learned').length
       const txt = c.title.length > 42 ? c.title.slice(0, 40) + '…' : c.title
       ctx.lineWidth = 4; ctx.strokeStyle = rgba(col.bg.startsWith('#') ? col.bg : '#000000', 0.85)
       ctx.strokeText(txt, sx, sy); ctx.fillStyle = c.color; ctx.fillText(txt, sx, sy)
@@ -402,7 +397,7 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
       for (const cell of g0.placed) {
         const n = cell.node!, x = n.px, y = n.py, c = st[n.state] ?? st.ready
         ctx.beginPath(); for (let i = 0; i < 6; i++) { const [px, py] = corner(x, y, i, 0.94); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py) } ctx.closePath()
-        const lit = ({ mastered: 0.95, learned: 0.62, rusty: 0.7, learning: 0.5 } as Record<string, number>)[n.state] ?? 0
+        const lit = ({ learned: 0.8, learning: 0.5 } as Record<string, number>)[n.state] ?? 0
         ctx.globalAlpha = dim(n)
         if (n.formula) {  // a formula: its fields (one slice each, the same split form for every hex), its state inside
           const cols = fieldColors(n.fields)
@@ -548,7 +543,7 @@ export default function MapCanvas({ view, nodes, links, clusters, selected, matc
   )
 }
 
-const KNOWN = ['mastered', 'learned', 'rusty']
+const KNOWN = ['learned']
 const LEGEND_KEY = 'dsc.mapLegendOpen'
 
 /** The countries of the Territories view: each book or goal with its color and how many of its ideas you know. It can be

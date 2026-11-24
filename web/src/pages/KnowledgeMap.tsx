@@ -7,11 +7,11 @@ import MapCanvas, { type CanvasView } from '../components/MapCanvas'
 import type { GraphNode, GraphView, MapViewId } from '../types'
 
 const R = 13
-const LIT = new Set(['learned', 'mastered'])
+const LIT = new Set(['learned'])
 const STATE_LABEL: Record<string, string> = {
-  mastered: 'know strongly', learned: 'learned', learning: 'learning', rusty: 'due for review', ready: 'ready to learn', locked: 'needs others first', pending: 'not started',
+  learned: 'learned', learning: 'learning', ready: 'ready to learn', locked: 'needs others first', pending: 'not started',
 }
-const LEGEND = ['mastered', 'learned', 'learning', 'rusty', 'ready', 'locked']
+const LEGEND = ['learned', 'learning', 'ready', 'locked']
 /** The map views the learner can choose from (SPEC §29). */
 const VIEWS: { id: MapViewId; label: string; hint: string }[] = [
   { id: 'territory', label: 'Territories', hint: 'Every hex is an idea and every book a country; learning lights the land.' },
@@ -137,7 +137,7 @@ export default function KnowledgeMap() {
   if (error) return <div className="page"><p className="error">{error}</p></div>
   if (!g) return <div className="page"><p className="muted">Loading the map…</p></div>
   const sel = selected ? byId.get(selected) : undefined
-  const counts = { lit: nodes.filter(n => LIT.has(n.state)).length, learning: nodes.filter(n => ['learning', 'rusty'].includes(n.state)).length }
+  const counts = { lit: nodes.filter(n => LIT.has(n.state)).length, learning: nodes.filter(n => n.state === 'learning').length }
   const needed = members ? [...members].filter(id => !LIT.has(byId.get(id)?.state ?? '')).length : 0
 
   return (
@@ -209,7 +209,7 @@ export default function KnowledgeMap() {
                   <title>{`${n.title} (${STATE_LABEL[n.state] ?? n.state})`}</title>
                   {targets.has(n.id) && <circle r={R + 7} className="km-halo" />}
                   <circle r={R} className={`km-dot km-${n.state}`} />
-                  {['learning', 'rusty'].includes(n.state) && (
+                  {n.state === 'learning' && (
                     <circle r={R - 4} className="km-progress" pathLength={100} strokeDasharray={`${Math.round(n.mastery * 100)} 100`}
                       transform="rotate(-90)" />
                   )}
@@ -239,7 +239,7 @@ function NodePanel({ n, g, onPick, onClose }: { n: GraphNode; g: GraphView; onPi
   return (
     <aside className="km-panel card">
       <div className="row row-between">
-        <span className={`pill km-pill-${n.state}`}>{STATE_LABEL[n.state] ?? n.state}{['learning', 'rusty'].includes(n.state) ? ` · ${Math.round(n.mastery * 100)}%` : ''}</span>
+        <span className={`pill km-pill-${n.state}`}>{STATE_LABEL[n.state] ?? n.state}{n.state === 'learning' ? ` · ${Math.round(n.mastery * 100)}%` : ''}</span>
         <button className="link small" onClick={onClose} aria-label="Close">Close</button>
       </div>
       {n.kind === 'formula' && <div className="eyebrow">Formula</div>}

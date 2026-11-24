@@ -14,7 +14,7 @@ from . import engine, progress, remedial, state, versions, viz, writer
 from .db import DB, dumps
 from .jobs import Jobs
 
-DONE = ("learned", "mastered", "rusty")
+DONE = ("learned",)
 
 
 def _studied(db: DB, cid: str, r: dict | None) -> bool:

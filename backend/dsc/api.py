@@ -91,10 +91,6 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
         """What can be practised: books → chapters → lessons → steps, formula fields, the weakest ideas (SPEC §44)."""
         return practice.targets(db)
 
-    @app.get("/api/practice-due")
-    def get_practice_due() -> dict:
-        return practice.schedule(db)
-
     @app.get("/api/graph")
     def get_graph() -> dict:
         """The knowledge graph: every node with the learner's state and goals, and the links (SPEC §21)."""

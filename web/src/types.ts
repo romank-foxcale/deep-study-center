@@ -1,6 +1,7 @@
 // Shapes returned by the backend (backend/dsc/state.py and lesson.py). See docs/SPEC.md §2.
 
-export type NodeState = 'locked' | 'ready' | 'learning' | 'learned' | 'mastered' | 'rusty'
+/** No schedule (SPEC §48): an idea is learned for good; there is no "mastered" or "rusty". */
+export type NodeState = 'locked' | 'ready' | 'learning' | 'learned'
 export type ResearchStatus = 'outline' | 'researching' | 'ready'
 export type Angle = 'geometric' | 'algebraic' | 'computational'
 export type Verdict = 'works' | 'avoid' | 'trying'
@@ -75,7 +76,7 @@ export type VizSpec =
       params: { name: string; min: number; max: number; value: number; effect: string; label?: string }[]
       resultExpr?: string; resultTex?: string; plotExpr?: string; plotVar?: string; xmin?: number; xmax?: number }
 
-export interface PlanItem { kind: 'review' | 'lesson'; goalId: string; conceptId: string; title: string; minutes: number; note: string }
+export interface PlanItem { kind: 'lesson'; goalId: string; conceptId: string; title: string; minutes: number; note: string }
 
 export interface Plan {
   start: string
@@ -162,10 +163,6 @@ export interface PracticeTargets {
   fields: { id: string; title: string; formulas: { key: string; name: string; tex: string }[] }[]
   weakest: { nodeId: string; title: string; state: string; mastery: number; misses: number }[]
 }
-export interface PracticeDue {
-  due: { nodeId: string; title: string; state: string; reason: 'due' | 'new'; due: string | null }[]
-  dueCount: number; newCount: number; next: string | null
-}
 
 export interface GraphNode {
   id: string; title: string; statement: string; kind: string; state: string; mastery: number
@@ -199,8 +196,8 @@ export interface StudyBookSummary {
   chapters: number; chaptersDone: number; parts: number; partsDone: number; updatedAt: string; goalId: string | null
   /** The source's type, and the book's area color on the map (areaColors.ts). */
   kind: SourceKind; color: number
-  /** The book's ideas: how many, how many known (learned, strong or due) and how many strong. */
-  ideas: number; known: number; strong: number
+  /** The book's ideas: how many, and how many learned. */
+  ideas: number; known: number
 }
 /** The Today page (SPEC §30). */
 export interface TodayView {
@@ -211,8 +208,7 @@ export interface TodayView {
     kind: 'lesson'; bookId: string; bookTitle: string; conceptId: string; title: string; pages: [number, number]; summary: string
     chapter: number; chapterTitle: string; done: number; total: number
   }
-  due: { count: number; items: { nodeId: string; title: string; state: string; reason: 'due' | 'new' }[] }
-  week: { learned: number; strong: number; answers: number; sessions: number }
+  week: { learned: number; answers: number; sessions: number }
   recent: { id: string; title: string; status: string; updatedAt: string }[]
 }
 /** One lesson of a book (SPEC §31): a topic of a chapter, one concept and one idea of the graph. */
@@ -656,7 +652,6 @@ export interface Job {
   input: { concept_id?: string; module_id?: string }
 }
 
-export interface Review { conceptId: string; due: string; isDue: boolean }
 
 export interface State {
   goal: Goal | null
@@ -677,7 +672,6 @@ export interface State {
   providers: ProviderStatus[]
   apiKey: { set: boolean; source: 'environment' | 'keychain' | null }
   jobs: Job[]
-  reviews: Review[]
   gradings: Record<string, Grading>
   probe: ProbeState | null
   reflections: Reflection[]
@@ -694,7 +688,6 @@ export interface State {
   mapView: MapViewId
   practices: { id: string; title: string; status: string; createdAt: string }[]
   lastPractice: string | null
-  practiceDue: number
   runner: { setUp: boolean; packages: string[]; mode: 'local' | 'docker'; dockerReady: boolean }
   backups: { folder: string; last: string | null; items: { name: string; size: number; at: string }[] }
   firstRun: boolean
