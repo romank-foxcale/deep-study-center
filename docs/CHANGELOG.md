@@ -3,7 +3,7 @@
 The history of Deep Study Center, newest first. The full design and the decisions are in [SPEC.md](SPEC.md); the
 work still open is in [TODO.md](TODO.md).
 
-## Unreleased: formulas on the map, lesson plans, step lessons, practice, demos (SPEC §41-§45)
+## 0.5.0 (2026-11-24): lessons planned and taught step by step, practice, demos, formulas on the map (SPEC §41-§45)
 
 - **Interactive demos** (SPEC §45): when no built-in widget can show a step, a small demo is built for it, checked, run
   in a locked sandbox (no network, no access to the app) and operated once before you see it. A demo that fails is
