@@ -187,10 +187,17 @@ export interface GraphView {
   nodes: GraphNode[]; links: { src: string; dst: string; origin: string }[]
   /** Open gaps (SPEC §51): ideas missing on the arrow between[0] -> between[1]. */
   gaps: MapGap[]
+  /** Goals on the map (SPEC §53). */
+  mapGoals: MapGoal[]
   goals: { id: string; title: string }[]; sessions: { id: string; title: string }[]; books: { id: string; title: string }[]
   clusters: MapCluster[]
   /** The fields of mathematics: the provinces of the Formulas country (SPEC §41). */
   formulaFields?: { id: string; title: string }[]
+}
+/** A goal on the map (SPEC §53): its edge (angle, degrees), its missing building blocks, and a score 0..1 per idea. */
+export interface MapGoal {
+  id: string; title: string; direction: string; color: string; angle: number; researched: boolean; busy: boolean; error: string | null
+  blocks: { id: number; title: string; says: string }[]; scores: Record<string, number>
 }
 export interface MapGap { id: string; between: [string, string]; ideas: { title: string; says: string }[]; busy: boolean }
 

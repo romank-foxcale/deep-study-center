@@ -245,6 +245,16 @@ CREATE TABLE IF NOT EXISTS plan_nodes (
   concept_id TEXT NOT NULL, node_key TEXT NOT NULL, node_id TEXT NOT NULL, section_id TEXT NOT NULL, ord INTEGER NOT NULL,
   own INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (concept_id, node_key));
 CREATE TABLE IF NOT EXISTS plan_maps (concept_id TEXT PRIMARY KEY, card_version INTEGER NOT NULL);
+-- Goals on the map (SPEC §53): a goal at its own edge of the land (angle, degrees), its building blocks (status open
+-- | on_map | dropped; node_id once on the map) and a score 0..1 per idea: how much it moves the learner toward it.
+CREATE TABLE IF NOT EXISTS map_goals (
+  id TEXT PRIMARY KEY, title TEXT NOT NULL, direction TEXT NOT NULL DEFAULT '', color TEXT NOT NULL, angle REAL NOT NULL,
+  status TEXT NOT NULL, created_at TEXT NOT NULL, researched_at TEXT, busy INTEGER NOT NULL DEFAULT 0, error TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS goal_blocks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, goal_id TEXT NOT NULL, title TEXT NOT NULL, says TEXT NOT NULL DEFAULT '',
+  node_id TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS goal_scores (goal_id TEXT NOT NULL, node_id TEXT NOT NULL, score REAL NOT NULL, at TEXT NOT NULL,
+  PRIMARY KEY (goal_id, node_id));
 -- The formula flow of a formula page (SPEC §52): status building | ready | failed; spec is JSON (formula_flow.py).
 CREATE TABLE IF NOT EXISTS formula_flows (
   concept_id TEXT PRIMARY KEY, status TEXT NOT NULL, spec TEXT NOT NULL DEFAULT '{}', error TEXT NOT NULL DEFAULT '', at TEXT NOT NULL);

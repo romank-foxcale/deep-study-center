@@ -4,7 +4,7 @@ import { getGraph, getIdea, useStore } from '../store'
 import Markdown from '../components/Markdown'
 import { ancestors, layout } from '../components/graphLayout'
 import HexMap, { CELL_LABEL, cellState } from '../components/HexMap'
-import type { GraphNode, GraphView, IdeaDetail, MapGap, MapViewId } from '../types'
+import type { GraphNode, GraphView, IdeaDetail, MapGap, MapGoal, MapViewId } from '../types'
 
 const R = 13
 const LIT = new Set(['learned'])
@@ -37,6 +37,7 @@ export default function KnowledgeMap() {
   const mode: MapViewId = VIEWS.some(v => v.id === s.mapView) ? s.mapView : 'hex'  // the default; also for a removed view
   const [names, setNames] = useState(false)
   const [gapId, setGapId] = useState<string | null>(null)
+  const [goalId, setGoalId] = useState<string | null>(null)
   const [added, setAdded] = useState<string | null>(null)  // the title of an idea just added from a gap: select it once it is on the map
   const [center, setCenter] = useState<{ id: string; n: number } | null>(null)
   const location = useLocation()
@@ -181,7 +182,7 @@ export default function KnowledgeMap() {
           ? <>{(['learned', 'known', 'unexplored'] as const).map(st => <span key={st} className="km-legend-item"><i className={`hm-swatch hm-${st}`} />{CELL_LABEL[st]}</span>)}
               <span className="km-legend-item"><i className="hm-swatch hm-swatch-gap" />gap: something is missing here</span>
               <label className="km-legend-item"><input type="checkbox" checked={names} onChange={e => setNames(e.target.checked)} /> Show names</label>
-              <FindGaps /></>
+              <FindGaps /><AddGoal /></>
           : LEGEND.map(st => <span key={st} className="km-legend-item"><i className={`km-swatch km-swatch-${st}`} />{STATE_LABEL[st]}</span>)}
         <span className="km-legend-item">{VIEWS.find(v => v.id === mode)?.hint}</span>
       </div>
@@ -189,8 +190,12 @@ export default function KnowledgeMap() {
       <div className="km-canvas" ref={box}>
         {nodes.length === 0 && <p className="muted km-empty">No ideas yet. Research a goal or <Link to="/study">study something</Link>.</p>}
         {mode === 'hex' && <HexMap nodes={shown} links={links} selected={selected} matches={matches} center={center} names={names}
-          gaps={g.gaps ?? []} selectedGap={gapId} onGap={id => { setGapId(id); setSelected(null) }}
-          onSelect={id => { setSelected(id); if (id) setGapId(null) }} />}
+          gaps={g.gaps ?? []} selectedGap={gapId} onGap={id => { setGapId(id); setSelected(null); setGoalId(null) }}
+          goals={g.mapGoals ?? []} selectedGoal={goalId} onGoal={id => { setGoalId(id); setSelected(null); setGapId(null) }}
+          onSelect={id => { setSelected(id); if (id) { setGapId(null); setGoalId(null) } }} />}
+        {mode === 'hex' && goalId && (g.mapGoals ?? []).some(x => x.id === goalId) && (
+          <GoalPanel goal={(g.mapGoals ?? []).find(x => x.id === goalId)!} g={g} onPick={id => { setGoalId(null); setSelected(id); centerOn(id) }}
+            onAdded={t => { setGoalId(null); setAdded(t) }} onClose={() => setGoalId(null)} />)}
         {mode === 'hex' && gapId && (g.gaps ?? []).some(x => x.id === gapId) && (
           <GapPanel gap={(g.gaps ?? []).find(x => x.id === gapId)!} g={g} onPick={id => { setGapId(null); setSelected(id); centerOn(id) }}
             onAdded={t => { setGapId(null); setAdded(t) }} onClose={() => setGapId(null)} />)}
@@ -236,6 +241,80 @@ export default function KnowledgeMap() {
         {sel && <NodePanel n={sel} g={g} onPick={id => { setSelected(id); centerOn(id) }} onClose={() => setSelected(null)} />}
       </div>
     </div>
+  )
+}
+
+/** "Add a goal" (SPEC §53): one line; the goal agent finds its direction and building blocks. */
+function AddGoal() {
+  const { s, dispatch } = useStore()
+  const [open, setOpen] = useState(false)
+  const [title, setTitle] = useState('')
+  const busy = s.jobs.some(j => j.kind === 'goal_research' && (j.status === 'queued' || j.status === 'running'))
+  if (!open) return <button className="btn btn-small" disabled={busy} onClick={() => setOpen(true)}>{busy ? 'Researching your goal…' : '★ Add a goal'}</button>
+  const go = async () => { if (title.trim().length >= 4 && await dispatch({ type: 'addMapGoal', title: title.trim() })) { setTitle(''); setOpen(false) } }
+  return (
+    <span className="row hm-add-goal">
+      <input className="input input-small" autoFocus placeholder="For example: a top-level AI/ML engineer, like Karpathy" value={title}
+        onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void go(); if (e.key === 'Escape') setOpen(false) }} />
+      <button className="btn btn-small btn-primary" onClick={() => void go()}>Add</button>
+      <button className="link small" onClick={() => setOpen(false)}>Cancel</button>
+    </span>
+  )
+}
+
+/** One goal (SPEC §53): its direction, how much of the way you have, the next moves, and its missing building blocks. */
+function GoalPanel({ goal, g, onPick, onAdded, onClose }: { goal: MapGoal; g: GraphView; onPick: (id: string) => void; onAdded: (title: string) => void; onClose: () => void }) {
+  const { s, dispatch } = useStore()
+  const navigate = useNavigate()
+  const [renaming, setRenaming] = useState<string | null>(null)
+  const busy = goal.busy || s.jobs.some(j => j.kind === 'goal_research' && (j.status === 'queued' || j.status === 'running'))
+  const mine = g.nodes.filter(n => (goal.scores[n.id] ?? 0) >= 0.7)
+  const count = (st: string) => mine.filter(n => cellState(n.state) === st).length
+  const total = mine.length + goal.blocks.length || 1
+  const learned = new Set(g.nodes.filter(n => n.state === 'learned').map(n => n.id))
+  const next = mine.filter(n => n.state !== 'learned' && g.links.some(l => l.dst === n.id && learned.has(l.src)))
+    .sort((a, b) => (goal.scores[b.id] ?? 0) - (goal.scores[a.id] ?? 0)).slice(0, 4)
+  const first = next.length ? next : mine.filter(n => n.state !== 'learned').sort((a, b) => (goal.scores[b.id] ?? 0) - (goal.scores[a.id] ?? 0)).slice(0, 3)
+  return (
+    <aside className="km-panel card">
+      <div className="row row-between">
+        <span className="pill" style={{ borderColor: goal.color, color: goal.color }}>★ goal</span>
+        <button className="link small" onClick={onClose} aria-label="Close">Close</button>
+      </div>
+      {renaming === null
+        ? <h2 className="h-small">{goal.title}</h2>
+        : <div className="row"><input className="input input-small" autoFocus value={renaming} onChange={e => setRenaming(e.target.value)} />
+            <button className="btn btn-small" onClick={async () => { if (await dispatch({ type: 'renameMapGoal', goalId: goal.id, title: renaming })) setRenaming(null) }}>Save</button></div>}
+      {busy && <p className="skeleton small">The goal agent is finding the direction and the building blocks…</p>}
+      {goal.error && !busy && <p className="small error">The research failed: {goal.error}</p>}
+      {goal.direction && <><div className="eyebrow">The direction</div><p className="small">{goal.direction}</p></>}
+      {goal.researched && <>
+        <div className="eyebrow">Building blocks: {count('learned')} of {total} learned</div>
+        <div className="hm-meter">
+          <i style={{ width: `${count('learned') / total * 100}%`, background: 'var(--cell-learned)' }} />
+          <i style={{ width: `${count('known') / total * 100}%`, background: 'var(--cell-known)' }} />
+          <i style={{ width: `${count('unexplored') / total * 100}%`, background: 'var(--cell-unexplored-edge)' }} />
+        </div>
+        <p className="small muted">{count('learned')} learned · {count('known')} started · {count('unexplored')} on your map, not explored · {goal.blocks.length} not on your map yet</p>
+        {first.length > 0 && <><div className="eyebrow">Next moves toward it</div>
+          {first.map(n => <button key={n.id} className="hm-next" onClick={() => onPick(n.id)}>
+            <b><Markdown inline>{n.title}</Markdown></b> <span className="muted small">· {CELL_LABEL[cellState(n.state)]}</span></button>)}</>}
+        {goal.blocks.length > 0 && <><div className="eyebrow">Not on your map yet</div>
+          {goal.blocks.map(b => (
+            <div key={b.id} className="hm-gap-idea">
+              <div className="row row-between"><b><Markdown inline>{b.title}</Markdown></b>
+                <span className="row">
+                  <button className="btn btn-small" onClick={async () => { if (await dispatch({ type: 'addGoalBlock', goalId: goal.id, blockId: b.id })) onAdded(b.title) }}>Add to map</button>
+                  <button className="btn btn-small btn-primary" onClick={() => navigate('/study', { state: { topic: `Teach me: ${b.title}. ${b.says}`.slice(0, 400) } })}>Teach me this</button>
+                </span></div>
+              <div className="small muted"><Markdown inline>{b.says}</Markdown></div>
+            </div>))}</>}
+      </>}
+      <div className="row">
+        <button className="link small" onClick={() => setRenaming(goal.title)}>Rename</button>
+        <button className="link small" onClick={async () => { if (window.confirm(`Remove the goal “${goal.title}”? Your cells stay on the map.`) && await dispatch({ type: 'removeMapGoal', goalId: goal.id })) onClose() }}>Remove the goal</button>
+      </div>
+    </aside>
   )
 }
 

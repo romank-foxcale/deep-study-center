@@ -75,6 +75,10 @@ export type Action =
   | { type: 'setMapView'; view: import('./types').MapViewId }
   | { type: 'findGaps'; gapId?: string }
   | { type: 'makeFormulaFlow'; conceptId: string }
+  | { type: 'addMapGoal'; title: string }
+  | { type: 'renameMapGoal'; goalId: string; title: string }
+  | { type: 'removeMapGoal'; goalId: string }
+  | { type: 'addGoalBlock'; goalId: string; blockId: number }
   | { type: 'acceptGap'; gapId: string; index: number }
   | { type: 'dismissGap'; gapId: string }
   | { type: 'setDictation'; mode?: 'browser' | 'local'; model?: string }

@@ -1360,3 +1360,28 @@ part, and sees what happens to every part below it. The design is the approved m
 - **Normal lessons** no longer show the explorable formula widget: writers are told it is only for formula pages, and
   a widget in an existing lesson is hidden, with "Explore this formula on its own page" (a link when the formula has a
   page). Formula pages keep it.
+
+## 53. Goals on the map: each goal a star at its own edge (2026-11-24)
+
+What it is for: a goal shows which way to move. Setting a goal places it at an edge of the learner's land; every cell
+sits closer to the goals it serves and away from the ones it does not. The chosen mock "C · Several goals"
+(`web/public/_mocks/goal-map.html`). The old roadmap goals (`goals`, the "On hold: goals" pages) are not touched.
+
+- **A goal** (`map_goals.py`; tables `map_goals`, `goal_blocks`, `goal_scores`): a title in one line, its direction,
+  a color and an edge (angle; each new goal gets the next edge), its building blocks, and a score 0..1 per idea of the
+  map (how much it moves the learner toward the goal; an idea with no score counts as 0.1).
+- **The goal agent** (job `goal_research`, prompt `goal_research.md`, role "Research"): when a goal is added or
+  renamed, it writes the direction, 6-12 building blocks (a block that is already a cell — by `same_as` or the same
+  title — is "on the map" with score 1; the others are missing), and scores for the ideas that help (1 core, 0.7 on the
+  way, 0.4 a side step). Code clamps scores to 0..1 and drops unknown ids.
+- **New cells** (job `goal_score`, prompt `goal_score.md`): when the map is read, every goal with ideas it has no score
+  for gets them scored (at most 200 at a time, one job per goal). An idea the agent leaves out is scored 0.1, so it is
+  not asked again. A new cell that is a missing block (`block`) fills it.
+- **The map** (`HexMap.layoutCells`): for each goal, every cell gets a strong pull to a place along the goal's
+  direction set by its score (forward for a building block, backward for a side road); links still keep neighbours
+  together. The goal's star sits just past the land's edge in its direction, with a soft glow; its missing blocks are
+  dashed hexes in its color on the way to it; a cell with a score of 0.6 or more has a thin inner ring in the color of
+  the goal it serves most.
+- **The goal panel** (click a star): the direction; building blocks learned / started / on the map / missing; the
+  next moves (cells of the goal next to what is learned); the missing blocks with "Add to map" (a new cell, score 1)
+  and "Teach me this"; Rename (researched again) and Remove (the cells stay). "★ Add a goal" is in the map's legend.

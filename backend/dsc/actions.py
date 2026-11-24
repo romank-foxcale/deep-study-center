@@ -692,6 +692,41 @@ def delete_book(db: DB, jobs: Jobs, a: dict) -> None:
 MAP_VIEWS = ("hex", "tree")  # SPEC §50: the hex map of ideas; the country views were removed
 
 
+def _goal(fn):
+    """Goals on the map (SPEC §53): a GoalError is a 400 for the learner."""
+    def wrapped(db: DB, jobs: Jobs, a: dict) -> None:
+        from . import map_goals
+        try:
+            fn(db, jobs, a)
+        except map_goals.GoalError as e:
+            raise ActionError(str(e)) from e
+    return wrapped
+
+
+@_goal
+def add_map_goal(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import map_goals
+    db.set_meta("last_map_goal", map_goals.add(db, jobs, str(a.get("title") or "")))
+
+
+@_goal
+def rename_map_goal(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import map_goals
+    map_goals.rename(db, jobs, str(a["goalId"]), str(a.get("title") or ""))
+
+
+@_goal
+def remove_map_goal(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import map_goals
+    map_goals.remove(db, str(a["goalId"]))
+
+
+@_goal
+def add_goal_block(db: DB, jobs: Jobs, a: dict) -> None:
+    from . import map_goals
+    db.set_meta("last_gap_idea", map_goals.add_block(db, str(a["goalId"]), int(a["blockId"])))
+
+
 def _gap(fn):
     """Gap actions (SPEC §51): a GapError is a 400 for the learner."""
     def wrapped(db: DB, jobs: Jobs, a: dict) -> None:
@@ -1081,6 +1116,7 @@ ACTIONS = {
     "openFormula": open_formula, "makeFormulaPage": make_formula_page, "makeFormulaFlow": make_formula_flow, "bookHomework": book_homework,
     "deleteBook": delete_book, "setMapView": set_map_view,
     "findGaps": find_gaps, "acceptGap": accept_gap, "dismissGap": dismiss_gap,
+    "addMapGoal": add_map_goal, "renameMapGoal": rename_map_goal, "removeMapGoal": remove_map_goal, "addGoalBlock": add_goal_block,
     "planLesson": plan_lesson, "predictStep": predict_step, "rewriteStep": rewrite_step, "demoResult": demo_result, "lessonPlanNote": lesson_plan_note, "approveLessonPlan": approve_lesson_plan,
     "setDictation": set_dictation, "downloadDictationModel": download_dictation_model,
     "removeDictationModel": remove_dictation_model,
