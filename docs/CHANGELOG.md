@@ -8,7 +8,9 @@ work still open is in [TODO.md](TODO.md).
 - **"Teach me X" teaches first** (SPEC §54, flow B): no question before teaching a new idea. A new idea starts with a
   small worked example, then the rule, in short parts with "Continue", then "Your turn". An idea placement found you
   partly know starts with one problem: solve it and move on, or get a short lesson on just the part you missed.
-- **Faster**: the next placement question and the next idea are made while you work, so they show at once.
+- **Faster**: the next placement question and the next idea are made while you work, so they show at once. The
+  repair after a wrong check is also written ahead, one for each wrong option (about 2 s instead of about 16 s).
+- **Fix**: "Show my plan now" and then "Start" at once no longer stops with "the next step did not come".
 - **Placement** shows "Question n of at most 8", a bar, and "Show my plan now".
 - **The plan is a graph**: click a box to see it; "Learn it" and "Skip, I know it" work both ways. When two ideas are
   open, you pick which one comes first.

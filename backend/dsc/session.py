@@ -12,7 +12,7 @@ Phases (``sessions.status``):
 4. ``teaching`` (flow B, SPEC §54): one idea at a time, fitted to what placement found. A new idea is **taught**
    first (a small worked example, then the rule, in short parts) and then **checked**. A partly known idea starts
    with one **try** problem: right → a short summary and on; a miss → only the missed part is taught, then a check.
-   A wrong check gets one **repair**. The learner may pick the next idea among the open ones (all needed ideas done);
+   A wrong check gets one **repair**, written ahead for each wrong option while the learner reads the check. The learner may pick the next idea among the open ones (all needed ideas done);
    the next idea is written ahead while the learner works.
 5. ``extracting``: an agent writes what the learner now holds as short statements and adds reasoning links between
    the ideas and existing nodes. Then ``done``.
@@ -64,7 +64,11 @@ TEACH_SCHEMA = {"type": "object", "required": ["parts", "check"], "properties": 
 TRY_SCHEMA = {"type": "object", "required": ["try", "summary", "gap"], "properties": {
     "try": _MCQ, "summary": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"type": "string"}},
     "gap": TEACH_SCHEMA}}
-TURN_LABEL = {"teach": "Teach the idea", "try": "A first problem", "repair": "Explain it another way"}
+REPAIRS_SCHEMA = {"type": "object", "required": ["repairs"], "properties": {"repairs": {"type": "array", "maxItems": 6, "items": {
+    "type": "object", "required": ["option", "parts", "check"], "properties": {
+        "option": {"type": "integer"}, "parts": {**_PARTS, "maxItems": 2}, "check": _MCQ}}}}}
+TURN_LABEL = {"teach": "Teach the idea", "try": "A first problem", "repair": "Explain it another way",
+              "repairs": "Repairs, written ahead"}
 TEACH_PHASES = ("predict", "try", "explain", "check")  # rows of the Learn step (predict: old sessions only)
 EXTRACT_SCHEMA = {"type": "object", "required": ["summary", "statements", "links"], "properties": {
     "summary": {"type": "string"},
@@ -114,14 +118,19 @@ def _jobs_for(db: DB, sid: str) -> list[dict]:
     return out
 
 
-def _active(db: DB, sid: str, idea: str | None = None, ahead: bool = True) -> bool:
+def _active(db: DB, sid: str, idea: str | None = None, ahead: bool = True, repairs: bool = True) -> bool:
     """A session job is queued or running. ``idea``: only the jobs for that idea (or for no idea); ``ahead=False``:
-    not the jobs that make the next question or idea ahead of time."""
+    not the jobs that make the next question or idea ahead of time; ``repairs=False``: not the jobs that write the
+    repairs of a check ahead of time."""
     for d in _jobs_for(db, sid):
         if not ahead and d.get("ahead"):
             continue
+        if not repairs and d.get("kind") == "repairs":
+            continue
         if idea is not None and d.get("idea") not in (None, idea):
             continue
+        if idea is not None and isinstance(d.get("ahead"), dict):
+            continue  # a placement question made ahead that is no longer needed (the plan is already made)
         return True
     return False
 
@@ -174,11 +183,54 @@ def answer(db: DB, jobs: Jobs, sid: str, item_id: int, choice: int | None, think
         _probe_next(db, jobs, sid, item_id)
         return
     if row["phase"] == "try" and not correct:
-        _open_gap(db, sid, row["idea_key"], item)
+        _open_gap(db, jobs, sid, row["idea_key"], item)
+    if row["phase"] == "check" and not correct:
+        _open_repair(db, sid, item_id)
     advance(db, jobs, sid)
 
 
-def _open_gap(db: DB, sid: str, key: str, item: dict) -> None:
+def _queue_repairs(jobs: Jobs, sid: str, key: str, check_id: int) -> None:
+    """While the learner reads a first check, write the repair for each of its wrong options (SPEC §54)."""
+    jobs.enqueue("session_turn", TURN_LABEL["repairs"],
+                 {"session_id": sid, "kind": "repairs", "idea": key, "check": check_id, "ahead": True})
+
+
+def _open_repair(db: DB, sid: str, check_id: int) -> bool:
+    """A missed first check: show the repair written ahead for the option chosen, with no wait. The API thread and the
+    job that writes the repairs both call this; under the lock it opens only once."""
+    with db.tx():
+        row = db.one("SELECT * FROM session_items WHERE id=? AND session_id=? AND phase='check'", (check_id, sid))
+        if not row or not row["answered"] or row["correct"] or row["choice"] is None:
+            return False
+        rep = (loads(row["item"], {}).get("repairs") or {}).get(str(row["choice"]))
+        if not rep or db.one("SELECT 1 FROM session_items WHERE session_id=? AND idea_key=? AND id>?",
+                             (sid, row["idea_key"], check_id)):
+            return False
+        ts = now()
+        db.conn.execute("""INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, answered, created_at)
+                           VALUES(?,?,?,?,?,?,1,?)""", (sid, row["idea_key"], "explain", 0, 0,
+                                                        dumps({"parts": rep["parts"], "kind": "repair"}), ts))
+        db.conn.execute("INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, created_at) VALUES(?,?,?,?,?,?,?)",
+                        (sid, row["idea_key"], "check", 0, 1, dumps(mcq.shuffle(rep["check"])), ts))
+    return True
+
+
+def _after_repairs(db: DB, jobs: Jobs, sid: str, key: str, check_id: int) -> None:
+    """The repairs job ended (or failed): if the learner already missed the check, open its repair, or write one now
+    (for "I don't know", or when no repair fits)."""
+    if _open_repair(db, sid, check_id):
+        return
+    row = db.one("SELECT * FROM session_items WHERE id=? AND session_id=?", (check_id, sid))
+    if not row or not row["answered"] or row["correct"]:
+        return
+    if db.one("SELECT 1 FROM session_items WHERE session_id=? AND idea_key=? AND id>?", (sid, key, check_id)):
+        return
+    if any(d.get("kind") == "repair" and d.get("idea") == key for d in _jobs_for(db, sid)):
+        return
+    jobs.enqueue("session_turn", TURN_LABEL["repair"], {"session_id": sid, "kind": "repair", "idea": key})
+
+
+def _open_gap(db: DB, jobs: Jobs, sid: str, key: str, item: dict) -> None:
     """A missed first problem: show the teaching of the part it tests (written with the problem, so no wait)."""
     gap = item.get("gap") or {}
     if not gap.get("parts") or not _mcq_ok(gap.get("check")):
@@ -187,8 +239,9 @@ def _open_gap(db: DB, sid: str, key: str, item: dict) -> None:
     with db.tx():
         db.conn.execute("""INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, answered, created_at)
                            VALUES(?,?,?,?,?,?,1,?)""", (sid, key, "explain", 0, 0, dumps({"parts": gap["parts"], "kind": "gap"}), ts))
-        db.conn.execute("INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, created_at) VALUES(?,?,?,?,?,?,?)",
-                        (sid, key, "check", 0, 1, dumps(mcq.shuffle(gap["check"])), ts))
+        cid = db.conn.execute("INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, created_at) VALUES(?,?,?,?,?,?,?)",
+                              (sid, key, "check", 0, 1, dumps(mcq.shuffle(gap["check"])), ts)).lastrowid
+    _queue_repairs(jobs, sid, key, cid)
 
 
 def choose(db: DB, jobs: Jobs, sid: str, key: str) -> None:
@@ -347,7 +400,7 @@ def advance(db: DB, jobs: Jobs, sid: str) -> None:
             jobs.enqueue("session_extract", "Add what you learned to your graph", {"session_id": sid})
         return
     key = s["plan"][s["current"]]
-    if _active(db, sid, idea=key):
+    if _active(db, sid, idea=key, repairs=False):
         return
     items = _teach_rows(db, sid, key)
     if any(not i["answered"] for i in items):
@@ -359,6 +412,8 @@ def advance(db: DB, jobs: Jobs, sid: str) -> None:
         _save(db, sid, current=s["current"] + 1)  # done (after a second miss the session moves on, as before)
         advance(db, jobs, sid)
         return
+    if checks and any(d.get("kind") == "repairs" and d.get("check") == checks[-1]["id"] for d in _jobs_for(db, sid)):
+        return  # its repair is being written ahead: it opens when it is ready
     kind = "repair" if checks else ("teach" if items else _first_kind(_idea(s, key) or {}))
     jobs.enqueue("session_turn", TURN_LABEL[kind], {"session_id": sid, "kind": kind, "idea": key})
 
@@ -640,7 +695,15 @@ def run_turn(jobs: Jobs, jid: int, d: dict) -> dict:
     if s["status"] != "teaching" or not idea or key not in s["plan"]:
         return {"skipped": True}
     rows = _teach_rows(db, s["id"], key)
-    if kind != "repair" and any(r["phase"] in ("try", "check") for r in rows):
+    check = None
+    if kind == "repairs":
+        check = next((r for r in rows if r["id"] == d.get("check") and r["phase"] == "check"), None)
+        if not check or check["item"].get("repairs") or (check["answered"] and (check["correct"] or check["choice"] is None)):
+            if check:
+                _after_repairs(db, jobs, s["id"], key, check["id"])
+            return {"skipped": True}
+        rows = [r for r in rows if r["id"] < check["id"]]
+    elif kind != "repair" and any(r["phase"] in ("try", "check") for r in rows):
         return {"skipped": True}  # already written (ahead of time)
     done = s["plan"][:s["current"]]
     now_key = s["plan"][s["current"]] if s["current"] < len(s["plan"]) else None
@@ -653,18 +716,30 @@ def run_turn(jobs: Jobs, jid: int, d: dict) -> dict:
         if r["phase"] == "explain":
             lines.append(f'- teaching given: {" / ".join(r["item"].get("parts") or [r["item"].get("body", "")])[:1500]}')
     current = "\n".join(lines + [_answers_text(s, [r for r in rows if r["phase"] != "explain"])])
+    if check:
+        c = check["item"]
+        current += (f'\n- the check they are answering now: {c["prompt"]}\n'
+                    + "\n".join(f'  {n}) {o}{"  (right)" if n == c["answer"] else ""}' for n, o in enumerate(c["options"])))
     earlier = _answers_text(s, [r for r in _items(db, s["id"]) if r["phase"] in ("try", "check") and r["idea_key"] in done][-8:])
     if key != now_key:
         earlier += "\n(This idea is written ahead: the learner is still on the idea before it.)"
     linkable = _linkable(db, s, idea)
-    out = jobs.call(jid, "Study tutor", Call(
+    call = Call(
         prompt=prompt("session_turn", kind=kind, topic=s["topic"], plan=plan_text, known=known,
                       links="\n".join(f"- {i}: {t}" for i, t in linkable.items()) or "(none)",
                       idea=f'{idea["title"]}: {idea["statement"]}', current=current, earlier=earlier,
                       probe=probe_note(idea), start=s.get("probe_start") or "(none)",
                       playbook=lr["playbook"], guidelines=lr["guidelines"],
                       sources=_excerpts(db, s, f'{idea["title"]} {idea["statement"]}', k=4)),
-        schema=TRY_SCHEMA if kind == "try" else TEACH_SCHEMA, model="sonnet", timeout=300))
+        schema={"try": TRY_SCHEMA, "repairs": REPAIRS_SCHEMA}.get(kind, TEACH_SCHEMA), model="sonnet", timeout=300)
+    if check:
+        try:
+            out = jobs.call(jid, "Study tutor", call)
+        except Exception:
+            _after_repairs(db, jobs, s["id"], key, check["id"])  # missed meanwhile: write the repair now
+            raise
+        return _store_repairs(db, jobs, s, key, check, out, set(linkable))
+    out = jobs.call(jid, "Study tutor", call)
 
     def parts_of(x: dict) -> list[str]:
         return [idea_links(str(p).strip(), set(linkable)) for p in (x.get("parts") or []) if str(p).strip()][:4]
@@ -688,12 +763,34 @@ def run_turn(jobs: Jobs, jid: int, d: dict) -> dict:
                 raise ValueError("the teaching or its check is empty")
             db.conn.execute("""INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, answered, created_at)
                                VALUES(?,?,?,?,?,?,1,?)""", (s["id"], key, "explain", 0, 0, dumps({"parts": parts, "kind": kind}), ts))
-            db.conn.execute("INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, created_at) VALUES(?,?,?,?,?,?,?)",
-                            (s["id"], key, "check", 0, 1, dumps(mcq.shuffle({k: c[k] for k in ("prompt", "options", "answer", "explanation")})), ts))
+            cid = db.conn.execute("INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, created_at) VALUES(?,?,?,?,?,?,?)",
+                                  (s["id"], key, "check", 0, 1, dumps(mcq.shuffle({k: c[k] for k in ("prompt", "options", "answer", "explanation")})), ts)).lastrowid
+    if kind == "teach":
+        _queue_repairs(jobs, s["id"], key, cid)
     s = get(db, s["id"])  # read again: the learner may have reached this idea while it was written ahead
     if kind != "repair" and s["status"] == "teaching" and s["current"] < len(s["plan"]) and s["plan"][s["current"]] == key:
         _prefetch(db, jobs, s, key)
     return {"kind": kind}
+
+
+def _store_repairs(db: DB, jobs: Jobs, s: dict, key: str, check: dict, out: dict, linkable: set[str]) -> dict:
+    """Keep one repair per wrong option on the check row (by option number); open it if the learner missed meanwhile."""
+    c = check["item"]
+    reps = {}
+    for r in out.get("repairs") or []:
+        n = r.get("option")
+        parts = [idea_links(str(p).strip(), linkable) for p in (r.get("parts") or []) if str(p).strip()][:2]
+        if not isinstance(n, int) or not 0 <= n < len(c["options"]) or n == c["answer"] or not parts or not _mcq_ok(r.get("check")):
+            continue
+        reps[str(n)] = {"parts": parts, "check": {k: r["check"][k] for k in ("prompt", "options", "answer", "explanation")}}
+    with db.tx():
+        row = db.one("SELECT item FROM session_items WHERE id=?", (check["id"],))
+        if row:
+            item = loads(row["item"], {})
+            item["repairs"] = reps
+            db.conn.execute("UPDATE session_items SET item=? WHERE id=?", (dumps(item), check["id"]))
+    _after_repairs(db, jobs, s["id"], key, check["id"])
+    return {"kind": "repairs", "options": sorted(reps)}
 
 
 def run_extract(jobs: Jobs, jid: int, d: dict) -> dict:
@@ -754,8 +851,9 @@ def view(db: DB, sid: str) -> dict | None:
     now_key = s["plan"][s["current"]] if s["status"] == "teaching" and s["current"] < len(s["plan"]) else None
     if s["status"] == "probing":  # busy only when no question is open (the next one is made ahead meanwhile)
         running = _active(db, sid, ahead=False) or (not open_probe and _active(db, sid))
-    elif now_key:
-        running = _active(db, sid, idea=now_key)
+    elif now_key:  # the repairs written ahead count only while the learner waits for one
+        waiting = not any(not r["answered"] for r in items if r["idea_key"] == now_key and r["phase"] in TEACH_PHASES)
+        running = _active(db, sid, idea=now_key, repairs=waiting)
     else:
         running = _active(db, sid, ahead=False)
     failed = None
