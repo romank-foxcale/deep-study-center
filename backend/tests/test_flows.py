@@ -101,31 +101,9 @@ def test_answers_are_graded_on_the_server_and_learning_needs_the_explain_back(en
             answer="Moving right doesn't change how far up you are, so each coordinate adds on its own.")
     states = {c["id"]: c["state"] for c in s["concepts"]}
     assert states["c-vectors"] == "learned" and states["c-dot"] == "ready"
-    assert "reviews" not in s and not db.q("SELECT 1 FROM reviews")  # no schedule (SPEC §48)
+    assert "reviews" not in s and not db.one("SELECT 1 FROM sqlite_master WHERE name='reviews'")  # no schedule (SPEC §48)
     with pytest.raises(actions.ActionError):
         actions.dispatch(db, jobs, {"type": "review", "conceptId": "c-vectors", "checkId": "q-norm", "choice": 0})
-
-
-def test_confusion_proposes_a_diff_and_approval_inserts_and_researches_a_concept(env):
-    db, jobs, runner = env
-    runner.responses["Roadmap review"] = {"reason": "Coordinates first.", "changes": [
-        {"op": "insert", "title": "Coordinates & the plane (before Vectors)", "detail": "Axes and points."}]}
-    runner.responses["Research"] = {"concepts": [{
-        "key": "coords", "title": "Coordinates", "objective": "Plot points.", "minutes": 10, "prereq_keys": [],
-        "card": {"bloom": "apply", "core": "c", "formal": "f", "why": "w", "angles": [], "examples": [], "misconceptions": [],
-                 "sources": [], "sections": [{"id": "s-a", "heading": "A", "purpose": "p", "angles": ["geometric"],
-                                              "check": {"prompt": "?", "options": ["x", "y"], "answer": 1, "explanation": "e"}}]}}]}
-    runner.responses["Fact-check"] = lambda call: {"results": [{"key": "m-la-ins-coordinates-the-plane", "verdict": "passed", "issues": []}]}
-
-    s = act(db, jobs, type="feedback", conceptId="c-vectors", tags=["confused"], text="lost at coordinates")
-    pending = [d for d in s["diffs"] if d["status"] == "pending"]
-    assert pending and pending[0]["reason"] == "Coordinates first."
-    s = act(db, jobs, type="decideDiff", id=pending[0]["id"], approve=True)
-    ids = [c["id"] for c in s["concepts"]]
-    assert ids.index("m-la-ins-coordinates-the-plane") == ids.index("c-vectors") - 1
-    card = next(c for c in s["cards"] if c["conceptId"] == "m-la-ins-coordinates-the-plane")
-    assert card["factCheck"] == "passed" and "answer" not in card["sections"][0]["check"]
-    assert card["sections"][0]["check"]["id"] == "q-s-a"
 
 
 def test_offline_fallbacks_keep_the_app_usable(env):
@@ -134,7 +112,7 @@ def test_offline_fallbacks_keep_the_app_usable(env):
     s = act(db, jobs, type="chat", conceptId="c-vectors", text="why?")
     assert s["chats"]["c-vectors"][-1]["role"] == "tutor"
     s = act(db, jobs, type="feedback", conceptId="c-vectors", tags=["confused"], text="")
-    assert any(d["status"] == "pending" for d in s["diffs"])
+    assert s["feedback"] and "diffs" not in s  # no roadmap review any more: the feedback is kept
     assert any(j["status"] == "failed" and "fallback" in j["error"] for j in s["jobs"])
 
 

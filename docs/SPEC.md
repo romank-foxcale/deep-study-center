@@ -1388,3 +1388,41 @@ sits closer to the goals it serves and away from the ones it does not. The chose
 - **The old goal pages are removed** (2026-11-24): Goal overview, New goal (with the Ohtani table), Roadmap, This week
   and Probe, with the "On hold: goals" menu. An old address opens Today. Their data stays in the database, and a lesson
   of an old goal still opens (its breadcrumb starts at the map).
+
+## 54. "Teach me X", flow B: teach first, fitted to placement (2026-11-25)
+What it is for: a study session should teach a hard idea in the simplest way. The old Learn step asked a graded-looking
+question before any teaching, showed a checklist plan, and made the learner wait for every step. Three flows were tried
+as mocks (`web/public/_mocks/teach-flows.html`); the user chose **B, adapted to you**. Research behind it: worked
+examples and the expertise-reversal effect (explain first to a novice, a problem first to someone who partly knows),
+segmenting (one short part per screen), concreteness fading (a small numeric case before the rule), prerequisite-graph
+sequencing (learn an idea once its needed ideas are done). LearnHarness asks a prediction first; B does not.
+
+- **Placement** (`session.run_probe`): at most 8 questions (`PROBE_MAX`), with "Question n of at most 8", a bar and
+  "Show my plan now" at any time. While the learner answers, two jobs (`session_probe` with `ahead = {item, correct}`)
+  make the next question for a right answer and for a miss (a wrong pick or "I don't know"); they wait as
+  `probe_ahead` rows. The answer takes the one for its outcome at once (`_probe_next`; `db.xn` claims a row only once
+  when the API thread and a job race) and drops the other. If it is not ready yet, it is used when its job ends. When
+  the question made ahead says "enough", the result is written from the real answer (with its thinking).
+- **The plan** is a graph (`SessionPlanGraph.tsx`): an arrow means "needed for"; ideas side by side can be learned in
+  either order. Blue: new to you; orange: partly known (one problem first); green dashed: you know it (skipped).
+  Click a box: what it holds, what placement found, and "Learn it" / "Skip, I know it" (both ways, any number of
+  times; the goal cannot be skipped). The start button shows the number of ideas and about how long.
+- **Learn** (`session.advance`, `run_turn`, prompt `session_turn.md`), per idea by its placement level:
+  - new (or not tested): `teach`: 2-4 short `parts` (a small worked example with real numbers, then the rule, then the
+    one trap), shown one per screen with "Continue"; then "Your turn": a problem of the same kind with new numbers.
+  - partly known (or known and learned again): `try`: "First, one problem". Right: a 2-4 line summary ("You hold this
+    idea") and the idea is done. A miss: the teaching of just the missed part (`gap`, written with the problem, so it
+    shows at once), then a check.
+  - a wrong check: `repair` (names the wrong idea the answer shows, follows it until it breaks, then a worked example
+    from another angle) and a new check; after a second miss the session moves on, as before.
+  - a try and a check are evidence on the idea's node; nothing is asked before teaching a new idea.
+- **Written ahead**: while the learner works on an idea, the next idea in the plan is written (`_prefetch`, a
+  `session_turn` job with `ahead`), so a right answer opens the next idea at once. Jobs are per idea (`_active(idea=)`),
+  so a job written ahead never blocks the idea now.
+- **The learner picks** (`sessionChoose`): when several ideas are open (every needed idea done) and the idea now is not
+  started, the side panel lists them; the pick moves to the front of what is left of the plan.
+- The side panel shows the plan graph with done (green ✓), the idea now (glow), and the ideas open now.
+- Old sessions still show their predictions and one-part explanations (`body` becomes one part).
+- Measured on a real run ("teach me Hoffman algorithm", 2026-11-25): the next placement question in about 0.4 s (was
+  one model call, about 10 s); the next idea in about 0.5 s after a right answer when it was written ahead; the missed
+  part in 0.4 s. A repair is still written live (about 16 s), because it is written from the actual mistake.

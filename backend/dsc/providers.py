@@ -443,7 +443,6 @@ RECOMMENDED: dict[str, tuple[str, str, str]] = {
     "Tutor chat": ("claude", "sonnet", "Answers must come fast."),
     "Grading": ("claude", "sonnet", "A rubric check: Sonnet is accurate enough and fast."),
     "Code review": ("claude", "sonnet", "Reading short code against tests."),
-    "Roadmap review": ("claude", "opus", "Changes to the roadmap need judgment about the whole goal."),
     "Placement": ("claude", "sonnet", "Short quiz questions over the outline."),
     "Study plan": ("claude", "opus", "Plans a study session and writes what you learned into your graph: needs judgment."),
     "Study tutor": ("claude", "sonnet", "Each step of a study session must come fast."),

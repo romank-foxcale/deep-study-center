@@ -73,7 +73,7 @@ def test_weakest_ideas_by_default_and_a_full_problem_with_a_hint(env):
     assert view(db)["items"][1]["status"] == "open" and view(db)["items"][1]["prompt"]
     ev = db.one("SELECT * FROM evidence WHERE item_id=?", (f"{v['id']}-{done['id']}",))
     assert ev["concept_id"] == "c-vectors" and ev["kind"] == "practice" and ev["score"] == 0.7
-    assert not db.q("SELECT 1 FROM node_reviews")  # no schedule (SPEC §48)
+    assert not db.one("SELECT 1 FROM sqlite_master WHERE name='node_reviews'")  # no schedule (SPEC §48)
 
     # a clean solve raises the level, giving up lowers it again and shows the solution
     VERDICTS[:] = [{"verdict": "solved", "feedback": "Clean."}]

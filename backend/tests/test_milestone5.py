@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 
-from dsc import actions, lesson, planner, state
+from dsc import actions, lesson, state
 from dsc.api import create_app, maybe_refresh_cards
 from dsc.db import dumps
 
@@ -15,71 +15,7 @@ def act(db, jobs, **a):
     return state.snapshot(db)
 
 
-MONDAY = date(2026, 10, 19)
 
-
-# ---------------------------------------------------------------- weekly plan
-
-def test_plan_fills_study_days_in_roadmap_order_with_lessons_only(env):
-    db, jobs, _ = env
-    act(db, jobs, type="setPlanSettings", weeklyHours=5, studyDays=[0, 2, 4], startTime="07:30")
-    p = planner.plan_week(db, MONDAY)
-    days = {d["date"]: d for d in p["days"]}
-    assert [d["study"] for d in p["days"]] == [True, False, True, False, True, False, False]
-    assert days["2026-10-19"]["budget"] == 100 and not days["2026-10-20"]["items"]
-    lessons = [i for d in p["days"] for i in d["items"] if i["kind"] == "lesson"]
-    titles = [i["title"] for i in lessons]
-    assert titles[:2] == ["Vectors", "Linear combinations"]  # roadmap order, prerequisites first
-    assert titles.index("Span, basis & dimension") > titles.index("Linear combinations")
-    assert lessons[0]["note"] == "continue" and any(i["note"] == "needs research" for i in lessons)
-    assert all(i["kind"] == "lesson" for d in p["days"] for i in d["items"])  # no spaced reviews (SPEC §48)
-    for d in p["days"]:
-        assert d["minutes"] <= max(d["budget"] * 1.15, max((i["minutes"] for i in d["items"]), default=0))
-    assert p["upcomingResearch"][0]["moduleId"] == "m-calc"
-
-
-def test_plan_shares_time_between_goals_and_skips_known_modules(env):
-    db, jobs, _ = env
-    # a second goal with one researched module of three 20-minute lessons
-    db.x("INSERT INTO goals(id, title, hours, created_at) VALUES('g-rl', 'Learn RL', 5, '2026-10-15')")
-    db.x("INSERT INTO tracks(id, goal_id, ord, title, summary) VALUES('t-rl', 'g-rl', 0, 'RL', '')")
-    db.x("INSERT INTO modules(id, track_id, ord, title, research, planned) VALUES('m-mdp', 't-rl', 0, 'MDPs', 'ready', 3)")
-    for i in range(3):
-        db.x("INSERT INTO concepts VALUES(?,?,?,?,?,?,?,?,0)", (f"rl{i}", "m-mdp", i, f"RL {i}", "o", 20, dumps([]), 0.1))
-        db.x("INSERT INTO cards(concept_id, version, body, fact_check, checked_at) VALUES(?,1,?, 'passed', '2026-10-15')",
-             (f"rl{i}", dumps({"sections": []})))
-    act(db, jobs, type="setPlanSettings", weeklyHours=10, studyDays=[0, 1, 2, 3, 4, 5, 6])
-    p = planner.plan_week(db, MONDAY)
-    goals = {g["id"]: g for g in p["goals"]}
-    assert goals["g-ai"]["share"] == pytest.approx(10 / 15, abs=0.01)  # demo goal: 10 h/week, RL: 5 h/week
-    rl = [i for d in p["days"] for i in d["items"] if i["goalId"] == "g-rl" and i["kind"] == "lesson"]
-    assert [i["title"] for i in rl] == ["RL 0", "RL 1", "RL 2"]
-    first_day = [i["goalId"] for i in p["days"][0]["items"]]
-    assert "g-rl" in first_day and "g-ai" in first_day  # time is interleaved, not one goal first
-
-    db.x("UPDATE modules SET known=1 WHERE id='m-la'")
-    p = planner.plan_week(db, MONDAY)
-    assert not any(i["title"] == "Vectors" for d in p["days"] for i in d["items"] if i["kind"] == "lesson")
-
-
-def test_plan_settings_validation_and_ics(env):
-    db, jobs, _ = env
-    for bad in ({"weeklyHours": 0}, {"studyDays": []}, {"startTime": "25:00"}):
-        with pytest.raises(actions.ActionError):
-            act(db, jobs, type="setPlanSettings", **bad)
-    act(db, jobs, type="setPlanSettings", startTime="06:45", studyDays=[0])
-    ics = planner.to_ics(planner.plan_week(db, MONDAY))
-    assert ics.startswith("BEGIN:VCALENDAR\r\n") and ics.endswith("END:VCALENDAR\r\n")
-    assert ics.count("BEGIN:VEVENT") == 1 and "DTSTART:20261019T064500" in ics
-    assert all(len(line.encode()) <= 75 for line in ics.split("\r\n"))
-    assert "Vectors\\, Linear combinations" in ics.replace("\r\n ", "")
-    client = TestClient(create_app(db=db, jobs=jobs))
-    r = client.get("/api/plan.ics")
-    assert r.status_code == 200 and r.headers["content-type"].startswith("text/calendar")
-    assert client.get("/api/plan").json()["settings"]["start_time"] == "06:45"
-
-
-# ---------------------------------------------------------------- card refresh
 
 def _revised(call):
     assert "web" in call.prompt.lower() and "q-norm" in call.prompt

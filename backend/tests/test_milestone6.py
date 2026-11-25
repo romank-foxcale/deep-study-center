@@ -8,7 +8,7 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-from dsc import actions, backup, planner, providers, runner, state
+from dsc import actions, backup, providers, runner, state
 from dsc.api import create_app
 from dsc.db import DB
 
@@ -82,16 +82,6 @@ def test_activity_heartbeats_show_as_actual_time(env):
         assert client.post("/api/activity", json={"conceptId": "c-vectors", "seconds": 30}).status_code == 200
     assert client.post("/api/activity", json={"conceptId": "c-vectors", "seconds": 999}).status_code == 400
     assert client.post("/api/activity", json={"conceptId": "nope", "seconds": 30}).status_code == 400
-    p = planner.plan_week(db, date.today())
-    assert p["days"][0]["actualMinutes"] == 2 and p["actualLast7"][-1]["minutes"] == 2
-
-
-def test_per_goal_hours(env):
-    db, jobs, _ = env
-    act(db, jobs, type="setPlanSettings", goalId="g-ai", hours=4)
-    assert planner.plan_week(db)["goals"][0]["hours"] == 4
-    with pytest.raises(actions.ActionError):
-        act(db, jobs, type="setPlanSettings", goalId="g-ai", hours=0)
 
 
 def test_docker_mode_command_and_guards(env, monkeypatch, tmp_path):

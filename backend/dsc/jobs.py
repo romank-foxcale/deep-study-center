@@ -1,4 +1,4 @@
-"""Background agent jobs: research, outline, rendering, tutor replies, roadmap reviews, fact-checks.
+"""Background agent jobs: research, outline, rendering, tutor replies, fact-checks.
 
 Each job is a row in ``jobs`` (so the UI can show progress) and runs on a small thread pool.
 Every job has a deterministic fallback for when no provider is available, so the app stays usable.
@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from typing import Callable
 
-from . import bookstudy, demos, dictation, formula_flow, gaps, links, map_goals, formula_fields, formula_lessons, formulas, lesson_graph, lesson_steps, reasoning, engine, graph, guidelines, library, mcq, ohtani, practice, probe, progress, providers, runner, session, sources, state, versions, viz, writer
+from . import bookstudy, demos, dictation, formula_flow, gaps, links, map_goals, formula_fields, formula_lessons, formulas, lesson_graph, lesson_steps, reasoning, engine, graph, guidelines, library, mcq, practice, progress, providers, runner, session, sources, state, versions, viz, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now, workspace
 from .providers import Call, ProviderUnavailable
@@ -176,43 +176,6 @@ def fallback_tutor(jobs: Jobs, jid: int, d: dict) -> None:
                "section claims, then test it on the smallest example you can think of."))
 
 
-# ---------------------------------------------------------------- roadmap review
-
-DIFF_SCHEMA = {"type": "object", "required": ["reason", "changes"], "properties": {
-    "reason": {"type": "string"},
-    "changes": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"type": "object", "required": ["op", "title", "detail"],
-                "properties": {"op": {"enum": ["insert", "compress", "deepen"]}, "title": {"type": "string"},
-                               "detail": {"type": "string"}}}}}}
-
-
-def run_roadmap_review(jobs: Jobs, jid: int, d: dict) -> dict:
-    db = jobs.db
-    c = db.one("SELECT * FROM concepts WHERE id=?", (d["concept_id"],))
-    m = db.one("SELECT * FROM modules WHERE id=?", (c["module_id"],))
-    siblings = db.q("SELECT title, objective FROM concepts WHERE module_id=? ORDER BY ord", (m["id"],))
-    out = jobs.call(jid, "Roadmap review", Call(
-        prompt=prompt("roadmap_review", goal=_goal(db)["title"], playbook=state.playbook_text(state.playbook(db)),
-                      module=m["title"], concepts="\n".join(f'- {s["title"]}: {s["objective"]}' for s in siblings),
-                      concept=c["title"], tags=", ".join(d["tags"]), text=d.get("text") or "(none)"),
-        schema=DIFF_SCHEMA, model="opus", timeout=300))
-    _insert_diff(db, d["concept_id"], out["reason"], out["changes"])
-    return {"changes": len(out["changes"])}
-
-
-def fallback_roadmap_review(jobs: Jobs, jid: int, d: dict) -> None:
-    c = jobs.db.one("SELECT title FROM concepts WHERE id=?", (d["concept_id"],))
-    _insert_diff(jobs.db, d["concept_id"], f'You got lost in "{c["title"]}". A short refresher may be missing.', [
-        {"op": "insert", "title": f'Refresher (before {c["title"]})', "detail": "A short review of the background this lesson assumes."},
-        {"op": "deepen", "title": c["title"], "detail": "Add one more worked example to each section."}])
-
-
-def _insert_diff(db: DB, concept_id: str, reason: str, changes: list[dict]) -> None:
-    for ch in changes:
-        ch["anchor"] = concept_id
-    db.x("INSERT INTO diffs(ts, goal_id, reason, changes, status) VALUES(?,?,?,?,'pending')",
-         (now(), state.active_goal(db), reason, dumps(changes)))
-
-
 # ---------------------------------------------------------------- outline (new goal)
 
 OUTLINE_SCHEMA = {"type": "object", "required": ["title", "why", "done", "tracks"], "properties": {
@@ -226,28 +189,25 @@ OUTLINE_SCHEMA = {"type": "object", "required": ["title", "why", "done", "tracks
 def run_outline(jobs: Jobs, jid: int, d: dict) -> dict:
     db = jobs.db
     answers = d["answers"]
-    layout = "ohtani" if d.get("layout") == "ohtani" else "list"
+    layout = "list"
     ids = d.get("source_ids") or []
-    base = ohtani.SCHEMA if layout == "ohtani" else OUTLINE_SCHEMA
+    base = OUTLINE_SCHEMA
     lines = [f"Q: {a['q']}\nA: {a['a']}" for a in answers]
     profile = "\n".join(a["a"] for a in answers[1:] if a["a"].strip() and a["a"] != "(skipped)")
     own, focus, schema = sources.contents_text(db, ids=ids), "", base
     time_answer = answers[3]["a"] if len(answers) > 3 else ""
     out = jobs.call(jid, "Curriculum", Call(
-        prompt=prompt("outline_ohtani" if layout == "ohtani" else "outline",
+        prompt=prompt("outline",
                       answers="\n".join(lines), sources=own or "(none)", focus=focus),
         schema=schema, model="opus", timeout=600))
     gid = f"g-{slug(out['title'], 24)}-{secrets.token_hex(2)}"
     hours = next((float(x) for x in re.findall(r"\d+(?:\.\d+)?", time_answer)), 5.0)
-    if layout == "ohtani":
-        tracks, modules = ohtani.build(gid, out)
-    else:
-        tracks, modules = [], []
-        for ti, t in enumerate(out["tracks"]):
-            tid = f"{gid}-t{ti}"
-            tracks.append({"id": tid, "ord": ti, "title": t["title"], "summary": t["summary"], "pos": ""})
-            modules += [{"id": f"{tid}-m{mi}", "track_id": tid, "ord": mi, "title": m["title"], "summary": m["summary"],
-                         "planned": m["planned"], "done_when": "", "requires": [], "seq": 0} for mi, m in enumerate(t["modules"])]
+    tracks, modules = [], []
+    for ti, t in enumerate(out["tracks"]):
+        tid = f"{gid}-t{ti}"
+        tracks.append({"id": tid, "ord": ti, "title": t["title"], "summary": t["summary"], "pos": ""})
+        modules += [{"id": f"{tid}-m{mi}", "track_id": tid, "ord": mi, "title": m["title"], "summary": m["summary"],
+                     "planned": m["planned"], "done_when": "", "requires": [], "seq": 0} for mi, m in enumerate(t["modules"])]
     with db.tx():
         db.conn.execute("INSERT INTO goals(id, title, why, done, hours, profile, created_at, layout, kind) VALUES(?,?,?,?,?,?,?,?,?)",
                         (gid, out["title"], out["why"], out["done"], hours, profile, now(), layout, "goal"))
@@ -264,9 +224,8 @@ def run_outline(jobs: Jobs, jid: int, d: dict) -> dict:
             db.conn.execute("INSERT OR IGNORE INTO goal_sources(goal_id, source_id) VALUES(?,?)", (gid, sid))
     first_module = db.one("""SELECT m.id FROM modules m JOIN tracks t ON t.id = m.track_id WHERE t.goal_id=?
                              ORDER BY m.seq, t.ord, m.ord LIMIT 1""", (gid,))
-    what = f"{len(tracks) - 1} areas x 8 steps and 8 merges" if layout == "ohtani" else f"{len(tracks)} tracks"
-    jobs.progress(jid, f"roadmap: {what}; preparing the probe and researching the first module")
-    probe.start(db, jobs, gid)
+    what = f"{len(tracks)} tracks"
+    jobs.progress(jid, f"roadmap: {what}; researching the first module")
     if first_module:
         db.x("UPDATE modules SET research='researching' WHERE id=?", (first_module["id"],))
         jobs.enqueue("research_module", "Research first module", {"module_id": first_module["id"]})
@@ -840,7 +799,6 @@ HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "formula_open": (lambda jobs, jid, d: {"parts": formula_lessons.open_node(jobs, jid, d["node"])}, None),
     "render": (run_render, None),
     "tutor": (run_tutor, fallback_tutor),
-    "roadmap_review": (run_roadmap_review, fallback_roadmap_review),
     "outline": (run_outline, None),
     "read_link": (links.read, links.failed),
     "ingest_source": (lambda jobs, jid, d: sources.ingest(jobs.db, d["source_id"], lambda m: jobs.progress(jid, m)),
@@ -848,7 +806,6 @@ HANDLERS: dict[str, tuple[Callable, Callable | None]] = {
     "research_module": (run_research_module, fallback_research_module),
     "fact_check": (run_fact_check, None),
     "grade": (run_grade, fallback_grade),
-    "probe_round": (probe.run_round, None),
     "session_sketch": (session.run_sketch, None),
     "session_probe": (session.run_probe, None),
     "session_turn": (session.run_turn, None),

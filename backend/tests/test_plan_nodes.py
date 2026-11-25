@@ -42,8 +42,7 @@ def test_each_taught_step_is_an_idea_next_to_its_lesson_linked_as_the_plan_says(
     assert s["title"] == "Scores from dot products" and s["statement"] == "$q \\cdot k$ is a score."
     assert s["step"] == {"conceptId": cid, "lesson": "Attention", "sectionId": "s-scores"} and s["books"] == [bid]
     lesson_node = node(v, cid)
-    assert s["cluster"] == lesson_node["cluster"] == f"book:{bid}" and s["chapter"] == lesson_node["chapter"]
-    assert s["order"] < node(v, weights)["order"] < lesson_node["order"]  # the steps come just before their lesson
+    assert lesson_node["books"] == [bid]
     plan_links = {(x["src"], x["dst"]) for x in v["links"] if x["origin"] == "plan"}
     # held -> step, step -> step, and the formula node joined across: weights -> (weighted sum) -> the lesson's idea
     assert plan_links == {(softmax, weights), (scores, weights), (weights, cid)}

@@ -69,9 +69,8 @@ CREATE TABLE IF NOT EXISTS diffs (
 CREATE TABLE IF NOT EXISTS chats (
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, concept_id TEXT NOT NULL, role TEXT NOT NULL,
   text TEXT NOT NULL);
--- reviews and node_reviews: the old review schedule. Kept so old workspaces open; not used (SPEC §48: no schedule).
-CREATE TABLE IF NOT EXISTS reviews (
-  concept_id TEXT PRIMARY KEY, card TEXT NOT NULL, due TEXT NOT NULL, learned_at TEXT NOT NULL);
+-- The old review schedule (reviews, node_reviews) is gone (SPEC §48: no schedule). Old workspaces keep the tables; nothing
+-- reads them, and new workspaces do not make them.
 
 -- Explain-back answers and the grader's verdicts (graded evidence goes to `evidence`).
 CREATE TABLE IF NOT EXISTS gradings (
@@ -96,7 +95,6 @@ CREATE TABLE IF NOT EXISTS practices (
 CREATE TABLE IF NOT EXISTS practice_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT, practice_id TEXT NOT NULL, problem TEXT NOT NULL, status TEXT NOT NULL,
   hints INTEGER NOT NULL DEFAULT 0, chunks TEXT NOT NULL DEFAULT '[]', score REAL, created_at TEXT NOT NULL, ended_at TEXT);
-CREATE TABLE IF NOT EXISTS node_reviews (node_id TEXT PRIMARY KEY, card TEXT NOT NULL, due TEXT NOT NULL, last_at TEXT NOT NULL);
 -- Study sessions (SPEC §22): "teach me X" with or without a goal.
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY, topic TEXT NOT NULL, title TEXT NOT NULL, status TEXT NOT NULL, ideas TEXT NOT NULL DEFAULT '[]',
@@ -381,6 +379,11 @@ class DB:
     def x(self, sql: str, args: tuple | list = ()) -> int:
         with self.lock:
             return self.conn.execute(sql, args).lastrowid or 0
+
+    def xn(self, sql: str, args: tuple | list = ()) -> int:
+        """Run a write and return the number of rows it changed (to claim a row once when two threads race)."""
+        with self.lock:
+            return self.conn.execute(sql, args).rowcount
 
     def tx(self):
         """``with db.tx():`` runs the block in one transaction."""

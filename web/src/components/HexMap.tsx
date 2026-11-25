@@ -169,9 +169,12 @@ export default function HexMap({ nodes, links, selected, matches, onSelect, cent
   const title = (id: string) => byId.get(id)?.title ?? id
   const drag = useRef<{ x: number; y: number; vx: number; vy: number; moved: boolean } | null>(null)
 
+  const fitted = useRef(false)
   const fit = () => {
     const el = box.current
-    if (!el || cells.size === 0) return
+    // a hidden or not yet laid out box has no size: fitting then would scale the map to 0 (an empty map)
+    if (!el || cells.size === 0 || el.clientWidth === 0 || el.clientHeight === 0) return
+    fitted.current = true
     const stars = [...goalPlaces.values()].map(p => p.star)
     const xs = [...cells.values(), ...stars].map(c => c.x), ys = [...cells.values(), ...stars].map(c => c.y)
     const minX = Math.min(...xs) - S * 2, maxX = Math.max(...xs) + S * 2, minY = Math.min(...ys) - S * 2, maxY = Math.max(...ys) + S * 2
@@ -180,6 +183,14 @@ export default function HexMap({ nodes, links, selected, matches, onSelect, cent
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- fit when the map changes
   useEffect(fit, [cells])
+  useEffect(() => {  // fit once the box gets its size
+    const el = box.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => { if (!fitted.current) fit() })
+    ro.observe(el)
+    return () => ro.disconnect()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the newest fit is enough
+  }, [cells])
   useEffect(() => {
     const c = center && cells.get(center.id), el = box.current
     if (!c || !el) return
@@ -240,7 +251,8 @@ export default function HexMap({ nodes, links, selected, matches, onSelect, cent
             const c = cells.get(n.id)
             if (!c) return null
             const st = cellState(n.state)
-            const cls = ['hm-cell', `hm-${st}`, n.id === selected && 'hm-selected', matches.has(n.id) && 'hm-match', lit && !lit.has(n.id) && 'hm-dim']
+            const cls = ['hm-cell', `hm-${st}`, n.id === selected && 'hm-selected', matches.has(n.id) && 'hm-match',
+              ((lit && !lit.has(n.id)) || (matches.size > 0 && !matches.has(n.id))) && 'hm-dim']
               .filter(Boolean).join(' ')
             return (
               <polygon key={n.id} className={cls} points={hexPoints(c.x, c.y)}

@@ -180,16 +180,6 @@ def gradings(db: DB, concept_ids: list[str]) -> dict:
     return out
 
 
-def probe_view(db: DB, gid: str) -> dict:
-    from . import probe
-    running = any(loads(j["input"], {}).get("goal_id") == gid
-                  for j in db.q("SELECT input FROM jobs WHERE kind='probe_round' AND status IN ('queued', 'running')"))
-    failed = db.one("""SELECT error FROM jobs WHERE kind='probe_round' AND input LIKE ? ORDER BY id DESC LIMIT 1""", (f'%"{gid}"%',))
-    v = probe.view(db, gid, running)
-    v["dismissed"] = db.meta(f"probe_dismissed:{gid}") == "1"
-    v["error"] = (failed or {}).get("error") if not running and v["status"] != "done" else None
-    return v
-
 
 def snapshot(db: DB) -> dict:
     gid = active_goal(db)
@@ -208,8 +198,8 @@ def snapshot(db: DB) -> dict:
             "goals": [{"id": g["id"], "title": g["title"]} for g in db.q("SELECT id, title FROM goals WHERE kind != 'bookstudy' ORDER BY created_at")]}
     if not gid:
         return {**base, "goal": None, "tracks": [], "modules": [], "concepts": [], "cards": [], "renditions": [],
-                "feedback": [], "notes": [], "diffs": [], "chats": {}, "answers": {}, "reviews": [], "gradings": {},
-                "probe": None, "reflections": reflections(db), "settings": settings(db), "cardProposals": []}
+                "feedback": [], "notes": [], "chats": {}, "answers": {}, "gradings": {},
+                "reflections": reflections(db), "settings": settings(db), "cardProposals": []}
 
     g = db.one("SELECT * FROM goals WHERE id=?", (gid,))
     tracks = db.q("SELECT * FROM tracks WHERE goal_id=? ORDER BY ord", (gid,))
@@ -245,12 +235,9 @@ def snapshot(db: DB) -> dict:
         "feedback": feedback_items(db, ids),
         "notes": [{"id": n["id"], "ts": n["ts"], "conceptId": n["concept_id"], "quote": n["quote"], "text": n["text"]}
                   for n in db.q(f"SELECT * FROM notes WHERE concept_id IN {in_goal} ORDER BY id DESC", ids)],
-        "diffs": [{"id": d["id"], "ts": d["ts"], "reason": d["reason"], "changes": loads(d["changes"]), "status": d["status"]}
-                  for d in db.q("SELECT * FROM diffs WHERE goal_id=? ORDER BY id DESC", (gid,))],
         "chats": _chats(db, ids),
         "answers": answers(db, ids),
         "gradings": gradings(db, ids),
-        "probe": probe_view(db, gid),
         "reflections": reflections(db),
         "settings": settings(db),
         "cardProposals": card_proposals(db, ids),
@@ -291,11 +278,8 @@ def _backups() -> list[dict]:
 
 
 def settings(db: DB) -> dict:
-    from . import planner
-    p = planner.settings(db)
     return {"autoResearch": db.meta("auto_research", "1") == "1", "autoRefresh": db.meta("auto_refresh", "1") == "1",
-            "lessonWriting": db.meta("lesson_writing", "steps"), "writingStyle": db.meta("writing_style", "ste") or "ste",
-            "weeklyHours": p["weekly_hours"], "studyDays": p["study_days"], "startTime": p["start_time"]}
+            "lessonWriting": db.meta("lesson_writing", "steps"), "writingStyle": db.meta("writing_style", "ste") or "ste"}
 
 
 def card_proposals(db: DB, concept_ids: list[str]) -> list[dict]:

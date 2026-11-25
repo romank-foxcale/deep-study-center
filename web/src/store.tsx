@@ -2,7 +2,7 @@
 // /api/action and return the next snapshot. While agent jobs run, the snapshot is polled.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Angle, BookView, ReasoningEntry, FormulaTreeView, TodayView, FeedbackKind, IdeaDetail, FeedbackRef, GraphView, LessonDiff, LessonPlanView, LessonView, Plan, PracticeTargets, PracticeView, RunResult, SearchHit, SessionView, SourceDoc, State, Verdict } from './types'
+import type { Angle, BookView, ReasoningEntry, FormulaTreeView, TodayView, FeedbackKind, IdeaDetail, FeedbackRef, GraphView, LessonDiff, LessonPlanView, LessonView, PracticeTargets, PracticeView, RunResult, SearchHit, SessionView, SourceDoc, State, Verdict } from './types'
 
 export type Action =
   | { type: 'answer'; conceptId: string; checkId: string; angle?: Angle; choice?: number; correct?: boolean; thinking?: string; confidence?: number | null }
@@ -21,7 +21,6 @@ export type Action =
   | { type: 'addNote'; conceptId: string; text: string; quote?: string }
   | { type: 'deleteNote'; id: number }
   | { type: 'chat'; conceptId: string; text: string; sectionHeading?: string }
-  | { type: 'decideDiff'; id: number; approve: boolean }
   | { type: 'researchModule'; moduleId: string }
   | { type: 'createGoal'; answers: { q: string; a: string }[]; layout: 'ohtani' | 'list'; sourceIds?: string[]; kind?: 'goal' | 'book' }
   | { type: 'linkSource'; sourceId: string; goalId?: string; on: boolean }
@@ -46,6 +45,7 @@ export type Action =
   | { type: 'sessionKnown'; sessionId: string; ideaKey: string; known: boolean }
   | { type: 'sessionTeach'; sessionId: string }
   | { type: 'sessionAssessNow'; sessionId: string }
+  | { type: 'sessionChoose'; sessionId: string; ideaKey: string }
   | { type: 'sessionRetry'; sessionId: string }
   | { type: 'deleteSession'; sessionId: string }
   | { type: 'sessionLearnAgain'; sessionId: string }
@@ -84,12 +84,6 @@ export type Action =
   | { type: 'setDictation'; mode?: 'browser' | 'local'; model?: string }
   | { type: 'downloadDictationModel'; model: string }
   | { type: 'removeDictationModel'; model: string }
-  | { type: 'startProbe' }
-  | { type: 'probeAnswer'; itemId: number; choice: number | null; thinking?: string; confidence?: number | null }
-  | { type: 'probeAssessNow' }
-  | { type: 'applyProbe' }
-  | { type: 'resetProbe' }
-  | { type: 'dismissProbe' }
   | { type: 'reflect' }
   | { type: 'decideProposal'; reflectionId: number; index: number; accept: boolean }
   | { type: 'setSetting'; key: 'autoResearch' | 'autoRefresh'; value: boolean }
@@ -97,7 +91,6 @@ export type Action =
   | { type: 'setSetting'; key: 'writingStyle'; value: 'ste' | 'plain' }
   | { type: 'refreshCard'; conceptId: string }
   | { type: 'decideCardProposal'; id: number; approve: boolean }
-  | { type: 'setPlanSettings'; weeklyHours?: number; studyDays?: number[]; startTime?: string; goalId?: string; hours?: number }
   | { type: 'setupRunner' }
   | { type: 'undoAnswer'; conceptId: string; itemId: string }
   | { type: 'loadDemo' }
@@ -176,7 +169,6 @@ export const getToday = () => api<TodayView>('/api/today')
 export const getReasoning = () => api<ReasoningEntry[]>('/api/reasoning')
 export const getFormulaTree = () => api<FormulaTreeView>('/api/formulas')
 export const getIdea = (id: string) => api<IdeaDetail>(`/api/graph/node/${encodeURIComponent(id)}`)
-export const getPlan = () => api<Plan>('/api/plan')
 export const searchAll = (q: string) => api<SearchHit[]>(`/api/search?q=${encodeURIComponent(q)}`)
 export const runLocal = (body: { conceptId: string; itemId: string; code: string; angle?: Angle; approve?: boolean }) =>
   api<RunResult>('/api/run', { method: 'POST', body: JSON.stringify(body) })

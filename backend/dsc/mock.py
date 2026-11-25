@@ -423,7 +423,7 @@ def _sessions(db: DB, by_title: dict[str, str]) -> None:
 
     softmax, attn = by_title["Softmax"], by_title["Scaled dot-product attention"]
     mcq = lambda q, opts, ans, why: {"prompt": q, "options": opts, "explanation": why, "answer": ans}  # noqa: E731
-    # 1. a finished session: predict -> explain (formulas, idea links) -> check, for three ideas
+    # 1. a finished session: teach (a worked example, then the rule; formulas, idea links) -> check, for three ideas (SPEC §54)
     sid = start("Models", slice(0, 7))
     s = session.get(db, sid)
     plan = [i["key"] for i in s["ideas"]][:3]
@@ -453,25 +453,27 @@ def _sessions(db: DB, by_title: dict[str, str]) -> None:
     ts = now()
     for n, (pred, body, check) in enumerate(steps):
         key = plan[n]
-        db.x("""INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, choice, answered, correct, thinking, confidence, created_at, answered_at)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""", (sid, key, "predict", 0, 0, dumps(pred), pred["answer"] if n != 1 else 0, 1,
-                                                        int(n != 1), "I think it multiplies by each row" if n == 0 else "", 0.7, ts, ts))
         db.x("""INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, answered, created_at)
-                VALUES(?,?,?,?,?,?,1,?)""", (sid, key, "explain", 0, 1, dumps({"body": body, "kind": "explain"}), ts))
+                VALUES(?,?,?,?,?,?,1,?)""", (sid, key, "explain", 0, 1, dumps({"parts": body.split("\n\n", 1), "kind": "teach"}), ts))
         db.x("""INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, choice, answered, correct, thinking, confidence, created_at, answered_at)
                 VALUES(?,?,?,?,?,?,?,1,1,?,?,?,?)""", (sid, key, "check", 0, 2, dumps(check), check["answer"], "", 0.9, ts, ts))
     db.x("UPDATE sessions SET status='done', plan=?, current=?, summary=? WHERE id=?",
          (dumps(plan), len(plan), "You can now read a linear layer as $y = Wx + b$, turn logits into probabilities with softmax, "
           "and explain why attention scales its scores by $\\sqrt{d_k}$.", sid))
-    # 2. a session in the middle of teaching: the first idea done, an open prediction on the second
+    # 2. a session in the middle of teaching: the first idea done, an open first problem on the second (partly known)
     sid2 = start("Models", slice(7, None))
     s2 = session.get(db, sid2)
     keys = [i["key"] for i in s2["ideas"]]
     db.x("UPDATE sessions SET status='teaching', plan=?, current=1 WHERE id=?", (dumps(keys), sid2))
     db.x("""INSERT INTO session_items(session_id, idea_key, phase, round, ord, item, created_at) VALUES(?,?,?,?,?,?,?)""",
-         (sid2, keys[1], "predict", 0, 0, dumps(mcq("During decode, the model makes one new token. What must it read from memory each time?",
-                                                       ["Only the new token", "All weights and the KV cache", "Only the KV cache", "Nothing"], 1,
-                                                       "Decode is memory-bound: every step streams the weights and the cache.")), ts))
+         (sid2, keys[1], "try", 0, 0, dumps(mcq("During decode, the model makes one new token. What must it read from memory each time?",
+                                                   ["Only the new token", "All weights and the KV cache", "Only the KV cache", "Nothing"], 1,
+                                                   "Decode is memory-bound: every step streams the weights and the cache.")
+                                               | {"summary": ["Each decode step reads every weight and the whole KV cache.", "So decode speed is set by memory bandwidth, not by compute."],
+                                                  "gap": {"parts": ["One decode step for a 7B model in 16-bit reads 14 GB of weights. At 2 TB/s that takes 7 ms, whatever the compute.",
+                                                                    "So a decode step costs one full read of the weights and the cache."],
+                                                          "check": mcq("A 2B model in 16-bit on a 1 TB/s GPU. About how long does one decode step take?",
+                                                                       ["4 ms", "0.4 ms", "40 ms", "2 ms"], 0, "4 GB / 1 TB/s = 4 ms.")}}), ts))
     # 3. a session in the probe: one answered question, one open
     sid3 = start("Hardware", slice(None))
     db.x("UPDATE sessions SET status='probing' WHERE id=?", (sid3,))

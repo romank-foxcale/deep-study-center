@@ -31,6 +31,32 @@ function labelLines(title: string): string[] {
   return lines.map(l => (l.length > 20 ? l.slice(0, 19) + '…' : l))
 }
 
+/** True when two words differ by at most one letter (a spelling slip: "hoffman" finds "huffman"). */
+function oneOff(a: string, b: string): boolean {
+  if (Math.abs(a.length - b.length) > 1) return false
+  let i = 0, j = 0, d = 0
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue }
+    if (++d > 1) return false
+    if (a.length > b.length) i++
+    else if (b.length > a.length) j++
+    else { i++; j++ }
+  }
+  return d + (a.length - i) + (b.length - j) <= 1
+}
+
+/** How well a search fits a text: 2 for every word found as typed, 1 when a word matches with one wrong letter, 0 for no match. */
+function searchScore(query: string, text: string): number {
+  const t = text.toLowerCase(), words = t.split(/[^\p{L}\p{N}]+/u).filter(Boolean)
+  let exact = true
+  for (const w of query.toLowerCase().split(/\s+/).filter(Boolean)) {
+    if (t.includes(w)) continue
+    if (w.length >= 4 && words.some(x => oneOff(w, x) || (x.length > w.length && oneOff(w, x.slice(0, w.length))))) { exact = false; continue }
+    return 0
+  }
+  return exact ? 2 : 1
+}
+
 /** The knowledge map (SPEC §23): every idea you know or need, as one skill tree. Basics at the bottom. */
 export default function KnowledgeMap() {
   const { s, dispatch } = useStore()
@@ -47,6 +73,7 @@ export default function KnowledgeMap() {
   const [focus, setFocus] = useState<string>(() => asked?.focus ?? 'all')
   const [selected, setSelected] = useState<string | null>(asked?.select ?? null)
   const [query, setQuery] = useState('')
+  const [listOpen, setListOpen] = useState(false)
   const [hideNew, setHideNew] = useState(false)
   const [view, setView] = useState({ x: 0, y: 0, k: 1 })
   const box = useRef<HTMLDivElement>(null)
@@ -86,10 +113,20 @@ export default function KnowledgeMap() {
   const links = useMemo(() => (g?.links ?? []).filter(l => shownIds.has(l.src) && shownIds.has(l.dst)), [g, shownIds])
   const pos = useMemo(() => layout(shown.map(n => n.id), links,
     id => byId.get(id)?.books[0] ?? byId.get(id)?.goals[0] ?? byId.get(id)?.sessions[0] ?? ''), [shown, links, byId])
-  const matches = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return q.length < 2 ? new Set<string>() : new Set(shown.filter(n => `${n.title} ${n.statement}`.toLowerCase().includes(q)).map(n => n.id))
-  }, [query, shown])
+  // the search: the idea's title and text, then the titles of its sources (a book, a study session); one wrong letter is forgiven
+  const found = useMemo(() => {
+    const q = query.trim()
+    if (q.length < 2 || !g) return []
+    const src = new Map<string, string>([...g.books.map(b => [b.id, b.title] as [string, string]), ...g.sessions.map(x => [x.id, x.title] as [string, string])])
+    return shown.map(n => {
+      const own = searchScore(q, `${n.title} ${n.statement}`)
+      const from = own ? 0 : searchScore(q, [...n.books, ...n.sessions].map(id => src.get(id) ?? '').join(' '))
+      const titleHit = searchScore(q, n.title)
+      return { n, rank: own ? 10 + own * 2 + titleHit : from }
+    }).filter(x => x.rank > 0).sort((a, b) => b.rank - a.rank || a.n.title.localeCompare(b.n.title)).map(x => x.n)
+  }, [query, shown, g])
+  const matches = useMemo(() => new Set(found.map(n => n.id)), [found])
+  const pick = (id: string) => { setSelected(id); centerOn(id); setListOpen(false) }
 
   const fit = useCallback(() => {
     const el = box.current
@@ -158,9 +195,21 @@ export default function KnowledgeMap() {
           {g.books.length > 0 && <optgroup label="Books">{g.books.map(x => <option key={x.id} value={`book:${x.id}`}>{x.title}</option>)}</optgroup>}
           {g.sessions.length > 0 && <optgroup label="Study sessions">{g.sessions.map(x => <option key={x.id} value={`session:${x.id}`}>{x.title}</option>)}</optgroup>}
         </select>
-        <input className="input input-small km-search" type="search" placeholder="Find an idea" value={query} aria-label="Find an idea"
-          onChange={e => setQuery(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && matches.size) { const id = [...matches][0]; setSelected(id); centerOn(id) } }} />
+        <div className="km-find">
+          <input className="input input-small km-search" type="search" placeholder="Find an idea" value={query} aria-label="Find an idea"
+            onChange={e => { setQuery(e.target.value); setListOpen(true) }} onFocus={() => setListOpen(true)}
+            onBlur={() => setTimeout(() => setListOpen(false), 150)}
+            onKeyDown={e => { if (e.key === 'Enter' && found.length) pick(found[0].id); if (e.key === 'Escape') setListOpen(false) }} />
+          {listOpen && query.trim().length >= 2 && (
+            <ul className="km-results" role="listbox" aria-label="Ideas found">
+              {found.length === 0 && <li className="none">No idea matches "{query.trim()}"</li>}
+              {found.slice(0, 8).map((n, i) => (
+                <li key={n.id} role="option" aria-selected={i === 0} className={i === 0 ? 'on' : ''} onMouseDown={e => { e.preventDefault(); pick(n.id) }}>
+                  {n.title} <span className="small muted">· {CELL_LABEL[cellState(n.state)] ?? n.state}</span>
+                </li>))}
+              {found.length > 8 && <li className="none small">{found.length - 8} more are lit on the map</li>}
+            </ul>)}
+        </div>
         {focus === 'all' && <label className="small row"><input type="checkbox" checked={hideNew} onChange={e => setHideNew(e.target.checked)} /> Hide ideas not started</label>}
         <label className="small row km-view">View
           <select className="input input-small" value={mode} aria-label="Map view"
