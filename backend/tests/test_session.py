@@ -39,6 +39,9 @@ def probe_reply(call):
 
 
 def turn_reply(call):
+    if "Your task: **repairs**" in call.prompt:  # one per option; the right one is dropped
+        return {"repairs": [{"option": n, "parts": [f"Repair for option {n}: that would make the shadow a number."],
+                             "check": mcq(f"Shadow, take {n}?")} for n in range(3)]}
     if "Your task: **try**" in call.prompt:
         return {"try": mcq("Quick: which is the shadow?"), "summary": ["The projection is the shadow.", "It is a vector."],
                 "gap": {"parts": ["Shine a light: the shadow of a on b.", "So the projection is a vector."], "check": mcq("Shadow again?")}}
@@ -114,9 +117,14 @@ def test_full_session_from_topic_to_graph(env):
     assert "misconceptions: thinks the projection is a number" in teach_prompt and "Start with the projection" in teach_prompt
     assert [i["phase"] for i in v["items"] if i["idea"] == "cos"] == ["explain", "check"]  # ahead of time
     assert v["busy"] is False and v["open"] == ["proj"]
-    answer_open(db, jobs, choice=2, thinking="I think it is the length")  # wrong check -> repair
-    repair_prompt = [c.prompt for r, c in runner.calls if r == "Study tutor"][-1]
-    assert "Your task: **repair**" in repair_prompt and "I think it is the length" in repair_prompt
+    repairs_prompt = next(c.prompt for r, c in runner.calls if r == "Study tutor" and "Your task: **repairs**" in c.prompt)
+    assert "the check they are answering now: Which is the shadow?" in repairs_prompt and "0) right  (right)" in repairs_prompt
+    calls = len(runner.calls)
+    answer_open(db, jobs, choice=2, thinking="I think it is the length")  # wrong check -> the repair written ahead
+    v = view(db)
+    rep = [i for i in v["items"] if i["idea"] == "proj"][-2]
+    assert rep["phase"] == "explain" and rep["repair"] and rep["parts"][0].startswith("Repair for option 2")
+    assert not [c for r, c in runner.calls[calls:] if r == "Study tutor" and "Your task: **repair**" in c.prompt]  # no wait
     answer_open(db, jobs, choice=0)  # right
     v = view(db)
     assert v["current"] == 1 and [i["phase"] for i in v["items"] if i["idea"] == "proj"] == ["explain", "check", "explain", "check"]
@@ -279,7 +287,8 @@ def test_a_partly_known_idea_starts_with_one_problem(env):
     assert [i["phase"] for i in v["items"] if i["idea"] == second] == ["try", "explain", "check"]
     gap = next(i for i in v["items"] if i["idea"] == second and i["phase"] == "explain")
     assert gap["kind"] == "gap" and gap["parts"][0].startswith("Shine a light")
-    assert not [c for r, c in runner.calls[calls:] if r == "Study tutor" and "Your task: **" in c.prompt and second in c.prompt]
+    assert not [c for r, c in runner.calls[calls:] if r == "Study tutor" and "Your task: **" in c.prompt and second in c.prompt
+                and "Your task: **repairs**" not in c.prompt]
     answer_open(db, jobs, choice=0)
     assert view(db)["current"] == 2
     tries = db.q("SELECT score FROM evidence WHERE item_id LIKE ? ORDER BY id", (f"{sid}-%",))
@@ -327,3 +336,54 @@ def test_the_next_probe_question_is_made_ahead(env):
     assert opened["prompt"] == right_q and opened["round"] == 2 and v["busy"] is False
     assert n["q"] == before + 2  # no wait: only the next two questions are made ahead
     assert all(i["phase"] != "probe_ahead" for i in v["items"])
+
+
+def test_i_dont_know_on_a_check_gets_a_repair_written_now(env):
+    """No repair written ahead fits "I don't know": one is written from their words (SPEC §54)."""
+    db, jobs, runner = env
+    _teaching(db, jobs, runner, {"vec": "known", "proj": None, "len": "known", "cos": None})
+    answer_open(db, jobs, choice=None, thinking="no idea what a shadow is")
+    last = [c.prompt for r, c in runner.calls if r == "Study tutor"][-1]
+    assert "Your task: **repair**" in last and "no idea what a shadow is" in last
+    v = view(db)
+    assert [i["phase"] for i in v["items"] if i["idea"] == "proj"] == ["explain", "check", "explain", "check"]
+    assert v["busy"] is False
+
+
+def test_a_miss_before_the_repairs_are_ready_waits_for_them(env):
+    """The learner misses the check while its repairs are still being written: the repair opens when they are ready."""
+    db, jobs, runner = env
+    sid = _teaching(db, jobs, runner, {"vec": "known", "proj": None, "len": "known", "cos": None})
+    check = next(i for i in view(db)["items"] if i["idea"] == "proj" and i["phase"] == "check")
+    row = db.one("SELECT item FROM session_items WHERE id=?", (check["id"],))
+    item = session.loads(row["item"])
+    del item["repairs"]  # as if the repairs job were still running
+    db.x("UPDATE session_items SET item=? WHERE id=?", (session.dumps(item), check["id"]))
+    jid = db.x("INSERT INTO jobs(kind, label, input, status, created_at, updated_at) VALUES('session_turn', 'r', ?, 'running', '', '')",
+               (json.dumps({"session_id": sid, "kind": "repairs", "idea": "proj", "check": check["id"], "ahead": True}),))
+    assert view(db)["busy"] is False  # a repairs job does not block the open check
+    answer_open(db, jobs, choice=1)
+    v = view(db)
+    assert [i["phase"] for i in v["items"] if i["idea"] == "proj"] == ["explain", "check"] and v["busy"] is True
+    db.x("UPDATE jobs SET status='done' WHERE id=?", (jid,))
+    session.run_turn(jobs, jid, {"session_id": sid, "kind": "repairs", "idea": "proj", "check": check["id"], "ahead": True})
+    v = view(db)
+    rep = [i for i in v["items"] if i["idea"] == "proj"][-2]
+    assert rep["repair"] and rep["parts"][0].startswith("Repair for option 1") and v["busy"] is False
+
+
+def test_teaching_starts_while_a_placement_question_is_still_made_ahead(env):
+    """"Show my plan now", then "Start" at once: a question still made ahead must not hold up the first teaching."""
+    db, jobs, runner = env
+    setup(runner)
+    act(db, jobs, type="startSession", topic="cosine similarity")
+    sid = view(db)["id"]
+    db.x("INSERT INTO jobs(kind, label, input, status, created_at, updated_at) VALUES('session_probe', 'q', ?, 'running', '', '')",
+         (json.dumps({"session_id": sid, "ahead": {"item": 1, "correct": True}}),))
+    act(db, jobs, type="sessionAssessNow", sessionId=sid)
+    v = view(db)
+    if v["status"] != "planning":
+        session._save(db, sid, status="planning", ideas=session.get(db, sid)["ideas"], plan=v["plan"])
+    act(db, jobs, type="sessionTeach", sessionId=sid)
+    v = view(db)
+    assert any(i["idea"] == v["plan"][0] and not i.get("answered", True) for i in v["items"]) and v["error"] is None

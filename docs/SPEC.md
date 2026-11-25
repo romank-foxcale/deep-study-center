@@ -1426,3 +1426,20 @@ sequencing (learn an idea once its needed ideas are done). LearnHarness asks a p
 - Measured on a real run ("teach me Hoffman algorithm", 2026-11-25): the next placement question in about 0.4 s (was
   one model call, about 10 s); the next idea in about 0.5 s after a right answer when it was written ahead; the missed
   part in 0.4 s. A repair is still written live (about 16 s), because it is written from the actual mistake.
+
+### 54.1 Repairs written ahead (2026-11-25)
+
+- **Why:** after a wrong check the learner waited about 16 s for the repair.
+- **What:** when a first check is shown (the check of `teach`, or of a `gap`), one `session_turn` job of kind
+  `repairs` (with `ahead` and `check`) writes one repair per wrong option: the wrong idea that option shows, followed
+  until it breaks, then a worked example from another angle, and a new check. They are kept on the check row
+  (`item.repairs`, by option number) and never sent to the page.
+- A miss on that check opens the repair for the chosen option at once (`_open_repair`, under the DB lock, so the API
+  thread and the job open it only once). If the miss comes before the repairs are ready, the page waits for them
+  (the job counts as busy only then). "I don't know", or no repair for that option, or a failed job: the repair is
+  written live from the learner's words (`_after_repairs`), as before.
+- A repair written ahead does not see the learner's thinking (the reasoning review still reads it). A repair's own
+  check gets no repairs: after a second miss the session moves on.
+- Teaching no longer waits for placement questions made ahead that are not needed (after "Show my plan now").
+- Measured on a real run ("teach me the softmax function"): the repairs job takes about 26 s after the teaching shows;
+  a miss after 30 s of reading got its repair in 2.1 s (was about 16 s).

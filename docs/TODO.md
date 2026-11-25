@@ -495,7 +495,7 @@ their old tables and rows; nothing reads them.
   migrated; then remove `createGoal`/`outline` and move the tests off the demo goal.
 
 ### H5. Study sessions after flow B (§54)
-- A repair after a wrong check is written live (about 16 s). Option: write it ahead for the most likely wrong option.
+- Done (§54.1): repairs are written ahead, one per wrong option. Still live: "I don't know" (about 16 s).
 - The sketch often makes a single chain of ideas; ask it for parallel ideas where they exist, so "pick the next open
   idea" has something to offer.
 - Book parts use the same session flow; check one real book part with flow B.
