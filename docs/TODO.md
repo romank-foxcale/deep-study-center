@@ -1,9 +1,10 @@
-# TODO: the knowledge-graph rework and open items
+# TODO: open items, and the history of the big reworks
 
 This file lists all work that is not done yet, so that any session can pick up a task. Each task tells you:
 why we need it, what to build, how to build it, how to check it, and when it is done.
 
-Written 2026-11-20. Steps 1 and 2 of the rework are done (PR #13 merged, PR #15 open). Read "Before you start" first.
+Written 2026-11-20; updated 2026-11-25 after release 0.6.0. The open work is in **H** at the end. Sections A-G are
+the history of finished work (kept so the reasons stay findable). Read "Before you start" first.
 
 ---
 
@@ -25,7 +26,7 @@ adaptive practice with hints.
 - Servers: `.claude/launch.json` has `web` (Vite, port 5173) and `api` (`python -m dsc.cli serve`, port 8000).
   Start them with the preview tools, not with Bash. Restart `api` after backend changes (no auto-reload).
   Never commit `.claude/launch.json` (local change).
-- Backend tests: `cd backend && .venv/Scripts/python.exe -m pytest -q` (all must pass; about 150 tests).
+- Backend tests: `cd backend && .venv/Scripts/python.exe -m pytest -q` (all must pass; about 240 tests).
 - Frontend checks: `cd web && npx tsc -b && npx eslint src` (0 errors; the "Fast refresh" warnings are old and OK).
 - Tests use `FakeRunner` (`backend/tests/conftest.py`): `runner.responses[<route role>]` is a value or a function of
   the call. The demo goal (`g-ai`, modules `m-la`, `m-calc`, …, concept `c-vectors`) is seeded in each test.
@@ -33,8 +34,9 @@ adaptive practice with hints.
 **How the code is built (short).**
 - `backend/dsc/`: `db.py` (schema + `MIGRATIONS` list for new columns), `actions.py` (every UI action, registered
   in `ACTIONS`), `jobs.py` (background agent jobs, `HANDLERS` = kind → (run, fallback)), `state.py` (`snapshot()` is
-  everything the UI gets), `engine.py` (BKT mastery, FSRS reviews, angles), `progress.py` (evidence, research ahead),
-  `writer.py` (lesson writing: plan, assets, prose, review), `probe.py`, `sources.py`, `books.py`, `ohtani.py`.
+  everything the UI gets), `engine.py` (BKT mastery and angles; no schedule since §48), `progress.py` (evidence,
+  research ahead), `writer.py` (lesson writing: plan, assets, prose, review), `sources.py`, `links.py`, `bookstudy.py`,
+  `graph.py` (the map), `cells.py` (one lesson per idea), `gaps.py`, `map_goals.py`, `formula_flow.py`.
 - Prompts: `backend/dsc/prompts/*.md`, filled by `jobs.prompt(name, **fields)` with plain `{field}` replacement.
   `{rules}` and `{widgets}` are filled automatically.
 - Agent calls: `jobs.call(jid, "<route role>", Call(prompt=..., schema=..., model=..., tools=...))`. Routes (which
@@ -42,7 +44,8 @@ adaptive practice with hints.
   `cursor` CLIs on the user's subscriptions.
 - Frontend: `web/src/` (React 19, react-router HashRouter, react-markdown + KaTeX). `store.tsx` has the `Action`
   union and `dispatch`. Shared input for answers: `components/ThinkingInput.tsx`.
-- The spec is `docs/SPEC.md` (one section per feature, newest is §20). Add a section for each new feature.
+- The spec is `docs/SPEC.md` (one section per feature, newest is §53). Add a section for each new feature.
+- UI ideas are tried as mocks first (`web/public/_mocks/*.html`, never committed); the user picks one, then it is built.
 
 **Rules for working with this user.**
 - Write to the user in ASD-STE100 Simplified Technical English (about 80 % strict): short sentences, active voice,
@@ -446,10 +449,60 @@ Open, later:
 - Re-think Practice (on hold) and goals (on hold).
 - Check "Re-plan lessons" on a real book with the real model (it maps every chapter again: about 10 minutes).
 
-## Suggested order
+## F. The lessons rework (2026-11-23 to 11-24; ideas from LearnHarness, AGPL: ideas only)
 
-1. A1 (merge and test the probe), A3 (sources on the goal page), A2 (dictation check).
-2. B3 (graph data model): the base for everything else.
-3. B4 (teach me X), then B5 (skill tree), then B6 (recall practice).
-   B7 (a sharper probe) after B6.
-4. C1–C3 (desktop and open source), with A4 items whenever there is time.
+### F1-F4. ✅ DONE (PRs #40-#43, release 0.5.0, SPEC §42-§45)
+A lesson is planned before it is written (a plan graph with feedback), taught one step at a time (predict, step,
+check, repair), practised by what the learner picks (hint ladder, retests), and a step with no fitting widget gets
+a generated demo (sandboxed, operated hidden before it shows).
+
+## G. The one-map redesign (2026-11-24 to 11-25, release 0.6.0)
+
+The user's decisions: one cell per idea whatever its sources; no book countries; no schedule ("we study and mark the
+progress"); gaps where an idea is missing; goals as a direction on the map. Mocks were chosen first (hex cells, A;
+goals, C; the formula flow, A).
+
+### G1-G8. ✅ DONE (PRs #45-#55, SPEC §46-§53)
+Lesson steps as ideas (§46); teach from a link (§47); no schedule (§48); one lesson per idea with many sources (§49);
+the hex map (§50); gaps (§51); the formula flow on formula pages, no formula widget in normal lessons (§52); goals on
+the map, and the old goal pages removed (§53).
+
+### G9. ✅ DONE (2026-11-25, branch `claude/cleanup`): dead code removed
+The week planner (`planner.py`, `/api/plan`, `.ics`), the placement probe (`probe.py`; the study-session probe stays),
+the Ohtani table (`ohtani.py`), the `dsc roadmap` package, the roadmap review after feedback and its roadmap changes,
+the map's countries (`_clusters`, the Formulas country), and the review tables in new workspaces. Old workspaces keep
+their old tables and rows; nothing reads them.
+
+## H. Open items (2026-11-25)
+
+### H1. Video captions: add `youtube-transcript-api`
+- **Why:** "Teach me this" on a YouTube link needs the captions; the code is ready (`links.transcript`), the package is
+  not installed, so a video shows "needs the package". Waiting for the user's yes (a new dependency in the installer).
+- **What:** add it to `backend/pyproject.toml`, install it in `backend/.venv`, read one real video on a copy of the
+  workspace, build the installer (PyInstaller picks it up).
+- **Done when:** a real video becomes a book of lessons, and its citations open the video at the right time.
+
+### H2. Practice toward a goal
+- **Why:** practice should follow the direction the learner set (§53).
+- **What:** in Practice, a choice "toward my goal": the goal's next moves and its high-score cells the learner has
+  started; problems on them.
+
+### H3. The rest of the old goal backend
+- **Why:** goals, tracks and modules are still the backbone of book lessons (a book has a hidden goal), so only the
+  parts with no screen were removed in G9. Still unused: `createGoal` and the `outline` job (no page creates a goal),
+  research-ahead for roadmap goals, goal profiles. The demo seed and many tests use the demo goal `g-ai`.
+- **What:** decide with the user whether old roadmap goals stay (their lessons still open from the map) or are
+  migrated; then remove `createGoal`/`outline` and move the tests off the demo goal.
+
+### H5. Study sessions after flow B (§54)
+- A repair after a wrong check is written live (about 16 s). Option: write it ahead for the most likely wrong option.
+- The sketch often makes a single chain of ideas; ask it for parallel ideas where they exist, so "pick the next open
+  idea" has something to offer.
+- Book parts use the same session flow; check one real book part with flow B.
+
+### H4. Small fixes
+- The book page logs an HTML nesting warning (`<p>` inside `<p>`/`<div>` from inline Markdown in the "next lesson"
+  card).
+- Lessons from web pages and videos say "pp." for their parts; say "part" (web) or the time (video).
+- The hex map keeps most linked ideas side by side, but an idea with many links cannot touch all of them.
+- Check a real auto-update from an installed 0.5.0 to 0.6.0.

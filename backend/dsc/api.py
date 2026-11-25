@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from fastapi.responses import Response
 
-from . import actions, backup, bookstudy, cells, dictation, formula_fields, lesson_graph, links, today, graph, lesson, library, planner, practice, progress, providers, runner, session, sources, state, versions
+from . import actions, backup, bookstudy, cells, dictation, formula_fields, lesson_graph, links, today, graph, lesson, library, practice, progress, providers, runner, session, sources, state, versions
 from .db import DB, workspace
 from .jobs import Jobs
 from .seed import ensure_routes, init_empty
@@ -175,15 +175,6 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
         db.x("""INSERT INTO activity VALUES(?,?,?) ON CONFLICT(day, concept_id) DO UPDATE SET seconds = seconds + excluded.seconds""",
              (day, cid, secs))
         return {"ok": True}
-
-    @app.get("/api/plan")
-    def get_plan() -> dict:
-        return planner.plan_week(db)
-
-    @app.get("/api/plan.ics")
-    def get_plan_ics() -> Response:
-        return Response(planner.to_ics(planner.plan_week(db)), media_type="text/calendar",
-                        headers={"Content-Disposition": 'attachment; filename="study-plan.ics"'})
 
     @app.get("/api/search")
     def search(q: str = "") -> list[dict]:

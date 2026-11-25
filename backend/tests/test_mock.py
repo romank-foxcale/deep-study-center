@@ -20,31 +20,18 @@ def test_the_mock_has_every_state_books_sessions_and_lessons(mocked):
     v = graph.view(db)
     states = Counter(n["state"] for n in v["nodes"])
     assert {"learned", "learning", "ready", "locked"} <= set(states) and not {"mastered", "rusty"} & set(states)
-    kinds = Counter(c["kind"] for c in v["clusters"])
-    assert kinds["book"] == 4 and kinds["goal"] == 1
-    shared = [n for n in v["nodes"] if n["also"]]
+    assert "clusters" not in v and len(v["books"]) == 4  # no countries (SPEC §50)
+    shared = [n for n in v["nodes"] if len(n["books"]) > 1]
     assert {n["title"] for n in shared} >= {"KV cache", "Softmax", "Quantization"}
-    assert all(n["cluster"] not in n["also"] for n in v["nodes"])  # its own cluster is never in "also"
     statuses = {s["status"] for s in db.q("SELECT status FROM sessions")}
     assert statuses == {"done", "teaching", "probing"}
     done = db.one("SELECT id FROM sessions WHERE status='done'")["id"]
-    bodies = [i["body"] for i in session.view(db, done)["items"] if i["phase"] == "explain"]
+    bodies = [" ".join(i["parts"]) for i in session.view(db, done)["items"] if i["phase"] == "explain"]
     assert any("$$" in b for b in bodies) and any("#idea/" in b for b in bodies)
     dot = lesson.view(db, "c-dot")
     assert any(sec.get("viz") for sec in dot["card"]["sections"])
-    assert db.one("SELECT COUNT(*) AS n FROM node_reviews")["n"] == 0  # no schedule (SPEC §48)
+    assert not db.one("SELECT 1 FROM sqlite_master WHERE name='node_reviews'")  # no schedule (SPEC §48)
     assert (folder / "MOCK").exists() and db.meta("map_view") == "hex"
-
-
-def test_clusters_give_chapters_and_reading_order(mocked):
-    _, db = mocked
-    v = graph.view(db)
-    ie = [n for n in v["nodes"] if n["cluster"] == "book:b-mock0"]
-    assert ie and {n["chapterTitle"] for n in ie} >= {"Models", "Hardware"}
-    orders = sorted(n["order"] for n in ie)
-    assert orders[0] == 0.0 and orders[-1] == 1.0
-    first = min(ie, key=lambda n: n["order"])
-    assert first["chapterTitle"] == "Inference"
 
 
 def test_the_mock_never_writes_into_a_real_workspace(tmp_path):

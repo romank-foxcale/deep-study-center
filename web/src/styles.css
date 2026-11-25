@@ -580,6 +580,13 @@ pre.code-output.bad { color: #f48771; }
 .km-title { font-size: 1.3rem; margin: 0 8px 0 0; }
 .km-bar select { max-width: 320px; }
 .km-search { width: 180px; }
+.km-find { position: relative; }
+.km-results { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; width: 320px; max-width: 80vw; margin: 0; padding: 4px;
+  list-style: none; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px #0008; }
+.km-results li { padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.km-results li:hover, .km-results li.on { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.km-results .none { cursor: default; color: var(--muted); }
+.km-results .none:hover { background: none; }
 .km-zoom { display: flex; gap: 4px; }
 .km-legend { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
 .km-legend-item { display: inline-flex; align-items: center; gap: 5px; }
@@ -1215,7 +1222,7 @@ a.shelf-card:hover { text-decoration: none; border-color: var(--border-2); }
 .hm-unexplored { fill: var(--cell-unexplored); stroke: var(--cell-unexplored-edge); }
 .hm-dim { opacity: .35; }
 .hm-selected { stroke: var(--text); stroke-width: 2.4; }
-.hm-match { stroke: var(--accent); stroke-width: 2.4; }
+.hm-match { stroke: var(--warn); stroke-width: 3.5; filter: brightness(1.3); }
 .hm-link { stroke: var(--text); stroke-opacity: .45; stroke-width: 1.2; pointer-events: none; }
 .hm-name { font: 9px system-ui, sans-serif; fill: var(--text); text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; }
 .hm-zoom { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
@@ -1292,3 +1299,51 @@ a.shelf-card:hover { text-decoration: none; border-color: var(--border-2); }
 .hm-next { display: block; width: 100%; text-align: left; background: var(--surface-2); color: var(--text); border: 1px solid var(--border-2);
            border-radius: 10px; padding: 6px 10px; margin: 6px 0; cursor: pointer; font: inherit; }
 .hm-add-goal .input { width: 320px; max-width: 60vw; }
+
+/* Study sessions, flow B (SPEC §54): placement progress, the plan graph, teaching in parts, open ideas. */
+.study-grid { grid-template-columns: minmax(0, 1fr) 320px; }
+@media (max-width: 900px) { .study-grid { grid-template-columns: 1fr; } .study-plan { position: static; } }
+.study-probe { display: flex; flex-direction: column; gap: 8px; max-width: 760px; }
+.study-bar { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.study-bar i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.study-plan-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start; margin: 10px 0 14px; }
+@media (max-width: 900px) { .study-plan-grid { grid-template-columns: 1fr; } }
+.study-plan-side h3 { margin: 8px 0 4px; }
+.study-plan-side h3 .md-inline { display: inline; }
+.study-toggle { display: flex; gap: 6px; margin-top: 10px; }
+.study-toggle .btn { flex: 1; }
+.sp-canvas { overflow: auto; padding: 8px 2px; max-height: 70vh; }
+.sp-small { max-height: none; overflow: hidden; margin-top: 8px; }
+.sp-world { position: relative; margin: 0 auto; }
+.sp-node { position: absolute; box-sizing: border-box; padding: 6px 9px; border-radius: 10px; background: var(--surface); border: 1.5px solid var(--border-2);
+  display: flex; flex-direction: column; justify-content: center; gap: 2px; cursor: default; }
+.sp-node[role="button"] { cursor: pointer; }
+.sp-node[role="button"]:hover { box-shadow: 0 0 0 2px var(--border-2); }
+.sp-node.selected { box-shadow: 0 0 0 2px var(--text); }
+.sp-title { font-weight: 600; font-size: 13px; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.sp-title .md-inline { display: inline; }
+.sp-note { font-size: 11px; color: var(--muted); }
+.sp-new { border-color: var(--st-learning); } .sp-partial { border-color: var(--warn); } .sp-known { border-color: var(--st-learned); }
+.sp-goal { background: color-mix(in srgb, var(--st-mastered) 10%, var(--surface)); }
+.sp-skip { border-style: dashed; opacity: .55; }
+.sp-done { background: var(--ok-soft); border-color: var(--st-learned); }
+.sp-now { box-shadow: 0 0 0 2px var(--accent), 0 0 14px color-mix(in srgb, var(--accent) 50%, transparent); }
+.sp-open { box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 35%, transparent); }
+.lp-swatch.sp-new { border-color: var(--st-learning); } .lp-swatch.sp-partial { border-color: var(--warn); }
+.lp-swatch.sp-known { border-color: var(--st-learned); border-style: dashed; }
+.sp-pill-new { color: var(--st-learning); } .sp-pill-partial { color: var(--warn); } .sp-pill-known { color: var(--st-learned); }
+.study-idea-now { max-width: 760px; }
+.study-parts .study-part { margin-bottom: 10px; font-size: 1.02rem; }
+.study-part-foot { margin-top: 4px; }
+.study-dots { display: flex; gap: 5px; }
+.study-dots i { width: 22px; height: 5px; border-radius: 3px; background: var(--surface-2); }
+.study-dots i.on { background: var(--accent); }
+.study-summary ul { margin: 4px 0 0; padding-left: 18px; }
+.study-summary .md-inline { display: inline; }
+.study-done-ideas { margin-bottom: 14px; }
+.study-done-ideas > summary { cursor: pointer; color: var(--muted); }
+.study-open { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 4px; }
+.study-open-idea { text-align: left; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 7px 10px; cursor: pointer; font: inherit; }
+.study-open-idea:hover { border-color: var(--accent); }
+.study-open-idea.on { border-color: var(--accent); cursor: default; }
+.study-open-idea .md-inline { display: inline; }

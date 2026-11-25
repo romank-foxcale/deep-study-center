@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from . import bookstudy, dictation, engine, guidelines, lesson, practice, probe, progress, reasoning, remedial, session, sources, state, versions, writer
+from . import bookstudy, dictation, engine, guidelines, lesson, practice, progress, reasoning, remedial, session, sources, state, versions, writer
 from . import feedback as fb
 from .db import DB, dumps, loads, now
 from .jobs import Jobs
@@ -169,9 +169,6 @@ def feedback(db: DB, jobs: Jobs, a: dict) -> None:
     pb0 = state.playbook(db)
     signal_ids, effects = fb.add_signals(db, tags, text, angle, kind)
     done_note = None
-    if "confused" in tags:
-        jobs.enqueue("roadmap_review", "Review roadmap after feedback", {"concept_id": cid, "tags": [TAG_LABELS[t] for t in tags], "text": text})
-        effects.append("Roadmap: reviewing whether something is missing; a proposed change will appear on the roadmap")
 
     # A framing that missed here is replaced here at once, whatever the global ranking says.
     r = state.rendition_row(db, cid)
@@ -387,45 +384,6 @@ def chat(db: DB, jobs: Jobs, a: dict) -> None:
     jobs.enqueue("tutor", "Tutor reply", {"concept_id": a["conceptId"], "section": a.get("sectionHeading")})
 
 
-# ---------------------------------------------------------------- roadmap
-
-def decide_diff(db: DB, jobs: Jobs, a: dict) -> None:
-    d = db.one("SELECT * FROM diffs WHERE id=?", (a["id"],))
-    if not d or d["status"] != "pending":
-        raise ActionError("no pending change with that id")
-    db.x("UPDATE diffs SET status=? WHERE id=?", ("approved" if a["approve"] else "rejected", d["id"]))
-    if not a["approve"]:
-        return
-    from .db import loads
-    for ch in loads(d["changes"]):
-        if ch["op"] == "insert" and ch.get("anchor"):
-            _insert_concept(db, jobs, ch)
-        elif ch["op"] == "compress" and ch.get("module"):
-            db.x("UPDATE modules SET known=1 WHERE id=?", (ch["module"],))
-    progress.research_ahead(db, jobs)
-
-
-def _insert_concept(db: DB, jobs: Jobs, ch: dict) -> None:
-    """Insert the proposed concept next to its anchor and research its card in the background."""
-    anchor = db.one("SELECT * FROM concepts WHERE id=?", (ch["anchor"],))
-    if not anchor:
-        return
-    after = "(after" in ch["title"]
-    title = re.sub(r"\s*\((before|after) [^)]*\)\s*$", "", ch["title"]).strip()
-    cid = f'{anchor["module_id"]}-ins-{re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:30]}'
-    if db.one("SELECT 1 FROM concepts WHERE id=?", (cid,)):
-        return
-    pos = anchor["ord"] + (1 if after else 0)
-    with db.tx():
-        db.conn.execute("UPDATE concepts SET ord = ord + 1 WHERE module_id=? AND ord >= ?", (anchor["module_id"], pos))
-        db.conn.execute("INSERT INTO concepts VALUES(?,?,?,?,?,?,?,?,0)",
-                        (cid, anchor["module_id"], pos, title, ch["detail"], 10, dumps([]), 0.3))
-    prev = db.one("SELECT research FROM modules WHERE id=?", (anchor["module_id"],))["research"]
-    jobs.enqueue("research_module", f"Research {title}",
-                 {"module_id": anchor["module_id"], "prev_research": prev,
-                  "concept": {"id": cid, "title": title, "detail": ch["detail"]}})
-
-
 def research_module(db: DB, jobs: Jobs, a: dict) -> None:
     if not jobs.active("research_module", module_id=a["moduleId"]):
         db.x("UPDATE modules SET research='researching' WHERE id=?", (a["moduleId"],))
@@ -435,12 +393,12 @@ def research_module(db: DB, jobs: Jobs, a: dict) -> None:
 
 def create_goal(db: DB, jobs: Jobs, a: dict) -> None:
     answers = [{"q": str(x.get("q", "")), "a": str(x.get("a", ""))} for x in (a.get("answers") or [])]
-    layout = "list" if a.get("layout") == "list" else "ohtani"
+    layout = "list"  # the Ohtani table was removed with the old goal pages
     if not answers or not answers[0]["a"].strip():
         raise ActionError("the goal is required")
     known = {r["id"] for r in db.q("SELECT id FROM sources")}
     ids = [s for s in (a.get("sourceIds") or []) if s in known]
-    jobs.enqueue("outline", "Build Ohtani table" if layout == "ohtani" else "Build roadmap",
+    jobs.enqueue("outline", "Build roadmap",
                  {"answers": answers, "layout": layout, "source_ids": ids})
 
 
@@ -524,6 +482,11 @@ def session_known(db: DB, jobs: Jobs, a: dict) -> None:
 @_session
 def session_teach(db: DB, jobs: Jobs, a: dict) -> None:
     session.start_teaching(db, jobs, a["sessionId"])
+
+
+@_session
+def session_choose(db: DB, jobs: Jobs, a: dict) -> None:
+    session.choose(db, jobs, a["sessionId"], str(a.get("ideaKey") or ""))
 
 
 @_session
@@ -828,42 +791,6 @@ def practice_stop(db: DB, jobs: Jobs, a: dict) -> None:
     practice.stop(db, a["practiceId"])
 
 
-# ---------------------------------------------------------------- the probe (where you stand)
-
-def start_probe(db: DB, jobs: Jobs, a: dict) -> None:
-    probe.start(db, jobs, state.active_goal(db))
-
-
-def probe_answer(db: DB, jobs: Jobs, a: dict) -> None:
-    """One probe answer; choice None means "I don't know" (never counted as a guess)."""
-    thinking, conf = progress.reasoning(a)
-    try:
-        probe.answer(db, jobs, state.active_goal(db), int(a["itemId"]), a.get("choice"), thinking, conf)
-    except ValueError as e:
-        raise ActionError(str(e)) from e
-
-
-def probe_assess_now(db: DB, jobs: Jobs, a: dict) -> None:
-    probe.assess_now(db, jobs, state.active_goal(db))
-
-
-def apply_probe(db: DB, jobs: Jobs, a: dict) -> None:
-    """Use the assessment: known steps become a roadmap proposal; the edge goes into the goal profile."""
-    probe.apply(db, state.active_goal(db))
-
-
-def reset_probe(db: DB, jobs: Jobs, a: dict) -> None:
-    """Retake: clear this goal's probe (steps already marked known stay known) and start again."""
-    gid = state.active_goal(db)
-    probe.reset(db, gid)
-    db.set_meta(f"probe_dismissed:{gid}", "0")
-    probe.start(db, jobs, gid)
-
-
-def dismiss_probe(db: DB, jobs: Jobs, a: dict) -> None:
-    db.set_meta(f"probe_dismissed:{state.active_goal(db)}", "1")
-
-
 # ---------------------------------------------------------------- reflection
 
 def reflect(db: DB, jobs: Jobs, a: dict) -> None:
@@ -1018,28 +945,6 @@ def decide_card_proposal(db: DB, jobs: Jobs, a: dict) -> None:
     jobs.enqueue("fact_check", "Fact-check updated card", {"concept_ids": [p["concept_id"]]})
 
 
-def set_plan_settings(db: DB, jobs: Jobs, a: dict) -> None:
-    if "weeklyHours" in a:
-        h = float(a["weeklyHours"])
-        if not 0.5 <= h <= 80:
-            raise ActionError("weekly hours must be between 0.5 and 80")
-        db.set_meta("plan_weekly_hours", str(h))
-    if "studyDays" in a:
-        days = sorted({int(d) for d in a["studyDays"] if 0 <= int(d) <= 6})
-        if not days:
-            raise ActionError("pick at least one study day")
-        db.set_meta("plan_study_days", ",".join(map(str, days)))
-    if "startTime" in a:
-        if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", a["startTime"]):
-            raise ActionError("start time must look like 19:00")
-        db.set_meta("plan_start_time", a["startTime"])
-    if "hours" in a and "goalId" in a:
-        h = float(a["hours"])
-        if not 0.5 <= h <= 80:
-            raise ActionError("hours must be between 0.5 and 80")
-        db.x("UPDATE goals SET hours=? WHERE id=?", (h, a["goalId"]))
-
-
 def undo_answer(db: DB, jobs: Jobs, a: dict) -> None:
     """Undo the latest answer to an item (mis-click, or a grade you disagree with): void its evidence,
     so the item can be answered again. Mastery is recomputed from what remains."""
@@ -1091,22 +996,20 @@ def reset(db: DB, jobs: Jobs, a: dict) -> None:
 
 ACTIONS = {
     "answer": answer, "explain": explain,
-    "startProbe": start_probe, "probeAnswer": probe_answer, "probeAssessNow": probe_assess_now, "applyProbe": apply_probe,
-    "resetProbe": reset_probe, "dismissProbe": dismiss_probe,
     "sessionLearnAgain": session_learn_again,
     "startSession": start_session, "sessionAnswer": session_answer, "sessionKnown": session_known, "sessionTeach": session_teach,
-    "sessionAssessNow": session_assess_now, "sessionRetry": session_retry, "deleteSession": delete_session,
+    "sessionAssessNow": session_assess_now, "sessionChoose": session_choose, "sessionRetry": session_retry, "deleteSession": delete_session,
     "startPractice": start_practice, "practiceSubmit": practice_submit, "practiceGiveUp": practice_give_up,
     "practiceRetry": practice_retry, "practiceStop": practice_stop, "practiceNext": practice_next,
     "reflect": reflect, "decideProposal": decide_proposal, "setSetting": set_setting,
     "setupRunner": setup_runner,
-    "refreshCard": refresh_card, "decideCardProposal": decide_card_proposal, "setPlanSettings": set_plan_settings,
+    "refreshCard": refresh_card, "decideCardProposal": decide_card_proposal,
     "undoAnswer": undo_answer, "loadDemo": load_demo, "deleteGoal": delete_goal, "backupNow": backup_now,
     "setRunnerMode": set_runner_mode, "setupRunnerDocker": setup_runner_docker, "feedback": feedback, "explainDifferently": explain_differently,
     "editFeedback": edit_feedback, "deleteFeedback": delete_feedback, "applyFeedback": apply_feedback,
     "revertLesson": revert_lesson, "addRemedial": add_remedial, "dismissRemedial": dismiss_remedial,
     "editGuidelines": edit_guidelines, "distillGuidelines": distill_guidelines, "refresh": refresh, "markStudied": mark_studied, "addNote": add_note, "deleteNote": delete_note,
-    "chat": chat, "decideDiff": decide_diff, "researchModule": research_module, "createGoal": create_goal,
+    "chat": chat, "researchModule": research_module, "createGoal": create_goal,
     "setGoal": set_goal, "correctEntry": correct_entry, "adjust": adjust, "route": route, "useRecommendedRoutes": use_recommended_routes,
     "setApiKey": set_api_key, "clearApiKey": clear_api_key, "useApiForAll": use_api_for_all,
     "linkSource": link_source, "editSource": edit_source, "deleteSource": delete_source, "rereadSource": reread_source, "reset": reset,

@@ -39,8 +39,7 @@ export default function Book() {
     if (going !== undefined && s.lastPractice && s.lastPractice !== going) navigate(`/practice/${s.lastPractice}`)
   }, [s.lastPractice, going, navigate])
 
-  const mine = useMemo(() => (g ? g.nodes.filter(n => n.books.includes(id)).map(n => n.cluster === `book:${id}` ? n
-    : { ...n, cluster: `book:${id}`, also: [n.cluster, ...n.also.filter(a => a !== `book:${id}`)] }) : []), [g, id])
+  const mine = useMemo(() => (g ? g.nodes.filter(n => n.books.includes(id)) : []), [g, id])
   const mineIds = useMemo(() => new Set(mine.map(n => n.id)), [mine])
   const myLinks = useMemo(() => (g ? g.links.filter(l => mineIds.has(l.src) && mineIds.has(l.dst)) : []), [g, mineIds])
 

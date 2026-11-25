@@ -250,11 +250,7 @@ def view(db: DB) -> dict:
     goals = [{"id": g["id"], "title": g["title"]} for g in db.q("SELECT id, title FROM goals WHERE kind != 'bookstudy' ORDER BY created_at")]
     sessions = [{"id": r["id"], "title": r["title"]} for r in db.q("SELECT id, title FROM sessions ORDER BY created_at")]
     books = [{"id": r["id"], "title": r["title"]} for r in db.q("SELECT id, title FROM books ORDER BY created_at")]
-    clusters, place = _clusters(db, out)
-    for n in out:
-        n.update(place.get(n["id"], {"cluster": "loose", "also": [], "chapter": 0, "chapterTitle": "", "order": 0.0}))
     fx_nodes, fx_links = _formula_items(db, out, nodes)
-    clusters = _formula_country(out + fx_nodes, clusters)
     base = links(db)
     have = {(x["src"], x["dst"]) for x in base}  # a formula page is already linked to its lesson in the links table
     fx_links = [x for x in fx_links if (x["src"], x["dst"]) not in have]
@@ -265,48 +261,7 @@ def view(db: DB) -> dict:
         for lk in fx_links:
             if lk["src"].startswith("fx:") and lk["dst"] in g["scores"]:
                 g["scores"][lk["src"]] = max(g["scores"].get(lk["src"], 0.0), g["scores"][lk["dst"]])
-    return {"nodes": out + fx_nodes, "links": base + fx_links, "gaps": gaps.open_gaps(db), "mapGoals": mgoals, "goals": goals, "sessions": sessions, "books": books,
-            "clusters": clusters, "formulaFields": [{"id": i, "title": t} for i, t in _fields()]}
-
-
-def _fields() -> list[tuple[str, str]]:
-    from .formula_fields import FIELDS
-    return FIELDS
-
-
-FORMULAS = "formulas"
-FORMULA_COLOR = -2  # the Formulas country's own color (areaColors.ts), not one of the book colors
-
-
-def _formula_country(nodes: list[dict], clusters: list[dict]) -> list[dict]:
-    """Every formula (formula pages and formulas met in lessons) goes to one country of its own, "Formulas" (SPEC §41):
-    most lessons have formulas, so inside the books they would cover the land. Inside it, each field of mathematics
-    (``fields``, see formula_fields) is a province; the map places a formula in 2 or 3 fields where those provinces
-    meet, and one in 4 or more in the middle ("Essential"). ``chapter`` is the province (for the Cells and Wheel views),
-    ``chapterTitle`` names its fields."""
-    from .formula_fields import FIELDS, IDS
-    name = dict(FIELDS)
-    fs = [n for n in nodes if n["kind"] == "formula"]
-    if not fs:
-        return clusters
-
-    def province(n: dict) -> int:
-        f = n.get("fields") or []
-        return 0 if len(f) >= 4 else IDS.index(f[0]) + 1 if f else len(IDS) + 1
-
-    fs.sort(key=lambda n: (province(n), len(n.get("fields") or []), n["title"]))
-    for i, n in enumerate(fs):
-        f = n.get("fields") or []
-        n.update({"cluster": FORMULAS, "also": [], "chapter": province(n),
-                  "chapterTitle": "Essential: " + " · ".join(name[x] for x in f) if len(f) >= 4
-                  else " · ".join(name[x] for x in f) or "Not sorted yet",
-                  "order": round(i / max(1, len(fs) - 1), 4)})
-    count: dict[str, int] = {}
-    for n in nodes:
-        count[n["cluster"]] = count.get(n["cluster"], 0) + 1
-    out = [dict(c, size=count[c["id"]]) for c in clusters if count.get(c["id"])]
-    out.append({"id": FORMULAS, "kind": FORMULAS, "title": "Formulas", "size": count[FORMULAS], "color": FORMULA_COLOR})
-    return sorted(out, key=lambda c: -c["size"])
+    return {"nodes": out + fx_nodes, "links": base + fx_links, "gaps": gaps.open_gaps(db), "mapGoals": mgoals, "goals": goals, "sessions": sessions, "books": books}
 
 
 _RANK = {"learned": 5, "learning": 3, "ready": 2, "pending": 1, "locked": 0}
@@ -353,16 +308,13 @@ def _formula_items(db: DB, out: list[dict], nodes: dict[str, str]) -> tuple[list
             continue
         body = loads(rows[0]["body"], {})
         best = max(hosts, key=lambda h: (_RANK.get(h["state"], 0), h["mastery"]))
-        first = hosts[0]
         nid = "fx:" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
         items.append({
             "id": nid, "title": (body.get("name") or "A formula").strip(), "statement": (body.get("meaning") or "").strip(),
             "kind": "formula", "tex": rows[0]["tex"], "fields": tagged.get(key, []), "state": best["state"], "mastery": best["mastery"],
             "goals": sorted({g for h in hosts for g in h["goals"]}), "concepts": [],
             "sessions": sorted({x for h in hosts for x in h["sessions"]}), "lessons": [x for h in hosts for x in h["lessons"]],
-            "books": sorted({b for h in hosts for b in h["books"]}),
-            "cluster": first["cluster"], "also": sorted({h["cluster"] for h in hosts} - {first["cluster"]}),
-            "chapter": first["chapter"], "chapterTitle": first["chapterTitle"], "order": first["order"] + 1e-5})
+            "books": sorted({b for h in hosts for b in h["books"]})})
         for h in hosts:
             link(nid, h["id"])
     return items, edges
@@ -375,59 +327,6 @@ def area_colors(db: DB) -> dict[str, int]:
     keys += [f"goal:{r['id']}" for r in db.q("SELECT id FROM goals WHERE kind != 'bookstudy' ORDER BY created_at, id")]
     keys += [f"session:{r['id']}" for r in db.q("SELECT id FROM sessions ORDER BY created_at, id")]
     return {k: i for i, k in enumerate(keys)}
-
-
-def _clusters(db: DB, nodes: list[dict]) -> tuple[list[dict], dict[str, dict]]:
-    """Group the map into clusters for the map views (SPEC §29): each idea belongs to one cluster (the book that made
-    it, else its first book, else its first goal, else its first study session, else "loose") and lists the other
-    books and goals it also appears in. ``chapter`` and ``order`` (0..1) give its place inside the cluster."""
-    place: dict[str, dict] = {}
-    seq: dict[str, list[tuple]] = {}
-    book_rows = db.q("""SELECT bn.node_id, bn.book_id, bn.created, bn.ord, p.ord AS pord, p.chapter, p.chapter_title
-                        FROM book_nodes bn JOIN book_parts p ON p.id = bn.part_id ORDER BY bn.created DESC""")
-    in_books: dict[str, list[dict]] = {}
-    for r in book_rows:
-        in_books.setdefault(r["node_id"], []).append(r)
-    goal_rows = db.q("""SELECT cn.node_id, t.goal_id, t.ord AS tord, t.title AS ttitle, m.seq, m.ord AS mord, c.ord AS cord
-                        FROM concept_nodes cn JOIN concepts c ON c.id = cn.concept_id JOIN modules m ON m.id = c.module_id
-                        JOIN tracks t ON t.id = m.track_id JOIN goals g ON g.id = t.goal_id WHERE g.kind != 'bookstudy'""")
-    in_goals: dict[str, list[dict]] = {}
-    for r in goal_rows:
-        in_goals.setdefault(r["node_id"], []).append(r)
-    from . import plan_nodes
-    of = node_of(db)
-    steps = plan_nodes.rows(db)
-    for n in nodes:
-        nid = n["id"]
-        host = of.get(steps[nid]["conceptId"], steps[nid]["conceptId"]) if nid in steps else nid  # a step idea: its lesson
-        bs, gs = in_books.get(host, []), in_goals.get(host, [])
-        if bs:
-            b = bs[0]
-            sub = (-1, steps[nid]["ord"]) if nid in steps else (0, 0)  # the steps just before their lesson
-            key, chapter, title, rank = f"book:{b['book_id']}", b["chapter"], b["chapter_title"], (b["pord"], b["ord"], *sub)
-        elif gs:
-            g = gs[0]
-            key, chapter, title, rank = f"goal:{g['goal_id']}", g["tord"] + 1, g["ttitle"], (g["seq"], g["mord"], g["cord"])
-        elif n["sessions"]:
-            key, chapter, title, rank = f"session:{n['sessions'][0]}", 1, "", (0,)
-        else:
-            key, chapter, title, rank = "loose", 1, "", (0,)
-        also = sorted(({f"book:{x['book_id']}" for x in bs} | {f"goal:{x['goal_id']}" for x in gs}) - {key})
-        place[nid] = {"cluster": key, "also": also, "chapter": chapter, "chapterTitle": title}
-        seq.setdefault(key, []).append((chapter, rank, n["created"] if "created" in n else "", nid))
-    for key, items in seq.items():
-        items.sort(key=lambda t: (t[0], t[1], t[3]))
-        for i, t in enumerate(items):
-            place[t[3]]["order"] = round(i / max(1, len(items) - 1), 4)
-    titles = {f"book:{r['id']}": ("book", r["title"]) for r in db.q("SELECT id, title FROM books")}
-    titles.update({f"goal:{r['id']}": ("goal", r["title"]) for r in db.q("SELECT id, title FROM goals")})
-    titles.update({f"session:{r['id']}": ("session", r["title"]) for r in db.q("SELECT id, title FROM sessions")})
-    titles["loose"] = ("loose", "Other ideas")
-    colors = area_colors(db)
-    clusters = [{"id": k, "kind": titles.get(k, ("loose", k))[0], "title": titles.get(k, ("loose", k))[1], "size": len(v),
-                 "color": colors.get(k, -1)}
-                for k, v in sorted(seq.items(), key=lambda kv: -len(kv[1]))]
-    return clusters, place
 
 
 def node_detail(db: DB, nid: str) -> dict | None:

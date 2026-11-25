@@ -3,6 +3,22 @@
 The history of Deep Study Center, newest first. The full design and the decisions are in [SPEC.md](SPEC.md); the
 work still open is in [TODO.md](TODO.md).
 
+## Unreleased: teach first, the map search, cleanup
+
+- **"Teach me X" teaches first** (SPEC §54, flow B): no question before teaching a new idea. A new idea starts with a
+  small worked example, then the rule, in short parts with "Continue", then "Your turn". An idea placement found you
+  partly know starts with one problem: solve it and move on, or get a short lesson on just the part you missed.
+- **Faster**: the next placement question and the next idea are made while you work, so they show at once.
+- **Placement** shows "Question n of at most 8", a bar, and "Show my plan now".
+- **The plan is a graph**: click a box to see it; "Learn it" and "Skip, I know it" work both ways. When two ideas are
+  open, you pick which one comes first.
+- **Map search**: forgives one wrong letter ("hoffman" finds Huffman), also finds the ideas of a book or a study
+  session by its title, lists what it found (click to go there), lights the matches and dims the rest. The map no
+  longer opens empty before "Fit".
+- **Old code removed** (nothing changes on the screen): the week planner, the placement probe, the Ohtani table, the
+  `dsc roadmap` command, the roadmap review after feedback, the map's country data, and the review tables in new
+  workspaces. Old workspaces keep their old data.
+
 ## 0.6.0 (2026-11-25): one map of ideas: one lesson per idea, the hex map, gaps, goals, the formula flow, no schedule (SPEC §46-§53)
 
 - **Goals on the map** (SPEC §53): add a goal in one line, and it becomes a star at an edge of your map. The goal agent

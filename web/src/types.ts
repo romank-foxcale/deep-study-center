@@ -76,17 +76,6 @@ export type VizSpec =
       params: { name: string; min: number; max: number; value: number; effect: string; label?: string }[]
       resultExpr?: string; resultTex?: string; plotExpr?: string; plotVar?: string; xmin?: number; xmax?: number }
 
-export interface PlanItem { kind: 'lesson'; goalId: string; conceptId: string; title: string; minutes: number; note: string }
-
-export interface Plan {
-  start: string
-  settings: { weekly_hours: number; study_days: number[]; start_time: string }
-  days: { date: string; weekday: string; study: boolean; budget: number; minutes: number; actualMinutes: number; items: PlanItem[] }[]
-  goals: { id: string; title: string; hours: number; share: number; plannedMinutes: number; targetMinutes: number }[]
-  actualLast7: { date: string; minutes: number }[]
-  upcomingResearch: { goalId: string; moduleId: string; title: string; research: ResearchStatus }[]
-}
-
 export interface CardProposal {
   id: number
   ts: string
@@ -174,14 +163,9 @@ export interface GraphNode {
   fields?: string[]
   /** A step of a planned lesson, as an idea of its own (SPEC §46): ``kind`` "step", ids "pn-…". */
   step?: { conceptId: string; lesson: string; sectionId: string }
-  /** Map views (SPEC §29): the idea's cluster ("book:<id>", "goal:<id>", "session:<id>" or "loose"), the other books and
-   *  goals it is in, its chapter there and its reading order (0..1). */
-  cluster: string; also: string[]; chapter: number; chapterTitle: string; order: number
 }
 /** SPEC §50: the hex map of ideas (the default) or the tree. The country views were removed. */
 export type MapViewId = 'hex' | 'tree'
-/** ``color``: the area's fixed color number (see areaColors.ts); -1 for "Other ideas". */
-export interface MapCluster { id: string; kind: 'book' | 'goal' | 'session' | 'loose' | 'formulas'; title: string; size: number; color: number }
 /** The knowledge graph (SPEC §21, §23). */
 export interface GraphView {
   nodes: GraphNode[]; links: { src: string; dst: string; origin: string }[]
@@ -190,9 +174,6 @@ export interface GraphView {
   /** Goals on the map (SPEC §53). */
   mapGoals: MapGoal[]
   goals: { id: string; title: string }[]; sessions: { id: string; title: string }[]; books: { id: string; title: string }[]
-  clusters: MapCluster[]
-  /** The fields of mathematics: the provinces of the Formulas country (SPEC §41). */
-  formulaFields?: { id: string; title: string }[]
 }
 /** A goal on the map (SPEC §53): its edge (angle, degrees), its missing building blocks, and a score 0..1 per idea. */
 export interface MapGoal {
@@ -280,13 +261,17 @@ export type IdeaSource = { kind: 'session'; title: string; sessionId: string; st
   | { kind: string; title: string; bookId: string; url: string; part: string; pages: [number, number]; chapter: number }
 
 export interface SessionQuestion {
-  id: number; idea: string; phase: 'probe' | 'predict' | 'check'; round: number; prompt: string; options: string[]
+  id: number; idea: string; phase: 'probe' | 'predict' | 'try' | 'check'; round: number; prompt: string; options: string[]
   answered: boolean; choice?: number | null; correct?: boolean; answer?: number; explanation?: string
   thinking?: string; confidence?: number | null
   /** The tutor's reading of your thinking on this answer (SPEC §35). */
   review?: ReasoningReview | null
+  /** A first problem solved right (SPEC §54): the idea in a few lines. */
+  summary?: string[]
 }
-export interface SessionExplain { id: number; idea: string; phase: 'explain'; body: string; repair: boolean }
+/** Teaching in short parts, one per screen (SPEC §54): ``teach`` (a new idea), ``gap`` (the part a missed first problem
+ *  showed), ``repair`` (after a wrong check). */
+export interface SessionExplain { id: number; idea: string; phase: 'explain'; parts: string[]; kind: string; repair: boolean }
 export type SessionItem = SessionQuestion | SessionExplain
 
 export interface SessionIdea {
@@ -306,29 +291,10 @@ export interface SessionView {
   summary: string; sources: string[]; createdAt: string
   /** The probe's advice where teaching starts, and its question limit. */
   probeStart: string; probeMax: number
+  /** The Learn step: the ideas open now (every needed idea done), and whether you may pick one (not in the middle of one). */
+  open: string[]; canChoose: boolean
   /** The book part this session studies (SPEC §28). */
   book: { id: string; title: string; partId: number; part: string; pages: [number, number]; practiceId: string | null } | null
-}
-
-export interface ProbeAnswered {
-  id: number; round: number; module: string; prompt: string; options: string[]; choice: number | null; correct: boolean
-  answer: number; explanation: string; thinking: string; confidence: number | null
-}
-
-/** The probe (SPEC §20): where the learner stands for the active goal. */
-export interface ProbeState {
-  status: 'idle' | 'thinking' | 'asking' | 'done'
-  question: { id: number; round: number; module: string; prompt: string; options: string[] } | null
-  answered: ProbeAnswered[]
-  asked: number
-  rounds: number
-  maxQuestions: number
-  dismissed: boolean
-  error: string | null
-  assessment: {
-    summary: string; edge: string; misconceptions: string[]; applied: boolean
-    modules: { moduleId: string; title: string; level: 'known' | 'partial' | 'unknown'; note: string }[]
-  } | null
 }
 
 export interface Proposal {
@@ -624,9 +590,7 @@ export interface LessonDiff {
 
 export interface Note { id: number; ts: string; conceptId: string; quote?: string | null; text: string }
 
-export interface RoadmapChange { op: 'insert' | 'compress' | 'deepen'; title: string; detail: string }
 
-export interface RoadmapDiff { id: number; ts: string; reason: string; changes: RoadmapChange[]; status: 'pending' | 'approved' | 'rejected' }
 
 export interface ChatMessage { role: 'tutor' | 'me'; text: string }
 
@@ -690,7 +654,6 @@ export interface State {
   renditions: RenditionSummary[]
   feedback: Feedback[]
   notes: Note[]
-  diffs: RoadmapDiff[]
   chats: Record<string, ChatMessage[]>
   answers: Record<string, Answer>
   routes: ProviderRoute[]
@@ -698,9 +661,8 @@ export interface State {
   apiKey: { set: boolean; source: 'environment' | 'keychain' | null }
   jobs: Job[]
   gradings: Record<string, Grading>
-  probe: ProbeState | null
   reflections: Reflection[]
-  settings: { autoResearch: boolean; autoRefresh: boolean; lessonWriting: 'steps' | 'single'; writingStyle: 'ste' | 'plain'; weeklyHours: number; studyDays: number[]; startTime: string }
+  settings: { autoResearch: boolean; autoRefresh: boolean; lessonWriting: 'steps' | 'single'; writingStyle: 'ste' | 'plain' }
   cardProposals: CardProposal[]
   sources: SourceDoc[]
   sessions: { id: string; title: string; topic: string; status: string; createdAt: string }[]

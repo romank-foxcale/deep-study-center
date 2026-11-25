@@ -1,4 +1,4 @@
-"""Study sessions, "teach me X" (SPEC §22): sketch -> probe -> plan -> teach (predict, explain, check) -> extract."""
+"""Study sessions, "teach me X" (SPEC §22, §54): sketch -> probe -> plan -> learn (teach or try, check) -> extract."""
 
 import json
 
@@ -39,9 +39,11 @@ def probe_reply(call):
 
 
 def turn_reply(call):
-    if "Your task: **predict**" in call.prompt:
-        return {"predict": mcq("What do you expect?")}
-    return {"body": "You were close: the **projection** is the shadow.", "check": mcq("Which is the shadow?")}
+    if "Your task: **try**" in call.prompt:
+        return {"try": mcq("Quick: which is the shadow?"), "summary": ["The projection is the shadow.", "It is a vector."],
+                "gap": {"parts": ["Shine a light: the shadow of a on b.", "So the projection is a vector."], "check": mcq("Shadow again?")}}
+    return {"parts": ["Example: a = (3, 4), b = (1, 0): the shadow is (3, 0).", "The rule: the **projection** is the shadow."],
+            "check": mcq("Which is the shadow?")}
 
 
 def extract_reply(call):
@@ -62,7 +64,8 @@ def view(db):
 
 def answer_open(db, jobs, choice=0, **extra):
     v = view(db)
-    q = next(i for i in v["items"] if i["phase"] != "explain" and not i["answered"])
+    now = v["plan"][v["current"]] if v["status"] == "teaching" else None  # not an idea written ahead
+    q = next(i for i in v["items"] if i["phase"] != "explain" and not i["answered"] and (now is None or i["idea"] == now))
     act(db, jobs, type="sessionAnswer", sessionId=v["id"], itemId=q["id"], choice=choice, **extra)
     return q
 
@@ -103,23 +106,24 @@ def test_full_session_from_topic_to_graph(env):
     act(db, jobs, type="sessionKnown", sessionId=v["id"], ideaKey="proj", known=False)
     act(db, jobs, type="sessionTeach", sessionId=v["id"])
 
-    # teach "proj": predict -> explain + check (wrong) -> repair + check (right) -> next idea
-    assert answer_open(db, jobs, choice=1, thinking="I think it is the length")["phase"] == "predict"
+    # "proj" is new to them: taught first (no question before teaching), then checked; "cos" is written ahead meanwhile
     v = view(db)
-    assert [i["phase"] for i in v["items"] if i["idea"] == "proj"] == ["predict", "explain", "check"]
-    turn_prompt = [c.prompt for r, c in runner.calls if r == "Study tutor"][-1]
-    assert "I think it is the length" in turn_prompt and "Your task: **explain**" in turn_prompt
-    assert "misconceptions: thinks the projection is a number" in turn_prompt and "Start with the projection" in turn_prompt
-    answer_open(db, jobs, choice=2)  # wrong check
-    assert "Your task: **repair**" in [c.prompt for r, c in runner.calls if r == "Study tutor"][-1]
+    assert [i["phase"] for i in v["items"] if i["idea"] == "proj"] == ["explain", "check"]
+    assert next(i for i in v["items"] if i["idea"] == "proj")["parts"][0].startswith("Example:")
+    teach_prompt = next(c.prompt for r, c in runner.calls if r == "Study tutor" and "Your task: **teach**" in c.prompt)
+    assert "misconceptions: thinks the projection is a number" in teach_prompt and "Start with the projection" in teach_prompt
+    assert [i["phase"] for i in v["items"] if i["idea"] == "cos"] == ["explain", "check"]  # ahead of time
+    assert v["busy"] is False and v["open"] == ["proj"]
+    answer_open(db, jobs, choice=2, thinking="I think it is the length")  # wrong check -> repair
+    repair_prompt = [c.prompt for r, c in runner.calls if r == "Study tutor"][-1]
+    assert "Your task: **repair**" in repair_prompt and "I think it is the length" in repair_prompt
     answer_open(db, jobs, choice=0)  # right
     v = view(db)
-    assert v["current"] == 1 and [i["phase"] for i in v["items"] if i["idea"] == "cos"] == ["predict"]
+    assert v["current"] == 1 and [i["phase"] for i in v["items"] if i["idea"] == "proj"] == ["explain", "check", "explain", "check"]
     proj_scores = [r["score"] for r in db.q("SELECT score FROM evidence WHERE concept_id=? ORDER BY id", (proj["node"],))]
-    assert proj_scores == [0.0, 1.0]  # the two checks; the prediction is not evidence
+    assert proj_scores == [0.0, 1.0]  # the two checks
 
-    # teach "cos", then extract
-    answer_open(db, jobs, choice=0)
+    # "cos" was written ahead: its check is there at once; then extract
     answer_open(db, jobs, choice=0, confidence=0.1)  # right but a guess: half evidence
     v = view(db)
     assert v["status"] == "done" and v["summary"].startswith("You now understand")
@@ -237,3 +241,89 @@ def test_an_empty_finished_session_opens_again(env):
     act(db, jobs, type="sessionLearnAgain", sessionId=sid)
     v = session.view(db, sid)
     assert v["status"] == "planning" and v["plan"] == ["i0"] and not v["summary"]
+
+
+def _teaching(db, jobs, runner, levels):
+    """A session at the Learn step with the given placement levels (key -> level)."""
+    setup(runner)
+    act(db, jobs, type="startSession", topic="cosine similarity")
+    v = view(db)
+    sid = v["id"]
+    st = session.get(db, sid)
+    for i in st["ideas"]:
+        i["level"] = levels.get(i["key"], i["level"])
+    session._save(db, sid, ideas=st["ideas"], plan=session._plan(st["ideas"]), status="planning")
+    db.x("DELETE FROM session_items WHERE session_id=?", (sid,))
+    act(db, jobs, type="sessionTeach", sessionId=sid)
+    return sid
+
+
+def test_a_partly_known_idea_starts_with_one_problem(env):
+    """Flow B (SPEC §54): right -> a short summary and the idea is done; a miss -> only the missed part, then a check."""
+    db, jobs, runner = env
+    sid = _teaching(db, jobs, runner, {"vec": "known", "proj": "partial", "len": "partial", "cos": None})
+    v = view(db)
+    assert v["plan"][:2] == ["proj", "len"] or v["plan"][:2] == ["len", "proj"]
+    first = v["plan"][0]
+    assert [i["phase"] for i in v["items"] if i["idea"] == first] == ["try"]
+    assert "gap" not in next(i for i in v["items"] if i["idea"] == first)  # the teaching for a miss stays hidden
+    q = answer_open(db, jobs, choice=0)  # right
+    v = view(db)
+    done = next(i for i in v["items"] if i["id"] == q["id"])
+    assert done["correct"] and done["summary"][0] == "The projection is the shadow." and v["current"] == 1
+    second = v["plan"][1]
+    assert [i["phase"] for i in v["items"] if i["idea"] == second] == ["try"]  # written ahead
+    calls = len(runner.calls)
+    answer_open(db, jobs, choice=1)  # a miss: the gap teaching shows at once, with no model call
+    v = view(db)
+    assert [i["phase"] for i in v["items"] if i["idea"] == second] == ["try", "explain", "check"]
+    gap = next(i for i in v["items"] if i["idea"] == second and i["phase"] == "explain")
+    assert gap["kind"] == "gap" and gap["parts"][0].startswith("Shine a light")
+    assert not [c for r, c in runner.calls[calls:] if r == "Study tutor" and "Your task: **" in c.prompt and second in c.prompt]
+    answer_open(db, jobs, choice=0)
+    assert view(db)["current"] == 2
+    tries = db.q("SELECT score FROM evidence WHERE item_id LIKE ? ORDER BY id", (f"{sid}-%",))
+    assert [t["score"] for t in tries] == [1.0, 0.0, 1.0]  # a try counts as evidence, like a check
+
+
+def test_the_learner_picks_the_next_open_idea(env):
+    db, jobs, runner = env
+    sid = _teaching(db, jobs, runner, {"vec": "known", "proj": None, "len": None, "cos": None})
+    v = view(db)
+    assert set(v["open"]) == {"proj", "len"} and v["canChoose"]  # both need only "vec", which is known
+    other = next(k for k in v["open"] if k != v["plan"][0])
+    with pytest.raises(actions.ActionError):
+        actions.dispatch(db, jobs, {"type": "sessionChoose", "sessionId": sid, "ideaKey": "cos"})  # needs proj and len
+    act(db, jobs, type="sessionChoose", sessionId=sid, ideaKey=other)
+    v = view(db)
+    assert v["plan"][0] == other and v["current"] == 0
+    assert [i["phase"] for i in v["items"] if i["idea"] == other] == ["explain", "check"]
+    answer_open(db, jobs, choice=1)  # started (a wrong check): no switching in the middle of an idea
+    with pytest.raises(actions.ActionError):
+        actions.dispatch(db, jobs, {"type": "sessionChoose", "sessionId": sid, "ideaKey": v["plan"][1]})
+
+
+def test_the_next_probe_question_is_made_ahead(env):
+    """While the learner answers, the next question is made for a right answer and for a miss (SPEC §54)."""
+    db, jobs, runner = env
+    setup(runner)
+    n = {"q": 0}
+
+    def reply(call):
+        if "Must you end now? yes" in call.prompt:
+            return {"done": True, "result": RESULT}
+        n["q"] += 1
+        return {"done": False, "question": {"idea_key": "proj", **mcq(f"Q{n['q']}?")}}
+    runner.responses["Study tutor"] = reply
+    act(db, jobs, type="startSession", topic="cosine similarity")
+    sid = view(db)["id"]
+    ahead = db.q("SELECT item FROM session_items WHERE session_id=? AND phase='probe_ahead'", (sid,))
+    assert len(ahead) == 2  # one for each outcome
+    before = n["q"]
+    answer_open(db, jobs, choice=0)  # right: the "right" question becomes the open one
+    v = view(db)
+    opened = next(i for i in v["items"] if i["phase"] == "probe" and not i["answered"])
+    right_q = [session.loads(a["item"]) for a in ahead if session.loads(a["item"])["branch"]][0]["prompt"]
+    assert opened["prompt"] == right_q and opened["round"] == 2 and v["busy"] is False
+    assert n["q"] == before + 2  # no wait: only the next two questions are made ahead
+    assert all(i["phase"] != "probe_ahead" for i in v["items"])

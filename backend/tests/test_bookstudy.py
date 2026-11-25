@@ -364,6 +364,5 @@ def test_a_book_card_and_its_map_area_have_one_color(book):
     db, jobs, runner = book
     s = act(db, jobs, type="studyBook", sourceId="src-1")
     b = s["studyBooks"][0]
-    clusters = {c["id"]: c for c in graph.view(db)["clusters"]}
-    assert clusters[f"book:{b['id']}"]["color"] == b["color"] == 0 and b["kind"] == "book"
+    assert graph.area_colors(db)[f"book:{b['id']}"] == b["color"] == 0 and b["kind"] == "book"
     assert next(x for x in s["sources"] if x["id"] == "src-1")["mapped"]

@@ -242,11 +242,7 @@ def test_formulas_are_on_the_knowledge_map(fx):
     items = [n for n in v["nodes"] if n["kind"] == "formula"]
     assert [n["title"] for n in items] == ["Linear combination"]  # the step "a + b = 3" is left out
     f = items[0]
-    home = next(n for n in v["nodes"] if n["id"] == host)["cluster"]
-    assert f["id"].startswith("fx:") and f["tex"] == FORM_A and f["cluster"] == "formulas" and home != "formulas"
-    country = next(c for c in v["clusters"] if c["id"] == "formulas")  # all formulas are one country of their own
-    assert country["title"] == "Formulas" and country["size"] == 1 and country["color"] == -2
-    assert f["fields"] == [] and f["chapterTitle"] == "Not sorted yet"  # no fields yet
+    assert f["id"].startswith("fx:") and f["tex"] == FORM_A and f["fields"] == []  # one cell per formula; no fields yet
     assert {"src": f["id"], "dst": host, "origin": "formula"} in v["links"]
     note(db, OTHER, FORM_A)  # the same formula in a second lesson: still one item, linked to both
     v = graph.view(db)
@@ -257,7 +253,7 @@ def test_formulas_are_on_the_knowledge_map(fx):
     v = graph.view(db)
     assert not [n for n in v["nodes"] if n["id"].startswith("fx:")]  # the page stands for the formula now
     page = next(n for n in v["nodes"] if n["id"] == graph.node_of(db)[fid])
-    assert page["kind"] == "formula" and page["tex"] == FORM_A and page["cluster"] == "formulas"
+    assert page["kind"] == "formula" and page["tex"] == FORM_A
     assert any(l["src"] == page["id"] and l["dst"] == host for l in v["links"])
 
 
@@ -284,8 +280,6 @@ def test_formulas_are_sorted_into_fields_for_the_map(fx):
     v = graph.view(db)
     by = {n["tex"]: n for n in v["nodes"] if n["kind"] == "formula"}
     lin = by[FORM_A]
-    assert lin["fields"] == ["linalg", "ml"] and lin["chapterTitle"] == "Linear algebra · Machine learning"
+    assert lin["fields"] == ["linalg", "ml"]
     many = next(n for n in by.values() if n is not lin)
     assert many["fields"] == ["algebra", "probability", "information", "algorithms"]  # an unknown field is dropped
-    assert many["chapterTitle"].startswith("Essential: ") and many["chapter"] == 0
-    assert [f["id"] for f in v["formulaFields"]][:2] == ["algebra", "probability"]

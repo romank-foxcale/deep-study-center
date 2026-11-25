@@ -14,7 +14,7 @@ from . import engine
 from .db import DB, dumps, now
 
 TABLES = ("goals", "tracks", "modules", "concepts", "cards", "prose", "renditions", "signals", "evidence",
-          "feedback", "notes", "diffs", "chats", "reviews", "routes", "jobs", "meta", "lesson_versions", "lesson_heads",
+          "feedback", "notes", "diffs", "chats", "routes", "jobs", "meta", "lesson_versions", "lesson_heads",
           "lesson_reverts", "guidelines", "lesson_plans", "book_cuts")
 
 # Routes added after the demo data was exported; ensure_routes() adds them to older workspaces too.
@@ -172,7 +172,7 @@ def init_empty(db: DB) -> None:
         db.conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES('first_run', '1')")
 
 
-PER_CONCEPT_TABLES = ("cards", "prose", "renditions", "evidence", "feedback", "notes", "chats", "reviews", "gradings",
+PER_CONCEPT_TABLES = ("cards", "prose", "renditions", "evidence", "feedback", "notes", "chats", "gradings",
                       "card_proposals", "runner_approvals", "activity", "lesson_versions", "lesson_heads", "lesson_reverts",
                       "lesson_plans", "lesson_graphs", "lesson_graph_notes", "step_predictions", "concept_nodes")
 
