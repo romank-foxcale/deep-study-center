@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from fastapi.responses import Response
 
-from . import actions, backup, bookstudy, cells, dictation, formula_fields, lesson_graph, links, today, graph, lesson, library, practice, progress, providers, runner, session, sources, state, versions
+from . import actions, backup, bookstudy, cells, devtool, dictation, formula_fields, lesson_graph, links, today, graph, lesson, library, practice, progress, providers, runner, session, sources, state, versions
 from .db import DB, workspace
 from .jobs import Jobs
 from .seed import ensure_routes, init_empty
@@ -236,7 +236,21 @@ def create_app(db: DB | None = None, jobs: Jobs | None = None, static_dir: Path 
     def get_providers() -> list[dict]:
         return providers.status()
 
+    @app.get("/api/dev")
+    def get_dev() -> dict:
+        """Developer tool (source checkout only): is it on, and the change requests with their progress."""
+        return devtool.view()
+
+    @app.post("/api/dev/change")
+    def post_dev_change(body: dict = Body(...)) -> dict:
+        """Developer tool: a comment on a selected element or area → a coding agent changes the source code."""
+        try:
+            return devtool.submit(body)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
     if static_dir and static_dir.exists():  # serve the built frontend (dsc serve)
+        devtool.SERVES_BUILT["on"] = True
         app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
 
         @app.get("/{path:path}")

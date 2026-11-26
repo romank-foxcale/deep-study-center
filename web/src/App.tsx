@@ -14,6 +14,8 @@ import KnowledgeMap from './pages/KnowledgeMap'
 import Formulas from './pages/Formulas'
 import Practice from './pages/Practice'
 import Search from './pages/Search'
+import DevTool from './components/DevTool'
+import { startDevPick, useDevEnabled } from './components/devtoolApi'
 
 /** Small line icons for the sidebar (24 x 24, drawn with the current text color). */
 const ICON: Record<string, string> = {
@@ -23,6 +25,7 @@ const ICON: Record<string, string> = {
   practice: 'M4 12a8 8 0 1 0 3-6.2M4 4v4h4M12 8v4l3 2',
   map: 'M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9zM12 12l7.8-4.5M12 12v9M12 12L4.2 7.5',
   me: 'M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM4 21c1.5-4 4.5-6 8-6s6.5 2 8 6',
+  dev: 'M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16',
   settings: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1',
 }
 const Icon = ({ name }: { name: string }) => (
@@ -71,6 +74,7 @@ export default function App() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   useEffect(() => { window.scrollTo(0, 0) }, [pathname])
+  const dev = useDevEnabled()
   const running = s.jobs.filter(j => j.status === 'queued' || j.status === 'running').length
   return (
     <div className="shell">
@@ -90,6 +94,14 @@ export default function App() {
             </NavLink>
           ))}
         </div>
+        {dev && (
+          <div className="nav-dev">
+            <div className="nav-group-label">Developer</div>
+            <button className="nav-link nav-dev-btn" onClick={startDevPick} title="Select an element or an area, then comment on it (Alt+D)">
+              <Icon name="dev" /><span>Comment on UI</span><kbd>Alt+D</kbd>
+            </button>
+          </div>
+        )}
         <div className="sidebar-foot">
           {running > 0 && <span className="muted small">{running} agent job{running > 1 ? 's' : ''} running…</span>}
           <NavLink to="/library" className="nav-link nav-sub"><span>Sources</span>
@@ -120,6 +132,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />  {/* old goal pages (removed, SPEC §53) and unknown addresses */}
         </Routes>
       </main>
+      <DevTool />
     </div>
   )
 }

@@ -98,11 +98,11 @@ function BookCard({ b, src }: { b: StudyBookSummary; src?: SourceDoc }) {
           <div className="eyebrow">{[kindLabel(b.kind), b.author].filter(Boolean).join(' · ')}</div>
           <h3>{b.title}</h3>
         </div>
-        <div className="shelf-side">
-          <span className="ring" style={{ ['--known' as string]: known, ['--strong' as string]: 0 }} aria-label={`${known}% known`}>
-            <span>{known}%</span></span>
-          {src && <DeleteSource src={src} icon />}
-        </div>
+        {src && <div className="shelf-side"><DeleteSource src={src} icon /></div>}
+      </div>
+      <div className="shelf-progress" aria-label={`${known}% known`}>
+        <div className="bar"><span style={{ width: `${known}%` }} /></div>
+        <span className="small muted">{known}%</span>
       </div>
       {b.status === 'ready'
         ? <div className="row small muted"><span>{b.partsDone}/{b.parts} parts</span><span>{b.known}/{b.ideas} ideas learned</span></div>

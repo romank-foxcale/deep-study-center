@@ -838,6 +838,9 @@ a.shelf-card:hover { text-decoration: none; border-color: var(--border-2); }
 .shelf-head { flex-wrap: nowrap; align-items: flex-start; justify-content: space-between; }
 .shelf-title { min-width: 0; }
 .shelf-new .btn { align-self: flex-start; }
+.shelf-progress { display: flex; align-items: center; gap: 8px; }
+.shelf-progress .bar { flex: 1; max-width: none; }
+.shelf-progress > span { font-family: var(--mono); }
 .ring { --known: 0; --strong: 0; width: 46px; height: 46px; border-radius: 50%; flex: none; display: grid; place-items: center;
   background: conic-gradient(var(--st-mastered) 0 calc(var(--strong) * 1%), var(--st-learned) 0 calc(var(--known) * 1%), var(--surface-2) 0); }
 .ring > span { width: 34px; height: 34px; border-radius: 50%; background: var(--surface); display: grid; place-items: center; font: 500 11px var(--mono); }
@@ -1347,3 +1350,28 @@ a.shelf-card:hover { text-decoration: none; border-color: var(--border-2); }
 .study-open-idea:hover { border-color: var(--accent); }
 .study-open-idea.on { border-color: var(--accent); cursor: default; }
 .study-open-idea .md-inline { display: inline; }
+
+/* Developer tool (source checkout only): select a part of the app and comment on it. */
+.nav-dev { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border); }
+.nav-group-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); padding: 0 10px 4px; font-weight: 600; }
+.nav-dev-btn { width: 100%; background: none; border: none; font: inherit; font-size: 0.88rem; cursor: pointer; gap: 6px; justify-content: flex-start; text-align: left; }
+.nav-dev-btn kbd { margin-left: auto; font-size: 0.68rem; color: var(--faint); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+.dev-catcher { position: fixed; inset: 0; z-index: 9990; cursor: crosshair; }
+.dev-hint { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 4px 12px; border-radius: 99px; font-size: 0.8rem; pointer-events: none; }
+.dev-hint kbd { font: inherit; font-weight: 700; }
+.dev-box { position: fixed; z-index: 9991; pointer-events: none; border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 3px; }
+.dev-box-area { border-style: dashed; }
+.dev-box-chosen { border-color: var(--warn, #e8a33d); background: color-mix(in srgb, var(--warn, #e8a33d) 10%, transparent); }
+.dev-pop { position: fixed; z-index: 9995; width: 360px; max-width: calc(100vw - 16px); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.dev-pop-actions { display: flex; align-items: center; gap: 6px; }
+.dev-pop-actions .muted { margin-right: auto; }
+.dev-panel { position: fixed; z-index: 9980; right: 16px; bottom: 16px; width: 380px; max-width: calc(100vw - 32px); max-height: 60vh; overflow: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.dev-panel-head { font-weight: 600; text-align: left; color: var(--text); }
+.dev-task { border-top: 1px solid var(--border); padding-top: 6px; display: flex; flex-direction: column; gap: 3px; }
+.dev-task-top { display: flex; align-items: center; gap: 6px; }
+.dev-task-comment { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.86rem; }
+.dev-task-failed .pill { color: var(--bad, #e5484d); }
+.dev-task-done .pill { color: var(--ok); }
+.dev-task-error { white-space: pre-wrap; margin: 0; color: var(--bad, #e5484d); max-height: 140px; overflow: auto; }
+.dev-task-summary { white-space: pre-wrap; margin: 4px 0; }
+.dev-task code { font-size: 0.76rem; }
