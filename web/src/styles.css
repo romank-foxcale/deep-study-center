@@ -838,6 +838,9 @@ a.shelf-card:hover { text-decoration: none; border-color: var(--border-2); }
 .shelf-head { flex-wrap: nowrap; align-items: flex-start; justify-content: space-between; }
 .shelf-title { min-width: 0; }
 .shelf-new .btn { align-self: flex-start; }
+.shelf-progress { display: flex; align-items: center; gap: 8px; }
+.shelf-progress .bar { flex: 1; max-width: none; }
+.shelf-progress > span { font-family: var(--mono); }
 .ring { --known: 0; --strong: 0; width: 46px; height: 46px; border-radius: 50%; flex: none; display: grid; place-items: center;
   background: conic-gradient(var(--st-mastered) 0 calc(var(--strong) * 1%), var(--st-learned) 0 calc(var(--known) * 1%), var(--surface-2) 0); }
 .ring > span { width: 34px; height: 34px; border-radius: 50%; background: var(--surface); display: grid; place-items: center; font: 500 11px var(--mono); }
