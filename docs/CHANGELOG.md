@@ -3,8 +3,13 @@
 The history of Deep Study Center, newest first. The full design and the decisions are in [SPEC.md](SPEC.md); the
 work still open is in [TODO.md](TODO.md).
 
-## 0.7.0 (2026-11-27): teach first, the map search, a developer tool, cleanup
+## 0.7.0 (2026-11-27): macOS and Linux apps, teach first, the map search, a developer tool, cleanup
 
+- **macOS and Linux apps**: a `.dmg` for Apple Silicon and for Intel Macs, and an `.AppImage` and a `.deb` for Linux,
+  next to the Windows installer. GitHub Actions builds all of them from a version tag and makes one `latest.json`, so
+  the apps on every system update themselves. On macOS and Linux the app restarts itself after an update, and the
+  bundled backend adds the login shell's PATH, so it finds `claude`, `codex` and `cursor-agent` when opened from
+  Finder. The Mac app is signed ad hoc and not notarized.
 - **Book progress as a bar**: a book card on the shelf shows its progress as a bar with the percent, not a ring.
 - **Developer tool** (source checkout only, not in the installed app): "Comment on UI" (Alt+D) in the sidebar. Select
   an element or an area and write a comment; `claude -p` changes the source code, and a panel shows the progress.
