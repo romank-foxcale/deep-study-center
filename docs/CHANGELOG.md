@@ -3,8 +3,12 @@
 The history of Deep Study Center, newest first. The full design and the decisions are in [SPEC.md](SPEC.md); the
 work still open is in [TODO.md](TODO.md).
 
-## Unreleased: teach first, the map search, cleanup
+## 0.7.0 (2026-11-27): teach first, the map search, a developer tool, cleanup
 
+- **Book progress as a bar**: a book card on the shelf shows its progress as a bar with the percent, not a ring.
+- **Developer tool** (source checkout only, not in the installed app): "Comment on UI" (Alt+D) in the sidebar. Select
+  an element or an area and write a comment; `claude -p` changes the source code, and a panel shows the progress.
+  `DSC_DEVTOOL=0` turns it off.
 - **"Teach me X" teaches first** (SPEC §54, flow B): no question before teaching a new idea. A new idea starts with a
   small worked example, then the rule, in short parts with "Continue", then "Your turn". An idea placement found you
   partly know starts with one problem: solve it and move on, or get a short lesson on just the part you missed.
