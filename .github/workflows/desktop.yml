@@ -56,6 +56,12 @@ jobs:
           npm --prefix desktop run build:ui
           npm --prefix desktop run build:backend
 
+      - name: Linux - let linuxdeploy find the bundled backend's own libraries (they find each other by RPATH)
+        if: runner.os == 'Linux'
+        run: |
+          dirs=$(find "$PWD/desktop/backend/dist/dsc-backend" -name '*.so*' -printf '%h\n' | sort -u | paste -sd:)
+          echo "LD_LIBRARY_PATH=$dirs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+
       - name: macOS - stop XProtect (else hdiutil can fail with "Resource busy" when it makes the .dmg)
         if: runner.os == 'macOS'
         run: |
