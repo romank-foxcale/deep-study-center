@@ -21,10 +21,15 @@ jobs:
       matrix:
         include:
           - { os: windows-latest, name: windows }
-          - { os: macos-14, name: macos-apple-silicon }
+          - { os: macos-15, name: macos-apple-silicon }
           - { os: macos-15-intel, name: macos-intel }
           - { os: ubuntu-22.04, name: linux }
     runs-on: ${{ matrix.os }}
+    env:
+      # Linux AppImage: linuxdeploy runs without FUSE, and does not strip the bundled Python libraries (strip fails
+      # on some of them).
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+      NO_STRIP: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -51,10 +56,18 @@ jobs:
           npm --prefix desktop run build:ui
           npm --prefix desktop run build:backend
 
+      - name: macOS - stop XProtect (else hdiutil can fail with "Resource busy" when it makes the .dmg)
+        if: runner.os == 'macOS'
+        run: |
+          sudo pkill -9 XProtect >/dev/null 2>&1 || true
+          for i in 1 2 3 4 5 6 7 8 9 10; do pgrep XProtect >/dev/null || break; sleep 3; done
+
       - name: Test build (unsigned)
         if: github.event_name != 'push'
         working-directory: desktop
-        run: npx tauri build --config src-tauri/tauri.unsigned.conf.json
+        shell: bash
+        # A second try (cargo is cached, so it is fast) for a random hdiutil failure; verbose then, to see the cause.
+        run: npx tauri build --config src-tauri/tauri.unsigned.conf.json || npx tauri build --verbose --config src-tauri/tauri.unsigned.conf.json
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'push'
         with:
