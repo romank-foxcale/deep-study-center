@@ -1,7 +1,7 @@
 {
   "name": "deep-study-center-desktop",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "license": "MIT",
   "description": "Deep Study Center as a desktop app (Tauri shell around the bundled Python backend). See docs/SPEC.md §25.",
   "scripts": {
