@@ -122,7 +122,9 @@ fn check_for_update(app: &tauri::AppHandle) -> Result<(), String> {
     let bytes = tauri::async_runtime::block_on(update.download(|_, _| {}, || {})).map_err(|e| format!("download: {e}"))?;
     log_update(app, &format!("downloaded {} bytes, signature checked; installing", bytes.len()));
     stop_backend(app);
-    update.install(bytes).map_err(|e| format!("install: {e}"))  // on Windows this exits the app
+    update.install(bytes).map_err(|e| format!("install: {e}"))?; // on Windows the installer exits the app here
+    // macOS and Linux: the app's files are replaced in place; start the new version.
+    app.restart()
 }
 
 fn main() {
