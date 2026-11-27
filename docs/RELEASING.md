@@ -1,6 +1,6 @@
 # Releasing the desktop app
 
-How to publish a new version of Deep Study Center for Windows. The installed apps (0.4.1 and later) find it by
+How to publish a new version of Deep Study Center for Windows, macOS and Linux. The installed apps (0.4.1 and later) find it by
 themselves (SPEC §39).
 
 ## Before you start
@@ -11,35 +11,33 @@ themselves (SPEC §39).
 
 ## Steps
 
+GitHub Actions builds the app on each system (`.github/workflows/desktop.yml`). One time only: put the key into the
+repository secret `TAURI_SIGNING_PRIVATE_KEY` (`gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/dsc-updater.key`).
+The key has no password; if it gets one, also set `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+
 1. Set the new version in `desktop/package.json`, `desktop/src-tauri/tauri.conf.json`, `desktop/src-tauri/Cargo.toml`
-   (and `Cargo.lock`) and `backend/pyproject.toml`. Add the version to `docs/CHANGELOG.md`.
+   (and `Cargo.lock`) and `backend/pyproject.toml`. Add the version to `docs/CHANGELOG.md` and write
+   `docs/release-notes-<version>.md`.
 2. Merge the release pull request into `main`.
-3. Build the signed installer (PowerShell):
+3. Tag `main` and push the tag. This starts the build:
 
-   ```powershell
-   $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content -Raw "$HOME\.tauri\dsc-updater.key"
-   $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
-   cd desktop
-   npm run build
+   ```bash
+   git checkout main && git pull
+   git tag v<version> && git push origin v<version>
    ```
 
-   The build writes the installer and its signature (`.exe.sig`) to `src-tauri/target/release/bundle/nsis/`.
-4. Make the release files:
-
-   ```powershell
-   python release.py
-   ```
-
-   This writes `desktop/release/<version>/` with the installer (spaces in its name become dots, as on GitHub) and
-   `latest.json`.
-5. Publish the release and mark it as the latest. The app reads `latest.json` from the latest release only.
-
-   ```powershell
-   gh release create v<version> (Get-ChildItem release/<version>/*).FullName --target main --title "Deep Study Center <version>" --notes-file ../docs/release-notes-<version>.md --latest
-   ```
-
+4. Wait for the "Desktop" workflow (about 20 minutes). It makes a **draft** release with the Windows installer, the
+   two macOS `.dmg` files, the Linux `.AppImage` and `.deb`, the update files with their signatures, and one
+   `latest.json` for all systems. The release text comes from `docs/release-notes-<version>.md`.
+5. Open the draft on the Releases page and check it: every system has its files, and `latest.json` lists
+   `windows-x86_64`, `darwin-aarch64`, `darwin-x86_64` and `linux-x86_64`. Then publish it and mark it as the latest
+   (`gh release edit v<version> --draft=false --latest`). The apps read `latest.json` from the latest release only.
 6. Check: open `https://github.com/romank-foxcale/deep-study-center/releases/latest/download/latest.json`. It must show
    the new version. An installed older app then offers the update at its next start.
+
+A Windows release can also be built by hand on Windows: `npm run build` in `desktop/` with
+`TAURI_SIGNING_PRIVATE_KEY` set, then `python release.py`, then `gh release create` with the files in
+`desktop/release/<version>/`. That `latest.json` has Windows only, so the macOS and Linux apps do not update from it.
 
 ## A local update test
 

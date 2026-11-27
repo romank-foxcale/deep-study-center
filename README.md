@@ -47,20 +47,27 @@ You need Python 3.11+, Node 20+, and at least one model provider (see below).
 The first run creates the Python environment, builds the web UI, starts the app on http://127.0.0.1:8000 and opens
 your browser. Start with your own goal or explore the demo.
 
-### Desktop app (Windows)
+### Desktop app (Windows, macOS, Linux)
 
-A [Tauri](https://tauri.app) window around the same app; it needs no Python, Node or terminal. Download the installer
-from the [Releases](https://github.com/romank-foxcale/deep-study-center/releases) page, or build it yourself (needs
-Rust, Node 20+ and the backend environment with the dev extras):
+A [Tauri](https://tauri.app) window around the same app; it needs no Python, Node or terminal. Download it from the
+[Releases](https://github.com/romank-foxcale/deep-study-center/releases) page:
+
+- **Windows:** `Deep.Study.Center_<version>_x64-setup.exe` (per-user, no admin rights). It is not code-signed, so
+  Windows SmartScreen warns on the first run: click "More info", then "Run anyway".
+- **macOS 11+:** `..._aarch64.dmg` (Apple Silicon) or `..._x64.dmg` (Intel). It is not notarized, so macOS stops the
+  first start: open System Settings → Privacy & Security and click "Open Anyway".
+- **Linux:** `..._amd64.AppImage` or the `.deb` package.
+
+To build it yourself on your system (needs Rust, Node 20+ and the backend environment with the dev extras; on Linux
+also the [Tauri system packages](https://tauri.app/start/prerequisites/)):
 
 ```bash
 cd desktop
 npm install
-npm run build     # the UI, the bundled backend and the installer
+npm run build:local   # the UI, the bundled backend and the app (without the update signature)
 ```
 
-The installer is `desktop/src-tauri/target/release/bundle/nsis/Deep Study Center_<version>_x64-setup.exe` (per-user,
-no admin rights). It is not code-signed, so Windows SmartScreen warns on the first run. See SPEC §25.
+The result is in `desktop/src-tauri/target/release/bundle/` (`nsis/`, `dmg/`, `appimage/` or `deb/`). See SPEC §25.
 
 From 0.4.1, the installed app finds new versions itself: after the start it asks the Releases page for a newer
 version and offers "Install and restart". Each update is signed, and the app installs only an update with a correct

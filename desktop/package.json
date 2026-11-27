@@ -6,7 +6,7 @@
   "description": "Deep Study Center as a desktop app (Tauri shell around the bundled Python backend). See docs/SPEC.md §25.",
   "scripts": {
     "build:ui": "npm --prefix ../web run build",
-    "build:backend": "cd .. && backend\\.venv\\Scripts\\pyinstaller desktop/backend/dsc-backend.spec --noconfirm --distpath desktop/backend/dist --workpath desktop/backend/build --log-level WARN",
+    "build:backend": "node build-backend.mjs",
     "icons": "tauri icon app-icon.png",
     "build": "npm run build:ui && npm run build:backend && tauri build",
     "build:local": "npm run build:ui && npm run build:backend && tauri build --config src-tauri/tauri.unsigned.conf.json",
